@@ -9,7 +9,7 @@ export const USAGE = [
   "report <description of the bug>",
   "status <LB-nnn> | audit <LB-nnn>",
   "verify <LB-nnn>",
-  "approve <LB-nnn> <commit sha, at least 7 hex characters>",
+  "approve <LB-nnn> <full 40-character commit sha>",
   "reject <LB-nnn> <reason>",
   "merge <LB-nnn>",
   "retask <LB-nnn> <note>",
@@ -68,8 +68,8 @@ export function parseCommand(body: string, gateMention: string): ParseResult {
       candidate = { kind: verb, caseId: caseId(tokens[0]) };
       break;
     case "approve":
-      if (tokens.length !== 2) return fail("approve takes a case id and a commit sha");
-      candidate = { kind: "approve", caseId: caseId(tokens[0]), shortSha: tokens[1]!.toLowerCase() };
+      if (tokens.length !== 2) return fail("approve takes a case id and the full commit sha");
+      candidate = { kind: "approve", caseId: caseId(tokens[0]), sha: tokens[1]!.toLowerCase() };
       break;
     case "reject": {
       const [id, ...reason] = tokens;

@@ -30,7 +30,7 @@ export interface CommandContext {
 /** Privileged command implementations (verification, approvals, merge gate). */
 export interface PrivilegedHandlers {
   verify(ctx: CommandContext, caseId: string): Promise<Reply>;
-  approve(ctx: CommandContext, caseId: string, shortSha: string): Promise<Reply>;
+  approve(ctx: CommandContext, caseId: string, sha: string): Promise<Reply>;
   reject(ctx: CommandContext, caseId: string, reason: string): Promise<Reply>;
   merge(ctx: CommandContext, caseId: string): Promise<Reply>;
   retask(ctx: CommandContext, caseId: string, note: string): Promise<Reply>;
@@ -121,7 +121,7 @@ export class Router {
       case "verify":
         return this.d.privileged.verify(ctx, command.caseId);
       case "approve":
-        return this.d.privileged.approve(ctx, command.caseId, command.shortSha);
+        return this.d.privileged.approve(ctx, command.caseId, command.sha);
       case "reject":
         return this.d.privileged.reject(ctx, command.caseId, command.reason);
       case "merge":

@@ -7,7 +7,6 @@ import {
   FullSha,
   InboundMessage,
   REASON_CODES,
-  ShortSha,
   TRANSIENT_REASON_CODES,
   VerifierReport,
   displaySha,
@@ -23,10 +22,9 @@ describe("primitives", () => {
     expect(FullSha.safeParse(SHA.slice(0, 39)).success).toBe(false);
     expect(FullSha.safeParse(SHA + "0").success).toBe(false);
   });
-  it("short SHAs are 7–40 lower-case hex", () => {
-    expect(ShortSha.safeParse("3f9c2ab").success).toBe(true);
-    expect(ShortSha.safeParse("3f9c2a").success).toBe(false);
-    expect(ShortSha.safeParse("3F9C2AB").success).toBe(false);
+  it("approve requires the full SHA (D25, revised)", () => {
+    expect(Command.safeParse({ kind: "approve", caseId: "LB-001", sha: SHA }).success).toBe(true);
+    expect(Command.safeParse({ kind: "approve", caseId: "LB-001", sha: SHA.slice(0, 12) }).success).toBe(false);
   });
   it("case ids", () => {
     expect(CaseId.safeParse("LB-001").success).toBe(true);

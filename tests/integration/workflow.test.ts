@@ -10,7 +10,7 @@ describe("bug to approval through real modules", () => {
     const h = createHarness();
     await h.driveToAwaitingApproval();
     expect(getCase(h.db, "LB-001")).toMatchObject({ state: "AwaitingApproval", prNumber: 42, headSha: A });
-    expect(h.posts.some((p) => p.includes(`Ready for approval: ${G} approve LB-001 ${A.slice(0, 12)}`))).toBe(true);
+    expect(h.posts.some((p) => p.includes(`Ready for approval: ${G} approve LB-001 ${A}`))).toBe(true);
     expect(types(h)).toEqual(expect.arrayContaining(["pr.created", "verification.started", "verification.passed", "ci.observed"]));
   });
 

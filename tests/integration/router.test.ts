@@ -81,7 +81,7 @@ describe("report flow", () => {
 describe("refusals are visible and audited", () => {
   it("an outsider approve is refused and audited (Day-1 exit)", async () => {
     await router.handle(msg(REP, `${G} report slugify crashes on null charmap`));
-    await router.handle(msg(OUT, `${G} approve LB-001 3f9c2ab`));
+    await router.handle(msg(OUT, `${G} approve LB-001 ${"3f9c2ab4e1d0b4c9a8f7e6d5c4b3a2918f7e6d5c"}`));
     expect(posts.at(-1)!.content).toMatch(/^\[LB-001\] REFUSED \(NOT_AUTHORIZED\): approve requires the maintainer role/);
     expect(listRecent(db, "LB-001")[0]).toMatchObject({ type: "command.refused", reasonCode: "NOT_AUTHORIZED", actorId: OUT });
     expect(deps.privileged.approve).not.toHaveBeenCalled();
@@ -95,7 +95,7 @@ describe("refusals are visible and audited", () => {
 
   it("owner-attributed agent messages cannot approve or merge (D16)", async () => {
     await router.handle(msg(MAINT, `${G} merge LB-001`, { onBehalfOf: MAINT }));
-    await router.handle(msg(MAINT, `${G} approve LB-001 3f9c2ab`, { senderKind: "agent" }));
+    await router.handle(msg(MAINT, `${G} approve LB-001 ${"3f9c2ab4e1d0b4c9a8f7e6d5c4b3a2918f7e6d5c"}`, { senderKind: "agent" }));
     expect(deps.privileged.merge).not.toHaveBeenCalled();
     expect(deps.privileged.approve).not.toHaveBeenCalled();
     expect(posts.every((p) => p.content.includes("NOT_AUTHORIZED"))).toBe(true);

@@ -16,7 +16,7 @@ verification and CI are all bound to the exact same commit SHA.
 3. The gate reads GitHub itself: it finds the PR, records the full head SHA and collects CI.
 4. An independent verifier reviews exactly that SHA and answers with a structured report bound
    to the verification run.
-5. A maintainer approves that commit: `@loopback-gate approve LB-001 <sha>`.
+5. A maintainer approves that exact commit by its full SHA: `@loopback-gate approve LB-001 <40-character sha>`.
 6. On `@loopback-gate merge LB-001` the gate re-reads live GitHub state, re-evaluates every piece
    of evidence against the current head, posts its `loopback/gate` status and merges with GitHub's
    `sha` precondition, then confirms the result from GitHub.

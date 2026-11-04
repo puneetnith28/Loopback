@@ -21,7 +21,8 @@ describe("parseCommand", () => {
     expect(ok(`${G} verify LB-002`)).toEqual({ kind: "verify", caseId: "LB-002" });
     expect(ok(`${G} merge LB-001`)).toEqual({ kind: "merge", caseId: "LB-001" });
     expect(ok(`${G} audit LB-001`)).toEqual({ kind: "audit", caseId: "LB-001" });
-    expect(ok(`${G} approve LB-001 3F9C2AB4E1D0`)).toEqual({ kind: "approve", caseId: "LB-001", shortSha: "3f9c2ab4e1d0" });
+    const FULL = "3F9C2AB4E1D0B4C9A8F7E6D5C4B3A2918F7E6D5C";
+    expect(ok(`${G} approve LB-001 ${FULL}`)).toEqual({ kind: "approve", caseId: "LB-001", sha: FULL.toLowerCase() });
     expect(ok(`${G} reject LB-001 breaks the API`)).toEqual({ kind: "reject", caseId: "LB-001", reason: "breaks the API" });
     expect(ok(`${G} retask LB-001 add a test for null`)).toEqual({ kind: "retask", caseId: "LB-001", note: "add a test for null" });
   });
@@ -45,12 +46,16 @@ describe("parseCommand", () => {
     expect(err(`${G} merge`)).toMatch(/exactly one/);
     expect(err(`${G} merge LB-001 now`)).toMatch(/exactly one/);
     expect(err(`${G} help me`)).toMatch(/no arguments/);
-    expect(err(`${G} approve LB-001`)).toMatch(/case id and a commit sha/);
+    expect(err(`${G} approve LB-001`)).toMatch(/case id and the full commit sha/);
   });
 
   it("rejects invalid arguments", () => {
     expect(err(`${G} approve LB-001 xyz`)).toMatch(/invalid approve/);
     expect(err(`${G} approve LB-001 3f9c2a`)).toMatch(/invalid approve/);
+    // D25 (revised): prefixes are never accepted, however long
+    expect(err(`${G} approve LB-001 3f9c2ab`)).toMatch(/invalid approve/);
+    expect(err(`${G} approve LB-001 ${"a".repeat(39)}`)).toMatch(/invalid approve/);
+    expect(err(`${G} approve LB-001 ${"a".repeat(41)}`)).toMatch(/invalid approve/);
     expect(err(`${G} status 001`)).toMatch(/invalid status/);
     expect(err(`${G} reject LB-001 no`)).toMatch(/invalid reject/);
     expect(err(`${G} retask LB-001`)).toMatch(/invalid retask/);

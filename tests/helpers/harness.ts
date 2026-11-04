@@ -191,7 +191,7 @@ export function createHarness(opts: { mergeEnabled?: boolean; expectedBase?: str
     },
     async driveToReady() {
       await h.driveToAwaitingApproval();
-      await say(MAINT, `${G} approve LB-001 ${A.slice(0, 12)}`);
+      await say(MAINT, `${G} approve LB-001 ${A}`);
     },
   };
   return h;

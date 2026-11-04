@@ -198,7 +198,7 @@ export class VerificationWorkflow implements AgentInbox, FixerHandoff {
     }
     if (run.status !== "pass" || !ciOk) return;
     transition(db, { caseId: c.id, to: "AwaitingApproval", actorId: "system", trigger: "system", reason: null, targetSha: c.headSha }, now());
-    await this.announce(c, `Ready for approval: ${this.d.gateMention} approve ${c.id} ${displaySha(c.headSha)}`);
+    await this.announce(c, `Ready for approval: ${this.d.gateMention} approve ${c.id} ${c.headSha}`);
   }
 
   // --- timeouts (7.4, 7.7) ---------------------------------------------------------
@@ -252,15 +252,15 @@ export class VerificationWorkflow implements AgentInbox, FixerHandoff {
     }
   }
 
-  async approve(ctx: CommandContext, caseId: string, shortSha: string): Promise<Reply> {
-    return this.decide(ctx, caseId, "approve", shortSha, null);
+  async approve(ctx: CommandContext, caseId: string, sha: string): Promise<Reply> {
+    return this.decide(ctx, caseId, "approve", sha, null);
   }
 
   async reject(ctx: CommandContext, caseId: string, reason: string): Promise<Reply> {
     return this.decide(ctx, caseId, "reject", null, reason);
   }
 
-  private async decide(ctx: CommandContext, caseId: string, decision: "approve" | "reject", shortSha: string | null, reason: string | null): Promise<Reply> {
+  private async decide(ctx: CommandContext, caseId: string, decision: "approve" | "reject", approvedSha: string | null, reason: string | null): Promise<Reply> {
     return this.d.locks.with(caseId, async () => {
       const { db, now } = this.d;
       const c = getCase(db, caseId);
@@ -269,9 +269,10 @@ export class VerificationWorkflow implements AgentInbox, FixerHandoff {
       if (!allowed.includes(c.state) || c.prNumber === null || c.headSha === null) return this.refuse(ctx, c, "INVALID_STATE", decision);
       const live = await this.livePull(c);
       if (typeof live === "string") return this.refuse(ctx, c, live, decision);
-      if (shortSha !== null && !live.headSha.startsWith(shortSha)) {
-        append(db, { caseId: c.id, actorId: ctx.msg.sender, type: "approval.rejected", targetSha: live.headSha, reasonCode: "APPROVAL_SHA_MISMATCH", payload: { typed: shortSha } }, now());
-        return { text: formatReason("APPROVAL_SHA_MISMATCH", { approvedSha: shortSha, headSha: live.headSha }), caseId: c.id };
+      // D25 (revised): exact full-SHA equality, never a prefix match.
+      if (approvedSha !== null && live.headSha !== approvedSha) {
+        append(db, { caseId: c.id, actorId: ctx.msg.sender, type: "approval.rejected", targetSha: live.headSha, reasonCode: "APPROVAL_SHA_MISMATCH", payload: { typed: approvedSha } }, now());
+        return { text: formatReason("APPROVAL_SHA_MISMATCH", { approvedSha, headSha: live.headSha }), caseId: c.id };
       }
       if (live.headSha !== c.headSha) {
         // The poller has not seen the new head yet: mark Stale now and re-verify.

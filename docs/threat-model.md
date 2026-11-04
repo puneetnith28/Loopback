@@ -57,9 +57,10 @@ against live services.
    the status is posted only immediately before merging and reset on every abort; merges
    Loopback did not perform raise a `policy.violation` alert; maintainers agree to merge
    only through Loopback.
-3. **Short SHA approvals (D25).** Approvals accept a 7-hex prefix. Grinding a colliding
-   prefix is stopped because the live head must equal the head recorded for the case;
-   approval prompts show 12 characters.
+3. **Approval SHA (D25, revised — closed).** Approvals require the full 40-character SHA and are
+   compared by exact equality with the live head and the case head; no prefix is ever accepted
+   (`unit/parse.test.ts`, `security/merge-gate.test.ts`). The approval prompt prints the full SHA
+   for copying. (An earlier version accepted 7-hex prefixes, relying on the head-equality check.)
 4. **Setup-only checks.** The ruleset bypass list (and check sources, if GitHub does not
    return them for a branch) cannot be read by the App at runtime; they are verified from the
    exported ruleset at setup and by `scripts/reset-demo.sh` on every demo run.

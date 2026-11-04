@@ -8,9 +8,6 @@ import { z } from "zod";
 export const FullSha = z.string().regex(/^[0-9a-f]{40}$/, "full 40-char SHA required");
 export type FullSha = z.infer<typeof FullSha>;
 
-/** A SHA prefix a human typed (7–40 lower-case hex). Never stored as authorization. */
-export const ShortSha = z.string().regex(/^[0-9a-f]{7,40}$/, "7–40 lower-case hex characters");
-
 export const CaseId = z.string().regex(/^LB-\d{3,}$/, "case id like LB-001");
 export type CaseId = z.infer<typeof CaseId>;
 
@@ -67,7 +64,8 @@ export const Command = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("report"), text: z.string().min(10).max(4000) }),
   z.object({ kind: z.literal("status"), caseId: CaseId }),
   z.object({ kind: z.literal("verify"), caseId: CaseId }),
-  z.object({ kind: z.literal("approve"), caseId: CaseId, shortSha: ShortSha }),
+  // Approvals name the FULL commit SHA (D25, revised): no prefix is ever accepted as authorization.
+  z.object({ kind: z.literal("approve"), caseId: CaseId, sha: FullSha }),
   z.object({ kind: z.literal("reject"), caseId: CaseId, reason: z.string().min(3).max(500) }),
   z.object({ kind: z.literal("merge"), caseId: CaseId }),
   z.object({ kind: z.literal("audit"), caseId: CaseId }),
@@ -200,7 +198,7 @@ export function isTransient(code: ReasonCode): boolean {
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** First 12 hex characters, for display only (approval prompts show at least 12). */
+/** First 12 hex characters, for display only — never accepted as input for authorization. */
 export function displaySha(sha: string): string {
   return sha.slice(0, 12);
 }

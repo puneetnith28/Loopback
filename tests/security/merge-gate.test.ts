@@ -29,7 +29,7 @@ describe("authorization", () => {
   it("an outsider cannot approve or merge", async () => {
     const h = createHarness();
     await h.driveToAwaitingApproval();
-    await h.say(OUT, `${G} approve LB-001 ${A.slice(0, 7)}`);
+    await h.say(OUT, `${G} approve LB-001 ${A}`);
     await h.say(OUT, `${G} merge LB-001`);
     expect(h.state()).toBe("AwaitingApproval");
     expect(h.merger).not.toHaveBeenCalled();
@@ -63,7 +63,7 @@ describe("commit binding", () => {
   it("an approval with a SHA that is not the live head is refused", async () => {
     const h = createHarness();
     await h.driveToAwaitingApproval();
-    await h.say(MAINT, `${G} approve LB-001 ${B.slice(0, 12)}`);
+    await h.say(MAINT, `${G} approve LB-001 ${B}`);
     expect(h.posts.at(-1)).toMatch(/APPROVAL_SHA_MISMATCH/);
     expect(h.state()).toBe("AwaitingApproval");
   });
@@ -257,7 +257,7 @@ describe("rejection and quorum", () => {
   it("a duplicate approval is counted once", async () => {
     const h = createHarness();
     await h.driveToAwaitingApproval();
-    await h.say(MAINT, `${G} approve LB-001 ${A.slice(0, 12)}`);
+    await h.say(MAINT, `${G} approve LB-001 ${A}`);
     expect((h.db.prepare("SELECT count(*) AS n FROM approvals").get() as { n: number }).n).toBe(1);
   });
 });
@@ -329,7 +329,7 @@ describe("second review: crash and failure recovery", () => {
     transition(h.db, { caseId: "LB-001", to: "Stale", actorId: "system", trigger: "system", reason: "HEAD_MOVED" });
     transition(h.db, { caseId: "LB-001", to: "Verifying", actorId: "system", trigger: "system", reason: null });
     transition(h.db, { caseId: "LB-001", to: "AwaitingApproval", actorId: "system", trigger: "system", reason: null });
-    await h.say(MAINT, `${G} approve LB-001 ${A.slice(0, 12)}`);
+    await h.say(MAINT, `${G} approve LB-001 ${A}`);
     expect(h.state()).toBe("ReadyToMerge");
   });
 });
@@ -358,5 +358,21 @@ describe("silent-failure review fixes", () => {
     expect(h.posts.at(-1)).toMatch(/^\[LB-001\] MERGED/); // the command reply still arrives
     expect(h.state()).toBe("Merged");
     expect(h.merger).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("D25 (revised): approvals bind to the full SHA", () => {
+  it("a 12-character prefix of the live head is not an approval", async () => {
+    const h = createHarness();
+    await h.driveToAwaitingApproval();
+    await h.say(MAINT, `${G} approve LB-001 ${A.slice(0, 12)}`);
+    expect(h.posts.at(-1)).toMatch(/UNKNOWN_COMMAND/);
+    expect(h.state()).toBe("AwaitingApproval");
+    expect((h.db.prepare("SELECT count(*) AS n FROM approvals").get() as { n: number }).n).toBe(0);
+  });
+  it("the stored approval is exactly the full SHA the maintainer sent", async () => {
+    const h = createHarness();
+    await h.driveToReady();
+    expect(h.db.prepare("SELECT head_sha FROM approvals").all()).toEqual([{ head_sha: A }]);
   });
 });
