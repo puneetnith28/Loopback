@@ -87,6 +87,10 @@ recorded demo. The item-by-item status is in [docs/release-readiness.md](docs/re
 
 ## 7. Tests
 
+Development on Linux, or on Windows through WSL2 (recommended), is described in
+[CONTRIBUTING.md](CONTRIBUTING.md); native Windows runs the portable checks only, and the gate
+itself runs on Linux.
+
 ```bash
 npm ci
 npm run typecheck

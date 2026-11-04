@@ -4,6 +4,10 @@ import { tmpdir, userInfo } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+/** POSIX-only: the code under test depends on Linux behaviour (see the reason at each skip). */
+const ON_WINDOWS = process.platform === "win32";
+// Skipped on Windows: the script is bash and uses GNU `stat -c`; the gate's isolation runtime is Linux-only (systemd).
+
 // D28: scripts/verify-isolation.sh must fail closed. It can only produce real evidence on an
 // installed separate-users runtime (fixer/verifier inside their units); here it must refuse
 // or fail, never claim isolation, and never print a token.
@@ -21,7 +25,7 @@ const run = (role: string, env: Record<string, string> = {}) =>
 beforeAll(() => { dir = mkdtempSync(join(tmpdir(), "loopback-iso-")); });
 afterAll(() => { rmSync(dir, { recursive: true, force: true }); });
 
-describe("verify-isolation.sh fails closed", () => {
+describe.skipIf(ON_WINDOWS)("verify-isolation.sh fails closed", () => {
   it.each(["gate", "fixer", "verifier"])("cannot be executed for %s without the runtime: exit 2, NOT PROVEN, no token printed", (role) => {
     const r = run(role, { LOOPBACK_SU_CONFIG_DIR: join(dir, "no-such-config") });
     expect(r.status).toBe(2);
@@ -67,7 +71,7 @@ describe("verify-isolation.sh fails closed", () => {
  * Stub `id`, `stat` and `ls` come first on PATH to present an agent user inside its unit; the
  * script itself is unchanged. Each check is then broken in turn to show it cannot pass falsely.
  */
-describe("verify-isolation.sh inside a simulated agent unit", () => {
+describe.skipIf(ON_WINDOWS)("verify-isolation.sh inside a simulated agent unit", () => {
   const uid = "1000";
   const setupUnit = (opts: { homeVisible?: boolean; otherAgent?: boolean; signerOwner?: string; keyMode?: string; signerDirMode?: string } = {}) => {
     const root = mkdtempSync(join(tmpdir(), "loopback-unit-"));

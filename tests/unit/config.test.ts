@@ -353,7 +353,8 @@ describe("step 2.5 and 2.8: secret hygiene and ignore rules", () => {
 
   // secrets/ is local and git-ignored, so it does not exist in a fresh clone or in CI; when it
   // does exist (a configured machine), it must be private.
-  it("a local secrets/ directory, when present, is a directory closed to group and others", async () => {
+  // Skipped on Windows: POSIX permission bits are not meaningful there.
+  it.skipIf(process.platform === "win32")("a local secrets/ directory, when present, is a directory closed to group and others", async () => {
     const { existsSync, lstatSync } = await import("node:fs");
     if (!existsSync("secrets")) return;
     const stat = lstatSync("secrets");

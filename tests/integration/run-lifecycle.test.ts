@@ -13,6 +13,10 @@ import { runGate, type RunDeps } from "../../apps/switch-gate/src/run.js";
 import type { SocketLike } from "../../apps/switch-gate/src/switch/connection.js";
 import { FakeGitHub } from "../helpers/harness.js";
 
+/** POSIX-only: the code under test depends on Linux behaviour (see the reason at each skip). */
+const ON_WINDOWS = process.platform === "win32";
+// Skipped on Windows: runGate enforces POSIX permissions on the GitHub App key, which cannot be expressed on Windows (the gate is deployed on Linux only).
+
 // Step 9.7: the gate's real lifecycle (runGate, as main.ts runs it) with the process signal
 // source replaced by an EventEmitter. Switch's HTTP API and sockets and GitHub are fakes.
 
@@ -128,7 +132,7 @@ beforeEach(async () => {
 });
 afterEach(() => { rmSync(dir, { recursive: true, force: true }); });
 
-describe("runGate signal handling (step 9.7)", () => {
+describe.skipIf(ON_WINDOWS)("runGate signal handling (step 9.7)", () => {
   it("handles SIGTERM during startup reconciliation: finishes the running work, never connects, exits 0", async () => {
     seedOpenCase();
     // Hold the health port: if shutdown let startup continue, binding it would fail (exit 1).

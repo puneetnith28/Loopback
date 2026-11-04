@@ -1,0 +1,21 @@
+# Line endings: the repository stores LF, and checkouts keep LF on every platform, so shell
+# scripts and Node modules run unchanged from a Windows (or WSL2) checkout.
+* text=auto eol=lf
+
+*.sh   text eol=lf
+*.mjs  text eol=lf
+*.js   text eol=lf
+*.ts   text eol=lf
+*.json text eol=lf
+*.yml  text eol=lf
+*.md   text eol=lf
+
+# Never text: keys and runtime databases (also git-ignored), and common binary assets.
+*.pem  binary
+*.key  binary
+*.db   binary
+*.png  binary
+*.jpg  binary
+*.gif  binary
+*.ico  binary
+*.tgz  binary

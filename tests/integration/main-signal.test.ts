@@ -5,6 +5,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+/** POSIX-only: the code under test depends on Linux behaviour (see the reason at each skip). */
+const ON_WINDOWS = process.platform === "win32";
+// Skipped on Windows: Windows has no catchable SIGTERM/SIGINT delivery to a child process; the gate runs on Linux.
+
 // Step 9.7 with real OS signals: the built entry point (dist/main.js, exactly what
 // `npm run gate` runs) against a local fake of Switch's HTTP API. GitHub is never contacted
 // (empty database). The Switch WebSocket is refused by the fake, so the gate keeps retrying
@@ -31,6 +35,7 @@ let fakeSwitch: Server;
 let switchPort = 0;
 
 beforeAll(async () => {
+  if (ON_WINDOWS) return;
   execFileSync("npx", ["tsc", "-b"], { stdio: "ignore" });
   dir = mkdtempSync(join(tmpdir(), "loopback-main-"));
   writeFileSync(join(dir, "gate.pem"), "not used: GitHub is not contacted in this test", { mode: 0o600 });
@@ -49,6 +54,7 @@ beforeAll(async () => {
   switchPort = typeof addr === "object" && addr !== null ? addr.port : 0;
 }, 60_000);
 afterAll(() => {
+  if (ON_WINDOWS) return;
   fakeSwitch.close();
   rmSync(dir, { recursive: true, force: true });
 });
@@ -83,7 +89,7 @@ async function waitHealthy(port: number, ms = 15_000): Promise<void> {
   }
 }
 
-describe("main.js under real OS signals (step 9.7)", () => {
+describe.skipIf(ON_WINDOWS)("main.js under real OS signals (step 9.7)", () => {
   it.each(["SIGTERM", "SIGINT"] as const)("exits 0 on %s after full startup, also when the signal is repeated", async (signal) => {
     const g = launch(signal, await freePort());
     await waitHealthy(g.port);

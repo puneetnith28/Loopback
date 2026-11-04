@@ -6,6 +6,10 @@ import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { verifyReportSignature } from "../../apps/switch-gate/src/agents/signature.js";
 
+/** POSIX-only: the code under test depends on Linux behaviour (see the reason at each skip). */
+const ON_WINDOWS = process.platform === "win32";
+// Skipped on Windows: the helper's key and module checks rely on POSIX file modes and ownership, which Windows does not report.
+
 // D28: scripts/sign-verifier-report.mjs signs with the gate's own canonicalization contract
 // (it imports the built module), refuses unsafe key files, and never prints key material.
 // The key here is a throwaway test key in a private temp directory, removed afterwards.
@@ -24,6 +28,7 @@ const run = (input: string, env: Record<string, string> = {}) =>
   spawnSync(process.execPath, [SCRIPT], { input, encoding: "utf8", env: { PATH: process.env.PATH ?? "", HOME: dir, VERIFIER_SIGNING_KEY_FILE: keyFile, ...env } });
 
 beforeAll(() => {
+  if (ON_WINDOWS) return;
   execFileSync("npx", ["tsc", "-b"], { stdio: "ignore" }); // the helper imports the built module
   dir = mkdtempSync(join(tmpdir(), "loopback-sign-"));
   chmodSync(dir, 0o700);
@@ -32,7 +37,7 @@ beforeAll(() => {
 }, 60_000);
 afterAll(() => { if (dir) rmSync(dir, { recursive: true, force: true }); });
 
-describe("sign-verifier-report.mjs", () => {
+describe.skipIf(ON_WINDOWS)("sign-verifier-report.mjs", () => {
   it("prints exactly one signed block that the gate verifies", () => {
     const r = run(JSON.stringify(report));
     expect(r.status).toBe(0);
@@ -87,7 +92,7 @@ describe("sign-verifier-report.mjs", () => {
   });
 });
 
-describe("sign-verifier-report.mjs installed outside the repository", () => {
+describe.skipIf(ON_WINDOWS)("sign-verifier-report.mjs installed outside the repository", () => {
   it("uses the signature module beside it, and refuses one others could modify", () => {
     const lib = join(dir, "loopback-signer");
     mkdirSync(lib, { mode: 0o755 });
