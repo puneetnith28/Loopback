@@ -293,8 +293,8 @@ export class VerificationWorkflow implements AgentInbox, FixerHandoff {
           decision, sourceEventId: ctx.msg.eventId, reason,
         }, now());
         if (ins === "duplicate") {
-          const prior = db.prepare("SELECT decision FROM approvals WHERE case_id = ? AND head_sha = ? AND approver_id = ?")
-            .get(c.id, live.headSha, ctx.msg.sender) as { decision: string } | undefined;
+          const prior = db.prepare("SELECT decision FROM approvals WHERE case_id = ? AND head_sha = ? AND approver_id = ? AND decision = ?")
+            .get(c.id, live.headSha, ctx.msg.sender, decision) as { decision: string } | undefined;
           // Re-approving the same commit after the case returned to AwaitingApproval must not dead-end it.
           if (decision === "approve" && prior?.decision === "approve" && c.state === "AwaitingApproval") {
             transitionInTx(db, { caseId: c.id, to: "ReadyToMerge", actorId: ctx.msg.sender, trigger: "command", reason: null, targetSha: live.headSha }, now());
