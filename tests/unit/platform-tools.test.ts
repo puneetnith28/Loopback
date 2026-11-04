@@ -7,6 +7,7 @@ import Database from "better-sqlite3";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { assessReadiness, isDesktopDaemon, type ReadinessFacts } from "../../scripts/live-readiness.mjs";
 import { bashCandidates, findBash, isMainModule } from "../../scripts/sh.mjs";
+import { roleToken, testPlan } from "../../scripts/host-agent-tool.mjs";
 import { assessDesktopDaemon } from "../../scripts/verify-isolation.mjs";
 import { gracefulSignals } from "../../apps/switch-gate/src/run.js";
 
@@ -133,5 +134,20 @@ describe("assessDesktopDaemon", () => {
     [undefined, undefined, /not Docker Desktop/],
   ])("fails %#", (info, host, pattern) => {
     expect(failures(assessDesktopDaemon(info, host))).toMatch(pattern);
+  });
+});
+
+describe("host-agent-tool.mjs", () => {
+  it("reads only the role's GH_TOKEN line", () => {
+    expect(roleToken("GH_REPO=o/r\nGH_TOKEN=abc\n")).toBe("abc");
+    expect(roleToken("GH_TOKEN=abc\r\nX=y\r\n")).toBe("abc");
+    expect(roleToken("X=y\n")).toBeNull();
+  });
+
+  it("runs only a full commit SHA, in a directory named after it", () => {
+    const sha = "a".repeat(40);
+    expect(testPlan(sha, [])).toEqual({ dir: `/home/verifier/runs/${sha}`, command: ["node", "--test", "test/index.test.js"] });
+    expect(testPlan(sha, ["npm", "test"])?.command).toEqual(["npm", "test"]);
+    for (const bad of [undefined, "abc", `${sha}; rm -rf /`, "../../etc/passwd", sha.toUpperCase()]) expect(testPlan(bad, [])).toBeNull();
   });
 });

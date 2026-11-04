@@ -16,6 +16,7 @@ for ctx in test loopback/gate; do
   check "requires status check $ctx"       "jq -e '[.rules[] | select(.type == \"required_status_checks\") | .parameters.required_status_checks[].context] | index(\"$ctx\") != null' <<<\"\$rs\""
 done
 check "loopback/gate pinned to an App"     'jq -e "[.rules[] | select(.type == \"required_status_checks\") | .parameters.required_status_checks[] | select(.context == \"loopback/gate\") | .integration_id] | .[0] != null" <<<"$rs"'
+check "status checks not required when a run branch is created" 'jq -e "[.rules[] | select(.type == \"required_status_checks\") | .parameters.do_not_enforce_on_create] | index(true) != null" <<<"$rs"'
 check "requires up-to-date branches"       'jq -e "[.rules[] | select(.type == \"required_status_checks\") | .parameters.strict_required_status_checks_policy] | index(true) != null" <<<"$rs"'
 for rule in pull_request non_fast_forward deletion; do
   check "branch rule $rule present"         "jq -e '[.rules[].type] | index(\"$rule\") != null' <<<\"\$rs\""

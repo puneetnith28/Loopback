@@ -155,7 +155,9 @@ credentials).
 1. **Branch ruleset** targeting the default branch and `demo/*`: active, **empty bypass list**,
    restrict deletions, block force pushes, require a pull request (0 approvals), require status
    checks `test` (source: GitHub Actions) and `loopback/gate` (source: the `loopback-gate` App),
-   with "require branches to be up to date". The App can be chosen as a source only after it has
+   with "require branches to be up to date" and **"do not require status checks on creation"**.
+   Without that last setting, GitHub refuses to create any `demo/<run-id>` branch (HTTP 422,
+   "Reference update failed"). The App can be chosen as a source only after it has
    posted a `loopback/gate` status once; post a one-off status on a throwaway commit first.
    Keep enforcement **active**: rules in "evaluate" mode are not returned to the gate, which then
    blocks every merge with `BASE_UNPROTECTED`.

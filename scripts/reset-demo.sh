@@ -47,8 +47,14 @@ done
 for rule in pull_request non_fast_forward deletion; do
   jq -e --arg r "$rule" '[.rules[].type] | index($r) != null' <<<"$ruleset" >/dev/null || die "ruleset is missing rule $rule"
 done
+# With this off, GitHub requires passing checks on a branch that does not exist yet, so no run branch
+# can ever be created (HTTP 422, "Reference update failed"). Merges into the branch stay checked.
+jq -e '[.rules[] | select(.type == "required_status_checks") | .parameters.do_not_enforce_on_create] | index(true) != null' <<<"$ruleset" >/dev/null   || die "ruleset must set do_not_enforce_on_create (\"Do not require status checks on creation\"), or no run branch can be created"
 
-if tag_sha="$(gh api "repos/$GH_REPO/git/ref/tags/demo-reset" --jq .object.sha 2>/dev/null)"; then
+if tag_obj="$(gh api "repos/$GH_REPO/git/ref/tags/demo-reset" --jq '.object.type + " " + .object.sha' 2>/dev/null)"; then
+  tag_sha="${tag_obj#* }"
+  # An annotated tag's ref names a tag object: peel it to the commit before comparing.
+  if [[ "$tag_obj" == "tag "* ]]; then tag_sha="$(gh api "repos/$GH_REPO/git/tags/$tag_sha" --jq .object.sha)"; fi
   [[ "$tag_sha" == "$DEMO_RESET_SHA" ]] || printf 'WARNING: tag demo-reset points to %s, not the recorded SHA; using the recorded SHA.\n' "$tag_sha" >&2
 fi
 

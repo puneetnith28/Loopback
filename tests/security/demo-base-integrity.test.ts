@@ -240,7 +240,7 @@ const hasJq = bash !== null && spawnSync(bash, ["-c", "command -v jq"], { encodi
 const REPO = "o/demo";
 const RULESET = JSON.stringify({
   enforcement: "active", bypass_actors: [], conditions: { ref_name: { include: ["~DEFAULT_BRANCH", "refs/heads/demo/*"] } },
-  rules: [{ type: "deletion" }, { type: "non_fast_forward" }, { type: "pull_request" }, { type: "required_status_checks", parameters: { required_status_checks: [{ context: "test" }, { context: "loopback/gate" }] } }],
+  rules: [{ type: "deletion" }, { type: "non_fast_forward" }, { type: "pull_request" }, { type: "required_status_checks", parameters: { do_not_enforce_on_create: true, required_status_checks: [{ context: "test" }, { context: "loopback/gate" }] } }],
 });
 const SHA = "1".repeat(40);
 
@@ -308,6 +308,7 @@ describe.runIf(hasJq)("outcome 8 and the run-branch rules: reset-demo.sh", () =>
     ["with a bypass actor", { bypass_actors: [{ actor_id: 1 }] }, /bypass list is not empty/],
     ["not targeting demo/*", { conditions: { ref_name: { include: ["~DEFAULT_BRANCH"] } } }, /does not target demo/],
     ["without required checks", { rules: [{ type: "deletion" }, { type: "non_fast_forward" }, { type: "pull_request" }, { type: "required_status_checks", parameters: { required_status_checks: [{ context: "test" }] } }] }, /does not require status check loopback\/gate/],
+    ["enforcing checks when a run branch is created", { rules: [{ type: "deletion" }, { type: "non_fast_forward" }, { type: "pull_request" }, { type: "required_status_checks", parameters: { do_not_enforce_on_create: false, required_status_checks: [{ context: "test" }, { context: "loopback/gate" }] } }] }, /do_not_enforce_on_create/],
     ["allowing force pushes", { rules: [{ type: "deletion" }, { type: "pull_request" }, { type: "required_status_checks", parameters: { required_status_checks: [{ context: "test" }, { context: "loopback/gate" }] } }] }, /missing rule non_fast_forward/],
   ])("aborts before any change when the ruleset is %s", (_name, change, message) => {
     const r = runReset({ ruleset: JSON.stringify({ ...(JSON.parse(RULESET) as object), ...change }) });
