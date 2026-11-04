@@ -110,11 +110,19 @@ export interface CiEvidenceInput {
   readonly htmlUrl: string;
 }
 
+/**
+ * Record or update a check run. A run keeps its id while it moves from queued to
+ * completed, so the row is updated when its status or conclusion changes.
+ * Returns true when the row was inserted or changed.
+ */
 export function recordCiEvidence(db: Db, e: CiEvidenceInput, now: Date): boolean {
   return db
     .prepare(
-      `INSERT OR IGNORE INTO ci_evidence (id, case_id, head_sha, check_name, check_run_id, app_slug, status, conclusion, html_url, observed_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO ci_evidence (id, case_id, head_sha, check_name, check_run_id, app_slug, status, conclusion, html_url, observed_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT (case_id, head_sha, check_name, check_run_id) DO UPDATE
+         SET status = excluded.status, conclusion = excluded.conclusion, observed_at = excluded.observed_at
+         WHERE ci_evidence.status IS NOT excluded.status OR ci_evidence.conclusion IS NOT excluded.conclusion`,
     )
     .run(randomUUID(), e.caseId, e.headSha, e.checkName, e.checkRunId, e.appSlug, e.status, e.conclusion, e.htmlUrl, now.toISOString())
     .changes === 1;
@@ -162,6 +170,11 @@ export function insertRun(db: Db, caseId: string, repo: string, prNumber: number
 
 export function listRuns(db: Db, caseId: string): VerificationRun[] {
   return db.prepare("SELECT * FROM verification_runs WHERE case_id = ? ORDER BY seq").all(caseId).map(toRun);
+}
+
+export function getRun(db: Db, id: string): VerificationRun | undefined {
+  const raw = db.prepare("SELECT * FROM verification_runs WHERE id = ?").get(id);
+  return raw === undefined ? undefined : toRun(raw);
 }
 
 export function latestRunForHead(db: Db, caseId: string, headSha: string): VerificationRun | undefined {

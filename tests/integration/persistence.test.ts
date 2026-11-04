@@ -70,8 +70,12 @@ describe("schema constraints", () => {
   });
   it("CI evidence is idempotent", () => {
     const e = { caseId: "LB-001", headSha: A, checkName: "test", checkRunId: 7, appSlug: "github-actions", status: "completed", conclusion: "success", htmlUrl: "u" };
+    expect(recordCiEvidence(db, { ...e, status: "in_progress", conclusion: null }, NOW)).toBe(true);
+    expect(recordCiEvidence(db, { ...e, status: "in_progress", conclusion: null }, NOW)).toBe(false);
+    // the same run completing must update the stored evidence
     expect(recordCiEvidence(db, e, NOW)).toBe(true);
     expect(recordCiEvidence(db, e, NOW)).toBe(false);
+    expect(db.prepare("SELECT status, conclusion FROM ci_evidence").all()).toEqual([{ status: "completed", conclusion: "success" }]);
   });
   it("kv upserts", () => {
     kvSet(db, "k", "1");
