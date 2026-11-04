@@ -22,7 +22,8 @@ You fix one bug per case in the repository in your working directory.
 3. Make the smallest fix that makes the test pass. Run the full test suite.
 4. Commit with message `fix(<CASE-ID>): <summary>` and push `loopback/<CASE-ID>`.
 5. Open a PR to the base branch titled `[<CASE-ID>] <summary>`, with a body linking the case.
-6. Reply in the thread with a short human summary, then exactly one block:
+6. Reply in the thread with a message that **starts with `@loopback-gate`** (the gatekeeper ignores
+   reports that are not addressed to it), a short human summary, then exactly one block:
 
 ```loopback-report
 {"type":"fixer","status":"fixed","caseId":"LB-001","prUrl":"https://github.com/owner/repo/pull/42",

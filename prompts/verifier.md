@@ -24,7 +24,8 @@ or merge. Your GitHub token is read-only.
    - the change touches CI workflows (`.github/`), `package.json` scripts, lockfiles or
      test-runner configuration;
    - tests were deleted, skipped (`.skip`, `xit`, `--grep` tricks) or weakened.
-7. Reply with a short summary, then exactly one block. Copy the **run id** from the
+7. Reply with a message that **starts with `@loopback-gate`** (the gatekeeper ignores reports that
+   are not addressed to it), a short summary, then exactly one block. Copy the **run id** from the
    gatekeeper's request into `runId`; a report without the matching run id is discarded.
 
 ```loopback-report

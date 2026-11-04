@@ -15,7 +15,11 @@ against live services.
 |---|---|---|---|
 | Prompt injection (issue says "merge now") | Closed command grammar; policy in code; agents have no merge/status rights; report text fenced as untrusted in the hand-off | `security/merge-gate.test.ts` (prompt injection), `unit/parse.test.ts`, `integration/workflow.test.ts` (hand-off fencing) | Tested |
 | Identity spoofing (display name) | Opaque participant ids only; `sender_name` never read | `unit/authorize.test.ts`, `integration/router.test.ts` | Tested |
-| Agent messages attributed to their owner (D16) | `on_behalf_of` set, non-human or missing `sender_kind` ⇒ agent; privileged commands disabled until the human kind is verified | `unit/authorize.test.ts`, `integration/router.test.ts`, `security/merge-gate.test.ts` | Tested; **Live: unverified** (real attribution fields, Q3) |
+| Spoofed, delegated or unaddressed commands (D16, revised) | One admission step before any parser or handler (`policy/admission.ts`): the gate's own id is dropped; `sender_kind` "platform", any `on_behalf_of`, any `sender_kind` other than null (the live value for people), and `addressed !== true` are refused, audited and never answered. Fixer/verifier reports must also be addressed and come from the exact configured id. Roles come only from exact sender ids. `sender_name` and `sender_role` never reach a decision | `unit/admission.test.ts`, `unit/authorize.test.ts`, `integration/router.test.ts`, `security/merge-gate.test.ts` | Tested; live attribution observed for people only (agents and platform not yet observed) |
+| Switch addressing policy widened or removed | Startup self-check reads the gate's own policy and refuses to start (exit 4) unless it is exactly one rule: this room, the configured ExternalUser and agent ids, owner/owner_agents/platform false | `integration/switch-policy-check.test.ts`, `integration/startup.test.ts` | Tested; checked at startup and every 60 s while running (a policy found wrong stops the gate at once; 3 consecutive unreadable checks stop it) |
+| Privileged work in flight when the policy check fails | A one-way halt (`cases/halt.ts`) is set the moment the connection stops for a policy failure. Merge, approve/reject, retask and verify check it immediately before every write boundary (including their GitHub error branches) and stop by throwing, as a crash would; the command is audited `GATE_HALTED`, marked processed (never replayed) and not answered. Startup reconciliation then recovers the case (status reset, case blocked). A merge request already sent to GitHub cannot be cancelled | `security/halt.test.ts` | Tested (deterministic: parked GitHub calls); the halt is set in `main.ts`, which is not unit-tested |
+| Refusal audit flooding | Ordinary admission refusals (`NOT_ADDRESSED` from a person) are audited at most once per sender per 60 s per code, with a summary row counting the suppressed ones when the window closes; attribution refusals and refusals of the fixer/verifier are always audited; a full tracking table audits instead of suppressing | `integration/router.test.ts` (audit throttle) | Tested |
+| Privileged commands enabled by accident | `LOOPBACK_PRIVILEGED_ENABLED` must be exactly `true`; merging also needs at least one maintainer (`CONFIG_INCOMPLETE`) | `unit/config.test.ts`, `unit/authorize.test.ts`, `security/merge-gate.test.ts` | Tested; off by default |
 | Stale approval (commit after approval) | Approvals store the full SHA; policy counts only approvals for the live head; poller marks Stale and re-verifies | `unit/policy.test.ts`, `security/merge-gate.test.ts` (commit binding), `integration/workflow.test.ts` | Tested |
 | Stale or foreign CI | Check runs filtered by name, source app slug and exact head; latest by id (D13) | `unit/policy.test.ts`, `integration/workflow.test.ts` | Tested |
 | Forged verifier report (D25) | Accepted only from the verifier id, for an open run id, naming the run's commit, repo and PR; latest run per head wins | `integration/workflow.test.ts` (verifier binding), `unit/report.test.ts` | Tested |
@@ -66,6 +70,14 @@ against live services.
    exported ruleset at setup and by `scripts/reset-demo.sh` on every demo run.
 5. **Single instance.** The per-case lock is in-process; running two gates is unsupported.
    The lock has no timeout, so a hung network call holds a case until the process restarts.
+6. **Shutdown and background tasks (follow-up, not fixed).** On a terminal stop, `gate.stop()`
+   clears the poll, reconcile and sweep timers and closes the database, but does not wait for a
+   background run that is already in progress; such a run can fail against the closed database
+   (caught and logged) and could post a gate status during shutdown. These background paths never
+   merge. Fix separately: track in-flight background tasks and await them before closing.
+7. **In-flight GitHub merge.** A halt (policy failure) stops privileged work at its next write
+   boundary, but cannot recall a merge request already sent to GitHub; that outcome is confirmed
+   by reconciliation as usual.
 
 ## Invariant traceability (M1–M15)
 

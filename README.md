@@ -31,9 +31,13 @@ agents' briefs (`prompts/`, `templates/loopback-room.yaml`).
 
 **Status:** the gate's Switch transport is implemented against the installed switch-core 0.31.0
 WebSocket protocol (decision D23) and tested with a scripted socket; registration, authentication,
-heartbeat, takeover fencing and reconnect were verified live. Still to verify live: room claim,
-real messages and their sender attribution, threaded replies, and behaviour across a Switch
-restart. Privileged commands stay disabled until sender attribution is verified (D16).
+heartbeat, takeover fencing, reconnect, the room claim, delivery of real messages from people,
+`addressed` under the restrictive policy and inbound thread ids were verified live. Still to verify
+live: agent and platform message attribution, the gate's own posts and threaded replies, echo
+behaviour, and a Switch restart. Every message passes one admission step (addressed by Switch, not delegated or
+platform-generated, exact sender ids) before any handler; privileged commands stay off unless
+`LOOPBACK_PRIVILEGED_ENABLED=true`, and the gate refuses to start unless its Switch addressing
+policy is the expected restrictive one.
 
 ## 3. Architecture and trust boundaries
 

@@ -68,8 +68,37 @@ Verified against Switch Console 0.40.1 / switch-core 0.31.0 (agent bridge on
 3. Make the gate a member of the maintainers' room and set `SWITCH_ROOM_ID`. The gate claims that
    room when it connects (`rooms=` on the WebSocket) and posts only there.
 4. New agents only accept addressing from their owner and the owner's agents
-   (`who_can_talk: owner_and_owner_agents`). Allow the maintainers (and the fixer/verifier agents)
-   to address the gate in Console, or `@loopback-gate` commands from them never count as addressed.
+   (`who_can_talk: owner_and_owner_agents`). The gate needs exactly one rule instead:
+   `rooms: [SWITCH_ROOM_ID]`, `room_groups: "*"`, `users: [ExternalUser ids]`,
+   `agents: [fixer and verifier agent ids]`, `owner`, `owner_agents` and `platform` false. A workspace
+   admin sets it with `PUT /gateway/agents/{id}/addressing-policy` (Console shows the control only
+   for agents you own). Put the same ids in `SWITCH_POLICY_USER_IDS` and `SWITCH_POLICY_AGENT_IDS`;
+   the gate checks the live policy at startup and exits with code 4 if it differs.
+
+### Authorization
+- A message reaches a handler only if Switch addressed it to the gate (its policy admitted the
+  sender) **and** it passes admission: not the gate itself, not `sender_kind: "platform"`, no
+  `on_behalf_of`, `sender_kind` null. Commands from people then get a role from the exact `sender`
+  id in `LOOPBACK_MAINTAINERS` / `LOOPBACK_REPORTERS`. Reports count only from the exact
+  `LOOPBACK_FIXER_ID` / `LOOPBACK_VERIFIER_ID` and must be addressed too, so the fixer and verifier
+  must start each report with `@loopback-gate`.
+- Grant a maintainer in both places (Switch policy `users`, Loopback list); revoke by removing
+  either. Removing someone from `LOOPBACK_MAINTAINERS` also voids their recorded approvals.
+- Privileged commands stay off until `LOOPBACK_PRIVILEGED_ENABLED=true`.
+- The policy ids (`SWITCH_POLICY_*`, Switch row UUIDs) and Loopback's participant ids are
+  different identifiers, and the gate cannot check that they name the same people and agents.
+  A mismatch fails closed (reports refused, or commands with the outsider role), but configure
+  both from the same `whoami` / bridge-users evidence.
+
+### Identity stability (switch-core 0.31.0 source, not yet verified live)
+- A Mattermost person's `sender` id (`@switch-mattermost-<bridge>-<username>:<server>`) is created
+  once per bridge and Mattermost user id; the username only seeds it
+  (`bridges/collaboration/collaboration_core.py`, `_create_human_actor_locked`).
+- A Mattermost rename keeps the id ("the client keeps its localpart").
+- Another account that later takes the same username cannot inherit the id: the collision is
+  detected and the new account gets `<localpart>-<digest>` unless it is the same Mattermost user.
+- Still unverified live; until then deactivate departed Mattermost accounts instead of deleting
+  them, and re-check `whoami` after any rename.
 
 ### Transport (implemented)
 - WebSocket `/agents/{id}/connection/ws`, Bearer auth, agent-protocol 9, `scope=single`,
@@ -83,9 +112,9 @@ Verified against Switch Console 0.40.1 / switch-core 0.31.0 (agent bridge on
 
 ### Verify
 - `LOOPBACK_LIVE_SWITCH=1 npm test -- --project e2e` (posts two labelled messages into the room).
-- Sender attribution: post as a maintainer and from an agent; record `sender`, `sender_kind`,
-  `on_behalf_of`, `sender_role`. On 0.31.0 the live message event sets `sender_kind` only for
-  platform-carried messages (`"platform"`), otherwise null, so `SWITCH_HUMAN_SENDER_KIND` cannot
-  distinguish people from agents; privileged commands stay disabled until an attribution rule is
-  verified and decided.
+- Sender attribution: on 0.31.0 people arrive with `sender_kind` null, `on_behalf_of` null and
+  `sender_role` null until their account is linked (observed live). Agent and platform messages
+  have not been observed yet; record them before enabling privileged commands.
+- An account outside the policy mentioning the gate arrives with `addressed: false` and is
+  refused (audited, not answered).
 - Ids are stable across a Switch restart and reconnect; a threaded reply lands in its thread.

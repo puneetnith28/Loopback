@@ -39,8 +39,15 @@ requests R/W, Commit statuses R/W, Checks R, Metadata R), its private key at
 
 `MERGE_ENABLED=false` (the default) keeps everything working except merging: `merge` replies
 `BLOCKED (MERGE_DISABLED)` and changes nothing. Enable merging only after branch protection is
-proven (plan Phase 6 step 6). Privileged commands also stay disabled while
-`SWITCH_HUMAN_SENDER_KIND` is unset.
+proven (plan Phase 6 step 6). Privileged commands (verify, approve, reject, merge, retask) are
+refused with `PRIVILEGED_DISABLED` unless `LOOPBACK_PRIVILEGED_ENABLED=true`; it defaults to false.
+
+Exit code `4` means the gate's Switch addressing policy is not the expected restrictive one (see
+[setup.md](setup.md)); the gate starts nothing until it matches, and it re-checks the policy
+every 60 s while running: a policy found wrong, or one unreadable three times in a row, stops the
+gate with the same exit code. Privileged work already running stops at its next write boundary
+(audited `GATE_HALTED`, not retried); re-send the command once the gate is back. The next start
+reconciles any case left mid-merge.
 
 ## Inspecting cases
 
