@@ -59,3 +59,18 @@ describe("health server", () => {
     }
   });
 });
+
+describe("readiness timeout", () => {
+  it("a hanging readiness check fails instead of hanging /readyz", async () => {
+    const server = await startHealthServer({ port: 0, live: () => true, ready: [{ name: "hangs", check: () => new Promise<boolean>(() => undefined) }] });
+    try {
+      const { port } = server.address() as AddressInfo;
+      const r = await fetch(`http://127.0.0.1:${port}/readyz`);
+      expect(r.status).toBe(503);
+      expect(await r.json()).toEqual({ ok: false, failing: ["hangs"] });
+    } finally {
+      server.closeAllConnections();
+      await new Promise((r) => server.close(r));
+    }
+  }, 10_000);
+});

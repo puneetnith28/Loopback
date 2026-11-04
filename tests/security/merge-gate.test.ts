@@ -333,3 +333,30 @@ describe("second review: crash and failure recovery", () => {
     expect(h.state()).toBe("ReadyToMerge");
   });
 });
+
+describe("silent-failure review fixes", () => {
+  it("a case stranded in Revalidating is recovered by the periodic task (no merge)", async () => {
+    const h = createHarness();
+    await h.driveToReady();
+    transition(h.db, { caseId: "LB-001", to: "Revalidating", actorId: MAINT, trigger: "maintainer_merge", reason: null });
+    await h.exec.reconcileUnknown();
+    expect(getCase(h.db, "LB-001")).toMatchObject({ state: "Blocked", blockedReason: "AWAITING_MERGE_COMMAND" });
+    expect(h.merger).not.toHaveBeenCalled();
+  });
+  it("a failing post-merge follow-up never makes a recorded merge look failed", async () => {
+    const h = createHarness();
+    await h.driveToReady();
+    let posts = 0;
+    const origPush = h.posts.push.bind(h.posts);
+    h.posts.push = (...items: string[]) => {
+      // fail only the executor's own announcement (the first MERGED post)
+      if (posts === 0 && items.some((i) => i.startsWith("[LB-001] MERGED"))) { posts += 1; throw new Error("chat down"); }
+      return origPush(...items);
+    };
+    await h.say(MAINT, `${G} merge LB-001`);
+    expect(posts).toBe(1);
+    expect(h.posts.at(-1)).toMatch(/^\[LB-001\] MERGED/); // the command reply still arrives
+    expect(h.state()).toBe("Merged");
+    expect(h.merger).toHaveBeenCalledTimes(1);
+  });
+});

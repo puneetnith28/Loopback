@@ -1,5 +1,8 @@
 import { createServer, type Server } from "node:http";
 
+/** A readiness check that does not answer in time counts as failing. */
+export const READY_CHECK_TIMEOUT_MS = 3000;
+
 export interface ReadinessCheck {
   readonly name: string;
   readonly check: () => Promise<boolean>;
@@ -37,7 +40,8 @@ export function startHealthServer(opts: HealthOptions): Promise<Server> {
       void Promise.all(
         opts.ready.map(async (r) => {
           try {
-            return { name: r.name, ok: await r.check() };
+            const timeout = new Promise<boolean>((resolve) => setTimeout(() => resolve(false), READY_CHECK_TIMEOUT_MS).unref());
+            return { name: r.name, ok: await Promise.race([r.check(), timeout]) };
           } catch {
             return { name: r.name, ok: false };
           }

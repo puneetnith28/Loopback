@@ -95,7 +95,9 @@ export class GitHubTransport {
     if (typeof body.token !== "string" || typeof body.expires_at !== "string") {
       throw new GitHubError("installation token response malformed", res.status);
     }
-    this.token = { value: body.token, expiresAt: Date.parse(body.expires_at) };
+    const expiresAt = Date.parse(body.expires_at);
+    if (Number.isNaN(expiresAt)) throw new GitHubError("installation token expiry malformed", res.status);
+    this.token = { value: body.token, expiresAt };
     return body.token;
   }
 
@@ -117,8 +119,14 @@ export class GitHubTransport {
   /** One authenticated request; refreshes the installation token once on 401. */
   private async send(method: string, path: string, body?: unknown): Promise<Response> {
     let res = await this.raw(method, path, body, await this.installationToken());
-    if (res.status === 401) res = await this.raw(method, path, body, await this.installationToken(true));
-    if (isRateLimited(res)) throw new RateLimited(`${method} rate limited`, res.status, retryAfter(res));
+    if (res.status === 401) {
+      await res.body?.cancel();
+      res = await this.raw(method, path, body, await this.installationToken(true));
+    }
+    if (isRateLimited(res)) {
+      await res.body?.cancel();
+      throw new RateLimited(`${method} rate limited`, res.status, retryAfter(res));
+    }
     return res;
   }
 
@@ -127,9 +135,20 @@ export class GitHubTransport {
     for (let attempt = 0; ; attempt++) {
       try {
         const res = await this.send("GET", path);
-        if (res.status >= 500) throw new Uncertain(`GET ${path.split("?")[0]} returned ${res.status}`, res.status);
-        if (!okStatuses.includes(res.status)) throw new GitHubError(`GET ${path.split("?")[0]} returned ${res.status}`, res.status);
-        return { status: res.status, body: (res.status === 204 ? null : await res.json()) as T, headers: res.headers };
+        if (res.status >= 500 || !okStatuses.includes(res.status)) {
+          await res.body?.cancel(); // release the connection
+          if (res.status >= 500) throw new Uncertain(`GET ${path.split("?")[0]} returned ${res.status}`, res.status);
+          throw new GitHubError(`GET ${path.split("?")[0]} returned ${res.status}`, res.status);
+        }
+        let parsed: unknown = null;
+        if (res.status !== 204) {
+          try {
+            parsed = await res.json();
+          } catch {
+            throw new GitHubError(`GET ${path.split("?")[0]} returned a malformed body`, res.status);
+          }
+        }
+        return { status: res.status, body: parsed as T, headers: res.headers };
       } catch (e) {
         if (!(e instanceof Uncertain) || attempt + 1 >= this.maxReadRetries) throw e;
         await this.sleep(Math.min(8000, 500 * 2 ** attempt));

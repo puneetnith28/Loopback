@@ -30,6 +30,7 @@ export interface WorkflowDeps {
   readonly fixTimeoutMs: number;
   /** D17: the commit the demo base branch must point at, or null outside demo runs. */
   readonly expectedBaseSha: () => string | null;
+  readonly log?: { error(obj: Record<string, unknown>, msg: string): void };
 }
 
 /** Keep untrusted text inside its fence: no fence markers, no mentions. */
@@ -230,8 +231,9 @@ export class VerificationWorkflow implements AgentInbox, FixerHandoff {
   private async safely(fn: () => Promise<void>): Promise<void> {
     try {
       await fn();
-    } catch {
-      // durable state is unchanged for the failed item
+    } catch (e) {
+      // Not silent: logged with the item's context; the next sweep retries anything still due.
+      this.d.log?.error({ op: "sweep", err: e instanceof Error ? e.name : "unknown" }, "sweep item failed");
     }
   }
 

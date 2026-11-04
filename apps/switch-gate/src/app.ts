@@ -50,6 +50,7 @@ export function createGate(cfg: GateConfig, chat: ChatPort, log: Logger, deps: {
     requiredChecks: cfg.github.requiredChecks, checkSources: cfg.github.checkSources, gateMention,
     fixerAlias: cfg.identity.fixerAlias, verifierAlias: cfg.identity.verifierAlias,
     verifyTimeoutMs: cfg.runtime.verifyTimeoutMs, fixTimeoutMs: cfg.runtime.fixTimeoutMs, expectedBaseSha,
+    log: { error: (o, m) => log.error(o, m) },
   };
   const workflow = new VerificationWorkflow(wfDeps);
   const poller = new Poller(wfDeps, workflow, { warn: (o, m) => log.warn(o, m) });
@@ -65,6 +66,7 @@ export function createGate(cfg: GateConfig, chat: ChatPort, log: Logger, deps: {
     },
     requestVerification: (id) => workflow.requestVerificationLocked(id, "system", false),
     onMergeConfirmed: (sha) => { if (cfg.github.demoResetSha !== null) kvSet(db, "expected_base_sha", sha); },
+    log: { warn: (o, m) => log.warn(o, m), error: (o, m) => log.error(o, m) },
   });
   const router = new Router({
     db, chat, gateMention, repo: cfg.github.repo, quorum: cfg.runtime.quorum, requiredChecks: cfg.github.requiredChecks,

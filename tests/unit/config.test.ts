@@ -169,3 +169,14 @@ describe("runtime group", () => {
     expect(issues.map((i) => i.variable).sort()).toEqual(["MERGE_ENABLED", "QUORUM"]);
   });
 });
+
+describe("Switch URL transport security", () => {
+  it("requires https unless the host is loopback (the agent API key travels on it)", () => {
+    for (const ok of ["https://switch.example.com", "http://localhost:8080", "http://127.0.0.1:9000"]) {
+      expect(() => loadSwitchConfig({ ...switchEnv, SWITCH_BRIDGE_URL: ok }), ok).not.toThrow();
+    }
+    for (const bad of ["http://switch.example.com", "javascript:alert(1)", "ftp://x", "file:///etc/passwd", "not a url"]) {
+      expect(() => loadSwitchConfig({ ...switchEnv, SWITCH_BRIDGE_URL: bad }), bad).toThrow(ConfigError);
+    }
+  });
+});

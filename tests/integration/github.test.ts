@@ -196,3 +196,19 @@ describe("merge", () => {
     expect(calls.some((c) => c.startsWith("PUT"))).toBe(false);
   });
 });
+
+describe("response validation (TypeScript review fixes)", () => {
+  it("rejects malformed JSON and unexpected pull shapes; snapshot then fails closed", async () => {
+    const c = new GitHubClient(transport(), "o/r", "loopback/gate", { sleep: async () => undefined });
+    route("GET /repos/o/r/pulls/42", () => new Response("<html>proxy error</html>", { status: 200 }));
+    await expect(c.getPull(42)).rejects.toBeInstanceOf(GitHubError);
+    route("GET /repos/o/r/pulls/42", () => json(200, pull({ head: { sha: "short", ref: "x", repo: null } })));
+    await expect(c.getPull(42)).rejects.toBeInstanceOf(GitHubError);
+    expect((await c.snapshot(42)).snapshot.pr).toBeUndefined();
+  });
+  it("a malformed token expiry fails instead of minting a token on every call", async () => {
+    route("POST /app/installations/456/access_tokens", () => json(201, { token: "ghs_x", expires_at: "soon" }));
+    route("GET /repos/o/r/pulls/42", () => json(200, pull()));
+    await expect(new GitHubClient(transport(), "o/r", "loopback/gate").getPull(42)).rejects.toBeInstanceOf(GitHubError);
+  });
+});

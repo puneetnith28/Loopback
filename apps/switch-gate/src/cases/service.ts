@@ -2,7 +2,7 @@ import { isTransient, type AuditEventType, type CaseState, type ReasonCode } fro
 import { append, countEvents } from "../audit/index.js";
 import type { ChatPort } from "../chat/port.js";
 import { formatReason, type ReasonContext } from "../chat/reasons.js";
-import { HeadChanged, NotMergeable, RateLimited, type GitHubReader, type PullDetails } from "../github/client.js";
+import { GitHubError, HeadChanged, NotMergeable, RateLimited, type GitHubReader, type PullDetails } from "../github/client.js";
 import type { Merger } from "../github/merge.js";
 import type { Db } from "../persistence/db.js";
 import {
@@ -141,7 +141,11 @@ export interface MergeDeps {
   readonly requestVerification: (caseId: string) => Promise<void>;
   /** D17: remember the base commit after a merge the gate confirmed (demo runs). */
   readonly onMergeConfirmed: (mergeCommitSha: string) => void;
+  /** Operational log; failures that are retried later are still always recorded here. */
+  readonly log?: { warn(obj: Record<string, unknown>, msg: string): void; error(obj: Record<string, unknown>, msg: string): void };
 }
+
+const errName = (e: unknown) => (e instanceof Error ? e.name : "unknown");
 
 /** How long an uncertain merge outcome is given to settle before "not merged" is believed. */
 export const UNCERTAIN_SETTLE_MS = 60_000;
@@ -247,6 +251,7 @@ export class MergeExecutor {
       decision = evaluateMerge(this.evidence(c), snap.snapshot, this.d.policy);
     } catch (e) {
       const code: ReasonCode = e instanceof RateLimited ? "RATE_LIMITED" : "GITHUB_UNAVAILABLE";
+      if (!(e instanceof RateLimited) && !(e instanceof GitHubError)) this.d.log?.error({ caseId, op: "revalidate", err: errName(e) }, "unexpected error during revalidation; blocked");
       return this.settle(c, { action: "block", code, message: "", headSha: c.headSha }, "system");
     }
     if (decision.action !== "merge") return this.settle(c, decision, "system");
@@ -316,8 +321,9 @@ export class MergeExecutor {
     let pull: PullDetails;
     try {
       pull = await this.d.github.getPull(c.prNumber);
-    } catch {
+    } catch (e) {
       // An API failure never means "not merged": stay in MergeUnknown and retry later.
+      this.d.log?.warn({ caseId, op: "reconcile", err: errName(e) }, "GitHub read failed; staying MergeUnknown");
       return { text: formatReason("MERGE_OUTCOME_UNKNOWN", { caseId }), caseId };
     }
     const open = listMergeOps(db, c.id).filter((o) => o.status === "started" || o.status === "unknown");
@@ -334,10 +340,15 @@ export class MergeExecutor {
         for (const o of open) finishMergeOp(db, o.id, "succeeded", pull.mergeCommitSha, null, now());
         transitionInTx(db, { caseId, to: "Merged", actorId: "system", trigger: "reconcile", reason: null, auditType: "merge.confirmed", targetSha: c.headSha, payload: { mergeCommitSha: pull.mergeCommitSha } }, now());
       })();
-      if (pull.mergeCommitSha) this.d.onMergeConfirmed(pull.mergeCommitSha);
       const events = (db.prepare("SELECT count(*) AS n FROM audit_events WHERE case_id = ?").get(caseId) as { n: number }).n;
       const text = `MERGED: GitHub confirmed PR #${c.prNumber} merged as ${(pull.mergeCommitSha ?? "unknown").slice(0, 12)}. Audit: ${events} events.`;
-      await this.announce(c, text);
+      // The merge is recorded; follow-up work must never make it look like a failed merge.
+      try {
+        if (pull.mergeCommitSha) this.d.onMergeConfirmed(pull.mergeCommitSha);
+        await this.announce(c, text);
+      } catch (e) {
+        this.d.log?.error({ caseId, op: "post-merge", err: errName(e) }, "post-merge follow-up failed; merge itself is recorded");
+      }
       return { text, caseId };
     }
     // Confirmed not merged: close open attempts, reset any success status, revalidate.
@@ -369,19 +380,23 @@ export class MergeExecutor {
     for (const id of ids) {
       try {
         await this.d.locks.with(id, () => this.recoverLocked(id));
-      } catch {
-        // One case failing to recover must not stop the others; it is retried periodically.
+      } catch (e) {
+        // One case failing must not stop the others; reconcileUnknown() retries it periodically.
+        this.d.log?.error({ caseId: id, op: "startup-recover", err: errName(e) }, "recovery failed; will retry");
       }
     }
   }
 
-  /** Periodic, read-only reconciliation of MergeUnknown cases (never merges). */
+  /**
+   * Periodic, read-only recovery (never merges): MergeUnknown is reconciled from GitHub;
+   * Merging/Revalidating outside an active merge (the lock is free) are recovered as at startup.
+   */
   async reconcileUnknown(): Promise<void> {
-    for (const c of listCasesInStates(this.d.db, ["MergeUnknown"])) {
+    for (const c of listCasesInStates(this.d.db, ["MergeUnknown", "Merging", "Revalidating"])) {
       try {
-        await this.d.locks.with(c.id, () => this.reconcileLocked(c.id));
-      } catch {
-        // retried on the next tick
+        await this.d.locks.with(c.id, () => this.recoverLocked(c.id));
+      } catch (e) {
+        this.d.log?.error({ caseId: c.id, op: "reconcile", err: errName(e) }, "reconciliation failed; will retry");
       }
     }
   }

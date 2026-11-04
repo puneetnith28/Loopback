@@ -28,12 +28,12 @@ const nonEmpty = z.string().trim().min(1, "required");
 const idList = z.string().trim().min(1, "required").transform((s, ctx) => {
   const ids = s.split(",").map((x) => x.trim()).filter(Boolean);
   if (ids.includes("*")) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "wildcard is not allowed; list explicit participant ids" });
+    ctx.addIssue({ code: "custom", message: "wildcard is not allowed; list explicit participant ids" });
     return z.NEVER;
   }
   for (const id of ids) {
     if (!ParticipantId.safeParse(id).success) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "each entry must be a participant id" });
+      ctx.addIssue({ code: "custom", message: "each entry must be a participant id" });
       return z.NEVER;
     }
   }
@@ -44,7 +44,7 @@ const positiveInt = (fallback: number) =>
     if (s === undefined || s.trim() === "") return fallback;
     const n = Number(s);
     if (!Number.isInteger(n) || n <= 0) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "must be a positive integer" });
+      ctx.addIssue({ code: "custom", message: "must be a positive integer" });
       return z.NEVER;
     }
     return n;
@@ -54,14 +54,22 @@ const bool = (fallback: boolean) =>
     if (s === undefined || s.trim() === "") return fallback;
     if (s === "true") return true;
     if (s === "false") return false;
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "must be true or false" });
+    ctx.addIssue({ code: "custom", message: "must be true or false" });
     return z.NEVER;
   });
 
 // ---------------------------------------------------------------------------
 
 const SwitchSchema = z.object({
-  SWITCH_BRIDGE_URL: z.string().url("must be a URL"),
+  // https, or http only to a loopback host: the agent API key travels on this connection.
+  SWITCH_BRIDGE_URL: z.string().refine((s) => {
+    try {
+      const u = new URL(s);
+      return u.protocol === "https:" || (u.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(u.hostname));
+    } catch {
+      return false;
+    }
+  }, "must be an https URL (http only for a loopback host)"),
   SWITCH_AGENT_ID: nonEmpty,
   SWITCH_AGENT_API_KEY: nonEmpty,
   SWITCH_ROOM_ID: nonEmpty,

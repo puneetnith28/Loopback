@@ -62,6 +62,15 @@ export class GitHubClient implements GitHubReader {
   }
 
   private toPull(r: RawPull): PullDetails {
+    // Validate before trusting: approvals and merges bind to these SHAs.
+    const sha = /^[0-9a-f]{40}$/;
+    if (
+      typeof r !== "object" || r === null || typeof r.number !== "number" || typeof r.state !== "string" ||
+      !r.head || typeof r.head.sha !== "string" || !sha.test(r.head.sha) || typeof r.head.ref !== "string" ||
+      !r.base || typeof r.base.ref !== "string" || typeof r.base.sha !== "string" || !sha.test(r.base.sha)
+    ) {
+      throw new GitHubError("unexpected pull request shape from GitHub", null);
+    }
     return {
       number: r.number,
       state: r.state === "open" ? "open" : "closed",
