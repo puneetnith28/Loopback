@@ -41,7 +41,9 @@ export function parseCommand(body: string, gateMention: string): ParseResult {
 
   const verbMatch = /^(\S+)\s*([\s\S]*)$/.exec(rest);
   if (!verbMatch) return fail("missing command");
-  const verb = verbMatch[1]!.toLowerCase();
+  const rawVerb = verbMatch[1]!;
+  if (!/^[A-Za-z]{1,16}$/.test(rawVerb)) return fail("unknown command");
+  const verb = rawVerb.toLowerCase();
   const args = verbMatch[2]!.trim();
   if (!VERBS.has(verb)) return fail(`unknown command "${verb.slice(0, 32)}"`);
 

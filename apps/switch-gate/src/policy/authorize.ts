@@ -25,7 +25,10 @@ export interface SenderAttribution {
 export function roleOf(msg: SenderAttribution, policy: IdentityPolicy): Role {
   if (policy.agentSenders.has(msg.sender)) return "agent";
   if (msg.onBehalfOf !== null) return "agent";
-  if (policy.humanSenderKind !== null && msg.senderKind !== policy.humanSenderKind) return "agent";
+  // Until the human sender kind is verified on the real install (Q3), nobody can be
+  // proven human, so nobody gets more than outsider rights (help and whoami only).
+  if (policy.humanSenderKind === null) return "outsider";
+  if (msg.senderKind !== policy.humanSenderKind) return "agent";
   if (policy.maintainers.has(msg.sender)) return "maintainer";
   if (policy.reporters.has(msg.sender)) return "reporter";
   return "outsider";

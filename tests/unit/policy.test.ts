@@ -22,7 +22,9 @@ const policy: MergePolicy = {
 };
 
 function live(over: Partial<LiveSnapshot> = {}, pr: Partial<NonNullable<LiveSnapshot["pr"]>> = {}): LiveSnapshot {
+  const headSha = pr.headSha ?? A;
   return {
+    changedFilesHeadSha: headSha,
     repo: "o/r",
     prNumber: 42,
     pr: { state: "open", draft: false, merged: false, mergeable: true, headSha: A, baseRef: "main", headRef: "loopback/LB-001", headRepo: "o/r", ...pr },
@@ -197,5 +199,48 @@ describe("isProtectedPath", () => {
     for (const f of ["slugify.js", "test/slugify.js", "lib/index.ts", "README.md", "config.json"]) {
       expect(isProtectedPath(f), f).toBe(false);
     }
+  });
+  it("review fix: normalises ./, backslashes and case, and covers more config files", () => {
+    for (const f of [
+      "././.github/workflows/ci.yml", ".github", ".GITHUB/workflows/x.yml", ".github\\workflows\\ci.yml",
+      "Package.json", "CODEOWNERS", "docs/CODEOWNERS", "babel.config.js", "jest.config.json", ".c8rc.json",
+      ".yarnrc.yml", ".husky/pre-commit", ".gitattributes", ".gitmodules", "bun.lockb",
+    ]) {
+      expect(isProtectedPath(f), f).toBe(true);
+    }
+  });
+});
+
+describe("review fixes: malformed policy and evidence fail closed", () => {
+  it("quorum 0, negative or NaN never allows a merge", () => {
+    for (const quorum of [0, -1, Number.NaN, 1.5]) {
+      expect(code(evidence({ approvals: [] }), live(), { ...policy, quorum }), String(quorum)).toBe("block:CONFIG_INCOMPLETE");
+    }
+  });
+  it("empty required checks, gate context or maintainers never skip CI or approval", () => {
+    expect(code(evidence(), live(), { ...policy, requiredChecks: [] })).toBe("block:CONFIG_INCOMPLETE");
+    expect(code(evidence(), live(), { ...policy, requiredChecks: [" "] })).toBe("block:CONFIG_INCOMPLETE");
+    expect(code(evidence(), live(), { ...policy, gateStatusContext: "" })).toBe("block:CONFIG_INCOMPLETE");
+    expect(code(evidence(), live(), { ...policy, maintainers: new Set() })).toBe("block:CONFIG_INCOMPLETE");
+    expect(code(evidence(), live(), { ...policy, checkSources: new Map([["test", ""]]) })).toBe("block:CI_MISSING");
+  });
+  it("changed files must be read at the live head", () => {
+    expect(code(evidence(), live({ changedFilesHeadSha: B }))).toBe("block:GITHUB_UNAVAILABLE");
+    expect(code(evidence(), live({ changedFilesHeadSha: undefined }))).toBe("block:GITHUB_UNAVAILABLE");
+  });
+  it("heads must be full SHAs; empty or short heads never match", () => {
+    const ev = evidence({ caseHeadSha: "", verificationRuns: [{ seq: 1, headSha: "", status: "pass", repository: "o/r", prNumber: 42 }],
+      approvals: [{ headSha: "", approverId: MAINT, decision: "approve", repo: "o/r", prNumber: 42 }] });
+    const l = live({ checks: [{ id: 1, name: "test", appSlug: "github-actions", status: "completed", conclusion: "success", headSha: "" }], changedFilesHeadSha: "" }, { headSha: "" });
+    expect(code(ev, l)).toBe("block:IDENTITY_MISMATCH");
+    expect(code(evidence({ caseHeadSha: A.toUpperCase() }), live())).toBe("block:IDENTITY_MISMATCH");
+  });
+  it("verification runs with a tied latest seq fail closed", () => {
+    const tied = [
+      { seq: 5, headSha: A, status: "pass" as const, repository: "o/r", prNumber: 42 },
+      { seq: 5, headSha: A, status: "fail" as const, repository: "o/r", prNumber: 42 },
+    ];
+    expect(code(evidence({ verificationRuns: tied }), live())).toBe("block:VERIFICATION_PENDING");
+    expect(code(evidence({ verificationRuns: [...tied].reverse() }), live())).toBe("block:VERIFICATION_PENDING");
   });
 });

@@ -8,7 +8,29 @@ export type ExtractResult<T> =
   | { readonly ok: true; readonly value: T }
   | { readonly ok: false; readonly reason: ExtractFailure; readonly detail: string };
 
-const BLOCK = /```loopback-report[ \t]*\r?\n([\s\S]*?)\r?\n[ \t]*```/g;
+/**
+ * Find the last fenced block whose opening fence is a whole line "```loopback-report"
+ * and whose closing fence is a whole line "```". Linear-time line scan: no regex
+ * backtracking, and fences appearing mid-line or inside other text never count.
+ */
+function lastReportBlock(body: string): string | undefined {
+  const lines = body.split(/\r?\n/);
+  let last: string | undefined;
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i]!.trim() !== "```loopback-report") continue;
+    for (let j = i + 1; j < lines.length; j++) {
+      if (lines[j]!.trim() === "```") {
+        last = lines.slice(i + 1, j).join("\n");
+        i = j;
+        break;
+      }
+      if (lines[j]!.trim().startsWith("```")) break; // a nested/unterminated fence: not a report
+    }
+  }
+  return last;
+}
+
+export const MAX_BODY_CHARS = 20_000;
 
 /**
  * Extract and validate the LAST fenced `loopback-report` block from an agent
@@ -16,8 +38,8 @@ const BLOCK = /```loopback-report[ \t]*\r?\n([\s\S]*?)\r?\n[ \t]*```/g;
  * a single, size-capped, schema-valid JSON object is a failure, never a pass.
  */
 export function extractReport<S extends z.ZodTypeAny>(body: string, schema: S): ExtractResult<z.output<S>> {
-  let last: string | undefined;
-  for (const m of body.matchAll(BLOCK)) last = m[1];
+  if (body.length > MAX_BODY_CHARS) return { ok: false, reason: "TOO_LARGE", detail: "message too large" };
+  const last = lastReportBlock(body);
   if (last === undefined) return { ok: false, reason: "NO_BLOCK", detail: "no loopback-report block found" };
   if (Buffer.byteLength(last, "utf8") > MAX_REPORT_BYTES) {
     return { ok: false, reason: "TOO_LARGE", detail: `report exceeds ${MAX_REPORT_BYTES} bytes` };

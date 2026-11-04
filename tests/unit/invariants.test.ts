@@ -13,6 +13,7 @@ const goodLive: LiveSnapshot = {
   checks: [{ id: 1, name: "test", appSlug: "github-actions", status: "completed", conclusion: "success", headSha: A }],
   baseProtection: { requiredStatusContexts: ["test", "loopback/gate"], requiresPullRequest: true, requiresUpToDate: true, blocksForcePush: true, restrictsDeletion: true },
   changedFiles: ["slugify.js"],
+  changedFilesHeadSha: A,
 };
 const goodEv: CaseEvidence = {
   caseId: "LB-001", repo: "o/r", prNumber: 42, caseHeadSha: A,
@@ -37,7 +38,7 @@ describe("invariant 8: missing or broken evidence never merges", () => {
 
   it("2,000 randomly degraded snapshots never return merge", () => {
     const rand = rng(20261103);
-    const liveKeys = ["pr", "checks", "baseProtection", "changedFiles"] as const;
+    const liveKeys = ["pr", "checks", "baseProtection", "changedFiles", "changedFilesHeadSha"] as const;
     const prKeys = ["mergeable", "headSha", "baseRef", "headRepo", "state", "draft", "merged"] as const;
     for (let i = 0; i < 2000; i++) {
       const l: Record<string, unknown> = { ...goodLive, pr: { ...goodLive.pr! } };

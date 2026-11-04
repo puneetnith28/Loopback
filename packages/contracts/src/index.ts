@@ -18,7 +18,10 @@ export type CaseId = z.infer<typeof CaseId>;
 export const ParticipantId = z.string().min(3).max(256);
 export type ParticipantId = z.infer<typeof ParticipantId>;
 
-export const RepoSlug = z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/, "owner/repo");
+export const RepoSlug = z
+  .string()
+  .regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/, "owner/repo")
+  .refine((s) => s.split("/").every((seg) => seg !== "." && seg !== ".."), "owner/repo");
 export type RepoSlug = z.infer<typeof RepoSlug>;
 
 // ---------------------------------------------------------------------------
@@ -87,9 +90,9 @@ export const FixerReport = z.discriminatedUnion("status", [
     type: z.literal("fixer"),
     status: z.literal("fixed"),
     caseId: CaseId,
-    prUrl: z.string().url().startsWith("https://github.com/"),
+    prUrl: z.string().regex(/^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/pull\/\d+$/, "GitHub pull request URL"),
     headSha: FullSha,
-    branch: z.string().startsWith("loopback/").max(100),
+    branch: z.string().regex(/^loopback\/LB-\d{3,}$/, "loopback/LB-nnn"),
     testsRun: z.array(z.string().max(200)).max(50),
     regressionTest: z.string().min(1).max(300),
     limitations: z.array(ReportText).max(20),
@@ -107,6 +110,8 @@ export type FixerReport = z.infer<typeof FixerReport>;
 
 export const VerifierReport = z.object({
   type: z.literal("verifier"),
+  /** The verification run id the gate sent with the request (D25); binds the report to that run. */
+  runId: z.string().uuid(),
   caseId: CaseId,
   repository: RepoSlug,
   pullRequest: z.number().int().positive(),

@@ -39,7 +39,10 @@ export interface LiveSnapshot {
   readonly pr: LivePull | undefined;
   readonly checks: readonly LiveCheck[] | undefined;
   readonly baseProtection: BaseProtection | undefined;
+  /** Changed files of the PR, including the previous names of renamed files; undefined if unreadable or truncated. */
   readonly changedFiles: readonly string[] | undefined;
+  /** The head SHA the changed-file list was read at; must equal the live head. */
+  readonly changedFilesHeadSha: string | undefined;
 }
 
 export interface VerificationRunEvidence {
@@ -82,19 +85,21 @@ export type MergeDecision =
   | { readonly action: "stale"; readonly code: ReasonCode; readonly message: string; readonly headSha: string | null }
   | { readonly action: "block"; readonly code: ReasonCode; readonly message: string; readonly headSha: string | null };
 
-/** D19: paths a fix must not touch. A change here blocks the merge. */
+/** D19: paths a fix must not touch. A change here blocks the merge. Matching is
+ * case-insensitive and normalises backslashes and leading "./" segments. */
 export function isProtectedPath(path: string): boolean {
-  const p = path.replace(/^\.\/+/, "");
+  const p = path.replace(/\\/g, "/").replace(/^(\.\/)+/, "").replace(/\/{2,}/g, "/").toLowerCase();
   return (
-    p.startsWith(".github/") ||
-    p === "package.json" ||
-    p.endsWith("/package.json") ||
-    /(^|\/)(package-lock\.json|npm-shrinkwrap\.json|yarn\.lock|pnpm-lock\.yaml)$/.test(p) ||
-    /(^|\/)\.?(mocharc|nycrc|babelrc)(\.[a-z]+)?$/.test(p) ||
-    /(^|\/)(vitest|jest|karma|ava|mocha)\.config\.[cm]?[jt]s$/.test(p) ||
-    /(^|\/)\.npmrc$/.test(p)
+    p === ".github" || p.startsWith(".github/") || p.startsWith(".husky/") ||
+    /(^|\/)package\.json$/.test(p) ||
+    /(^|\/)(package-lock\.json|npm-shrinkwrap\.json|yarn\.lock|pnpm-lock\.yaml|bun\.lockb?)$/.test(p) ||
+    /(^|\/)\.?(mocharc|nycrc|babelrc|c8rc)(\.[a-z]+)?$/.test(p) ||
+    /(^|\/)(vitest|jest|karma|ava|mocha|babel)\.config\.[a-z]+$/.test(p) ||
+    /(^|\/)(\.npmrc|\.yarnrc|\.yarnrc\.yml|codeowners|\.gitattributes|\.gitmodules)$/.test(p)
   );
 }
+
+const FULL_SHA = /^[0-9a-f]{40}$/;
 
 const short = (sha: string) => sha.slice(0, 12);
 const block = (code: ReasonCode, message: string, headSha: string | null = null): MergeDecision =>
@@ -103,9 +108,20 @@ const stale = (code: ReasonCode, message: string, headSha: string | null = null)
   ({ action: "stale", code, message, headSha });
 
 export function evaluateMerge(ev: CaseEvidence, live: LiveSnapshot, p: MergePolicy): MergeDecision {
+  // The policy itself is input too: a malformed policy must never relax a check.
+  if (
+    !Number.isInteger(p.quorum) || p.quorum < 1 ||
+    p.requiredChecks.length === 0 || p.requiredChecks.some((c) => c.trim() === "") ||
+    p.gateStatusContext.trim() === "" || p.baseBranch.trim() === "" || p.maintainers.size === 0
+  ) {
+    return block("CONFIG_INCOMPLETE", "Merge policy is incomplete; refusing to evaluate.");
+  }
   const { pr, checks, baseProtection, changedFiles } = live;
   if (!pr || !checks || !baseProtection || !changedFiles) {
     return block("GITHUB_UNAVAILABLE", "Could not read current PR state from GitHub.");
+  }
+  if (!FULL_SHA.test(pr.headSha) || !FULL_SHA.test(ev.caseHeadSha)) {
+    return block("IDENTITY_MISMATCH", "Head SHA is not a full commit SHA.");
   }
   if (live.repo !== ev.repo || live.prNumber !== ev.prNumber) {
     return block("IDENTITY_MISMATCH", "PR identity does not match case.");
@@ -130,6 +146,9 @@ export function evaluateMerge(ev: CaseEvidence, live: LiveSnapshot, p: MergePoli
     return block("BASE_UNPROTECTED", `Required protection is not active on ${p.baseBranch}.`);
   }
 
+  if (live.changedFilesHeadSha !== pr.headSha) {
+    return block("GITHUB_UNAVAILABLE", "Changed files were not read at the current head.");
+  }
   const touched = changedFiles.filter(isProtectedPath);
   if (touched.length > 0) {
     return block("PROTECTED_PATH_CHANGED", `PR changes protected paths: ${touched.slice(0, 5).join(", ")}.`);
@@ -142,7 +161,7 @@ export function evaluateMerge(ev: CaseEvidence, live: LiveSnapshot, p: MergePoli
 
   for (const name of p.requiredChecks) {
     const source = p.checkSources.get(name);
-    if (source === undefined) return block("CI_MISSING", `Required check "${name}" has no configured source.`, head);
+    if (source === undefined || source.trim() === "") return block("CI_MISSING", `Required check "${name}" has no configured source.`, head);
     const runs = checks.filter((c) => c.name === name && c.appSlug === source && c.headSha === head);
     if (runs.length === 0) return block("CI_MISSING", `Required check "${name}" has no run for ${short(head)}.`, head);
     // D13: never assume API order; ids must be unique positive integers.
@@ -163,7 +182,11 @@ export function evaluateMerge(ev: CaseEvidence, live: LiveSnapshot, p: MergePoli
       ? stale("VERIFICATION_STALE", `Verification is for an older commit, not ${short(head)}.`, head)
       : block("VERIFICATION_MISSING", "No verifier result recorded.", head);
   }
-  const latestRun = [...forHead].sort((a, b) => a.seq - b.seq).at(-1)!;
+  const maxSeq = Math.max(...forHead.map((r) => r.seq));
+  if (forHead.filter((r) => r.seq === maxSeq).length !== 1 || !Number.isSafeInteger(maxSeq)) {
+    return block("VERIFICATION_PENDING", "Cannot determine the latest verification run.", head);
+  }
+  const latestRun = forHead.find((r) => r.seq === maxSeq)!;
   switch (latestRun.status) {
     case "requested":
       return block("VERIFICATION_PENDING", `Verification of ${short(head)} has not completed.`, head);

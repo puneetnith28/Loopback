@@ -18,8 +18,14 @@ type Prefix = "BLOCKED" | "REFUSED" | "UNKNOWN" | "STOPPED";
 /** Neutralise Markdown/mention syntax in untrusted values before they reach chat. */
 export function safe(value: string | undefined, max = 200): string {
   if (value === undefined) return "?";
-  const clipped = value.length > max ? `${value.slice(0, max)}…` : value;
-  return clipped.replace(/[`*_~|<>[\]\\]/g, (c) => `\\${c}`).replace(/@/g, "@​").replace(/\s+/g, " ");
+  // Drop control and bidirectional-override characters, which can visually spoof ids.
+  const cleaned = value.replace(/[\u0000-\u001f\u007f-\u009f‎‏‪-‮⁦-⁩]/g, " ");
+  const chars = Array.from(cleaned); // code points: never split a surrogate pair
+  const clipped = chars.length > max ? `${chars.slice(0, max).join("")}…` : cleaned;
+  return clipped
+    .replace(/[`*_~|<>[\]\\&#!]/g, (c) => `\\${c}`)
+    .replace(/@/g, "@​")
+    .replace(/\s+/g, " ");
 }
 const s12 = (sha: string | undefined) => (sha ? safe(sha.slice(0, 12)) : "?");
 

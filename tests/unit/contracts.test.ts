@@ -79,15 +79,17 @@ describe("FixerReport (D5)", () => {
       type: "fixer", status: "not_reproduced", caseId: "LB-001", testsRun: [], limitations: [], summary: "could not reproduce",
     }).success).toBe(true);
   });
-  it("rejects unknown keys and non-GitHub PR URLs", () => {
+  it("rejects unknown keys, non-PR URLs and non-case branches", () => {
     expect(FixerReport.safeParse({ ...fixed, approved: true }).success).toBe(false);
     expect(FixerReport.safeParse({ ...fixed, prUrl: "https://evil.example/pull/1" }).success).toBe(false);
+    expect(FixerReport.safeParse({ ...fixed, prUrl: "https://github.com/o/r/pull/42?x=1" }).success).toBe(false);
+    expect(FixerReport.safeParse({ ...fixed, branch: "loopback/../main" }).success).toBe(false);
   });
 });
 
 describe("VerifierReport", () => {
   const ok = {
-    type: "verifier", caseId: "LB-001", repository: "o/r", pullRequest: 42, headSha: SHA, verdict: "pass",
+    type: "verifier", runId: "6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b", caseId: "LB-001", repository: "o/r", pullRequest: 42, headSha: SHA, verdict: "pass",
     regressionTestFailsBeforeFix: true, findings: [], summary: "fine",
   };
   it("accepts a valid report and rejects extra keys or oversized findings", () => {
@@ -118,5 +120,14 @@ describe("reason codes (D15)", () => {
     for (const c of TRANSIENT_REASON_CODES) expect(REASON_CODES).toContain(c);
     expect(isTransient("REJECTED")).toBe(false);
     expect(new Set(REASON_CODES).size).toBe(REASON_CODES.length);
+  });
+});
+
+describe("RepoSlug", () => {
+  it("rejects dot segments", async () => {
+    const { RepoSlug } = await import("@loopback/contracts");
+    expect(RepoSlug.safeParse("o/r").success).toBe(true);
+    expect(RepoSlug.safeParse("../r").success).toBe(false);
+    expect(RepoSlug.safeParse("o/..").success).toBe(false);
   });
 });

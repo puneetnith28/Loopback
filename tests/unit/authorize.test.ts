@@ -65,13 +65,25 @@ describe("authorize: 10 commands x 4 roles", () => {
     expect(authorize("report", roleOf(human(OUT), policy), policy)).toMatchObject({ ok: false, code: "NOT_AUTHORIZED" });
   });
 
-  it("privileged commands stay disabled until human sender kind is verified (D16/Q3)", () => {
+  it("until the human sender kind is verified, nobody gets more than outsider rights (D16/Q3)", () => {
     const unverified = { ...policy, humanSenderKind: null };
-    const role = roleOf(human(MAINT), unverified);
-    expect(role).toBe("maintainer");
-    for (const kind of PRIVILEGED) {
-      expect(authorize(kind, role, unverified)).toMatchObject({ ok: false, code: "PRIVILEGED_DISABLED" });
+    for (const sender of [MAINT, REP, OUT]) {
+      const role = roleOf(human(sender), unverified);
+      expect(role, sender).toBe("outsider");
+      expect(authorize("whoami", role, unverified).ok).toBe(true);
+      expect(authorize("help", role, unverified).ok).toBe(true);
+      for (const kind of ["report", "status", "audit", ...PRIVILEGED] as CommandKind[]) {
+        expect(authorize(kind, role, unverified).ok, `${sender}/${kind}`).toBe(false);
+      }
     }
-    expect(authorize("status", role, unverified).ok).toBe(true);
+    // agents stay agents regardless
+    expect(roleOf(human(FIXER), unverified)).toBe("agent");
+    expect(roleOf({ sender: MAINT, senderKind: "member", onBehalfOf: MAINT }, unverified)).toBe("agent");
+  });
+
+  it("defence in depth: authorize refuses privileged commands while attribution is unverified", () => {
+    for (const kind of PRIVILEGED) {
+      expect(authorize(kind, "maintainer", { humanSenderKind: null })).toMatchObject({ ok: false, code: "PRIVILEGED_DISABLED" });
+    }
   });
 });

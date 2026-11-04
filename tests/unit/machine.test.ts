@@ -14,11 +14,34 @@ const SPEC: Record<CaseState, CaseState[]> = {
 const PR_CLOSED_SOURCES: CaseState[] = ["PRCreated", "Verifying", "VerificationFailed", "AwaitingApproval", "ReadyToMerge", "Stale"];
 
 describe("state machine (§8.2 + D18 exceptions)", () => {
-  it("checks all 14 x 14 pairs with a neutral reason and trigger", () => {
+  // The trigger each specified edge legitimately uses (all others are checked below).
+  const triggerFor = (from: CaseState, to: CaseState): TransitionTrigger => {
+    if (from === "Revalidating" && to === "Merging") return "maintainer_merge";
+    if (to === "Merged") return "reconcile";
+    if ((from === "Blocked" || from === "VerificationFailed") && to === "FixInProgress") return "command";
+    return "system";
+  };
+
+  it("checks all 14 x 14 pairs against the specified table", () => {
     for (const from of CASE_STATES) {
       for (const to of CASE_STATES) {
-        const trigger: TransitionTrigger = from === "Revalidating" && to === "Merging" ? "maintainer_merge" : "system";
-        expect(isAllowedTransition(from, to, null, trigger), `${from}->${to}`).toBe(SPEC[from].includes(to));
+        expect(isAllowedTransition(from, to, null, triggerFor(from, to)), `${from}->${to}`).toBe(SPEC[from].includes(to));
+      }
+    }
+  });
+
+  it("only the merge path, reconciliation or the poller can record Merged", () => {
+    for (const from of ["Merging", "MergeUnknown"] as CaseState[]) {
+      for (const t of ["maintainer_merge", "reconcile", "poller"] as TransitionTrigger[]) expect(isAllowedTransition(from, "Merged", null, t)).toBe(true);
+      for (const t of ["command", "agent_report", "sweep", "system"] as TransitionTrigger[]) expect(isAllowedTransition(from, "Merged", null, t), t).toBe(false);
+    }
+  });
+
+  it("D10: re-tasking (Blocked/VerificationFailed -> FixInProgress) requires an explicit command", () => {
+    for (const from of ["Blocked", "VerificationFailed"] as CaseState[]) {
+      expect(isAllowedTransition(from, "FixInProgress", null, "command")).toBe(true);
+      for (const t of ["agent_report", "poller", "sweep", "system", "reconcile"] as TransitionTrigger[]) {
+        expect(isAllowedTransition(from, "FixInProgress", null, t), `${from}/${t}`).toBe(false);
       }
     }
   });
@@ -35,13 +58,21 @@ describe("state machine (§8.2 + D18 exceptions)", () => {
   });
 
   it("D18(1): Blocked -> Revalidating only for transient codes on a maintainer merge", () => {
+    const ctx = { hasPrAndHead: true };
     for (const code of REASON_CODES) {
       const expected = TRANSIENT_REASON_CODES.has(code);
-      expect(isAllowedTransition("Blocked", "Revalidating", code, "maintainer_merge"), code).toBe(expected);
-      expect(isAllowedTransition("Blocked", "Revalidating", code, "reconcile"), code).toBe(false);
-      expect(isAllowedTransition("Blocked", "Revalidating", code, "poller"), code).toBe(false);
+      expect(isAllowedTransition("Blocked", "Revalidating", code, "maintainer_merge", ctx), code).toBe(expected);
+      expect(isAllowedTransition("Blocked", "Revalidating", code, "reconcile", ctx), code).toBe(false);
+      expect(isAllowedTransition("Blocked", "Revalidating", code, "poller", ctx), code).toBe(false);
     }
-    expect(isAllowedTransition("Blocked", "Revalidating", null, "maintainer_merge")).toBe(false);
+    expect(isAllowedTransition("Blocked", "Revalidating", null, "maintainer_merge", ctx)).toBe(false);
+  });
+
+  it("review fix: a case without a PR and head can never reach Revalidating from Blocked", () => {
+    // Reported -> Blocked -> Revalidating would otherwise skip the whole workflow.
+    expect(isAllowedTransition("Reported", "Blocked", "RATE_LIMITED", "system")).toBe(true);
+    expect(isAllowedTransition("Blocked", "Revalidating", "RATE_LIMITED", "maintainer_merge", { hasPrAndHead: false })).toBe(false);
+    expect(isAllowedTransition("Blocked", "Revalidating", "RATE_LIMITED", "maintainer_merge")).toBe(false);
   });
 
   it("D18(2): listed states -> Blocked only with PR_CLOSED", () => {
