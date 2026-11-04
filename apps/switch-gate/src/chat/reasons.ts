@@ -66,7 +66,12 @@ const REASONS: Readonly<Record<ReasonCode, readonly [Prefix, (c: ReasonContext) 
   CASE_NOT_FOUND: ["REFUSED", (c) => `No case ${safe(c.caseId)} exists.`],
   INVALID_STATE: ["REFUSED", (c) => `${safe(c.command)} is not possible while ${safe(c.caseId)} is ${safe(c.state)}.`],
   PRIVILEGED_DISABLED: ["REFUSED", (c) =>
-    `${safe(c.command)} is disabled until maintainer identity attribution is verified on this Switch install.`],
+    `${safe(c.command)} is disabled on this Loopback instance (privileged commands are switched off).`],
+  NOT_ADDRESSED: ["REFUSED", () => "Switch did not address this message to the gate, so it is not a command."],
+  DELEGATED_SENDER: ["REFUSED", () => "Messages sent on someone else's behalf are never commands."],
+  PLATFORM_SENDER: ["REFUSED", () => "Messages from the Switch platform itself are never commands."],
+  UNRECOGNISED_SENDER_KIND: ["REFUSED", () => "This message's sender kind is not one Loopback accepts."],
+  GATE_HALTED: ["STOPPED", () => "Loopback halted before this command could finish; nothing further was written. Send it again once the gate is back."],
   MERGE_DISABLED: ["BLOCKED", () => "Merging is disabled (read-only mode)."],
   CONFIG_INCOMPLETE: ["BLOCKED", () => "Loopback is not fully configured; merging is disabled."],
   MERGE_OUTCOME_UNKNOWN: ["UNKNOWN", () => "The merge request did not return a clear result. Checking GitHub before doing anything else."],

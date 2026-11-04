@@ -12,6 +12,7 @@ import {
 import { evaluateMerge, type CaseEvidence, type MergeDecision, type MergePolicy } from "../policy/evaluate.js";
 import type { CaseLocks } from "./lock.js";
 import { assertTransition, type TransitionTrigger } from "./machine.js";
+import type { HaltGuard } from "./halt.js";
 
 export class CaseNotFound extends Error {
   constructor(id: string) {
@@ -135,6 +136,8 @@ export interface MergeDeps {
   readonly policy: MergePolicy;
   readonly mergeEnabled: boolean;
   readonly configComplete: boolean;
+  /** Stops privileged work at its next write boundary once the gate is halted. */
+  readonly halt: HaltGuard;
   readonly transientRetryLimit: number;
   readonly mergeMaxAttempts: number;
   /** Ask the verifier again (requires the case lock). */
@@ -226,6 +229,7 @@ export class MergeExecutor {
     if (!this.d.mergeEnabled) return this.refuseNoTransition(c, actorId, "MERGE_DISABLED");
     if (!this.d.configComplete) return this.refuseNoTransition(c, actorId, "CONFIG_INCOMPLETE");
     if (c.state === "MergeUnknown") return this.reconcileLocked(caseId);
+    this.d.halt.assertRunning("merge");
 
     if (c.state === "ReadyToMerge") {
       c = transition(db, { caseId, to: "Revalidating", actorId, trigger: "maintainer_merge", reason: null, auditType: "merge.requested" }, now());
@@ -250,10 +254,13 @@ export class MergeExecutor {
       const snap = await this.d.github.snapshot(c.prNumber);
       decision = evaluateMerge(this.evidence(c), snap.snapshot, this.d.policy);
     } catch (e) {
+      this.d.halt.assertRunning("merge");
       const code: ReasonCode = e instanceof RateLimited ? "RATE_LIMITED" : "GITHUB_UNAVAILABLE";
       if (!(e instanceof RateLimited) && !(e instanceof GitHubError)) this.d.log?.error({ caseId, op: "revalidate", err: errName(e) }, "unexpected error during revalidation; blocked");
       return this.settle(c, { action: "block", code, message: "", headSha: c.headSha }, "system");
     }
+    // Halt boundary: nothing has been written to GitHub for this attempt yet.
+    this.d.halt.assertRunning("merge");
     if (decision.action !== "merge") return this.settle(c, decision, "system");
     const sha = decision.headSha;
 
@@ -272,9 +279,11 @@ export class MergeExecutor {
     // The audit entry is written BEFORE the POST, so a crash in between still leaves a
     // record that a success status may exist and must be reset (D9).
     this.audit(c, "system", "gate_status.posted", sha, null, { attempt: op.attempt });
+    this.d.halt.assertRunning("merge");
     try {
       await this.d.github.setGateStatus(sha, "success", `Approved for ${sha.slice(0, 12)} by Loopback`);
     } catch {
+      this.d.halt.assertRunning("merge");
       finishMergeOp(db, op.id, "failed", null, "gate status not confirmed", now());
       await this.correctGateStatus(c, sha, "GITHUB_UNAVAILABLE");
       return this.settle(c, { action: "block", code: "GITHUB_UNAVAILABLE", message: "", headSha: sha }, "system");
@@ -285,6 +294,7 @@ export class MergeExecutor {
     } catch {
       again = undefined;
     }
+    this.d.halt.assertRunning("merge");
     if (again?.headSha !== sha) {
       finishMergeOp(db, op.id, "failed", null, "head moved before merge", now());
       await this.correctGateStatus(c, sha, again ? "HEAD_MOVED" : "GITHUB_UNAVAILABLE");
@@ -293,8 +303,11 @@ export class MergeExecutor {
         : this.settle(c, { action: "block", code: "GITHUB_UNAVAILABLE", message: "", headSha: sha }, "system");
     }
 
-    // 10: merge with GitHub's sha precondition.
+    // 10: merge with GitHub's sha precondition. Last halt boundaries before the irreversible call.
+    this.d.halt.assertRunning("merge");
     transition(db, { caseId, to: "Merging", actorId, trigger: "maintainer_merge", reason: null, targetSha: sha, payload: { attempt: op.attempt } }, now());
+    // Outside the try: a halt here must not be mistaken for a merge failure.
+    this.d.halt.assertRunning("merge");
     try {
       await this.d.merger(c.prNumber, sha);
     } catch (e) {

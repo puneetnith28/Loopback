@@ -34,6 +34,8 @@ describe("Switch config: gate mention", () => {
   const env = {
     SWITCH_BRIDGE_URL: "http://127.0.0.1:37203", SWITCH_AGENT_ID: "a", SWITCH_AGENT_API_KEY: "k",
     SWITCH_ROOM_ID: "r", SWITCH_SELF_ID: "@switch-agent-9cb69676:localhost",
+    SWITCH_POLICY_USER_IDS: "2a8934be-9a66-4944-a410-456e9e23b98c",
+    SWITCH_POLICY_AGENT_IDS: "11111111-2222-4333-8444-555555555555",
   };
 
   it("defaults to the registered agent name, not the participant id", () => {

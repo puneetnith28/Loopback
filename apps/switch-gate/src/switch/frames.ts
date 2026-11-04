@@ -40,8 +40,10 @@ const MessagePayload = z.object({
   addressed: z.boolean(),
   sender: z.string().min(1),
   sender_name: z.string(),
-  sender_kind: z.string().min(1).nullable().optional(),
-  on_behalf_of: z.string().min(1).nullable().optional(),
+  // Attribution keys are required (null allowed): an absent key must not read as the
+  // human value null. Every live switch-core 0.31.0 payload carried both.
+  sender_kind: z.string().min(1).nullable(),
+  on_behalf_of: z.string().min(1).nullable(),
   message_id: z.string().min(1),
   body: z.string(),
   timestamp: SafeCount,
@@ -126,8 +128,8 @@ export function toInbound(e: MessageEvent): InboundMessage | null {
     sequence,
     messageId: p.message_id,
     sender: p.sender,
-    senderKind: p.sender_kind ?? null,
-    onBehalfOf: p.on_behalf_of ?? null,
+    senderKind: p.sender_kind,
+    onBehalfOf: p.on_behalf_of,
     senderRole: p.sender_role ?? null,
     addressed: p.addressed,
     body: p.body,

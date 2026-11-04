@@ -175,6 +175,10 @@ export const REASON_CODES = [
   // approvals and router
   "APPROVAL_SHA_MISMATCH", "NOT_AUTHORIZED", "UNKNOWN_COMMAND", "CASE_NOT_FOUND",
   "INVALID_STATE", "PRIVILEGED_DISABLED",
+  // message admission (audited, never answered in chat)
+  "NOT_ADDRESSED", "DELEGATED_SENDER", "PLATFORM_SENDER", "UNRECOGNISED_SENDER_KIND",
+  // a privileged command stopped because the gate halted (Switch policy failure)
+  "GATE_HALTED",
   // merge service
   "MERGE_DISABLED", "CONFIG_INCOMPLETE", "MERGE_OUTCOME_UNKNOWN", "AWAITING_MERGE_COMMAND",
   "RETRY_LIMIT_REACHED", "MERGE_ATTEMPTS_EXHAUSTED",

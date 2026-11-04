@@ -1,5 +1,6 @@
 import { FixerReport, VerifierReport, displaySha, type InboundMessage, type ReasonCode } from "@loopback/contracts";
 import { append } from "../audit/index.js";
+import type { HaltGuard } from "../cases/halt.js";
 import type { CaseLocks } from "../cases/lock.js";
 import { transition, transitionInTx } from "../cases/service.js";
 import type { ChatPort } from "../chat/port.js";
@@ -30,6 +31,8 @@ export interface WorkflowDeps {
   readonly fixTimeoutMs: number;
   /** D17: the commit the demo base branch must point at, or null outside demo runs. */
   readonly expectedBaseSha: () => string | null;
+  /** Stops privileged commands at their next write boundary once the gate is halted. */
+  readonly halt: HaltGuard;
   readonly log?: { error(obj: Record<string, unknown>, msg: string): void };
 }
 
@@ -105,6 +108,7 @@ export class VerificationWorkflow implements AgentInbox, FixerHandoff {
       if (!["PRCreated", "Stale", "Verifying", "AwaitingApproval", "ReadyToMerge"].includes(c.state) || c.headSha === null) {
         return this.refuse(ctx, c, "INVALID_STATE", "verify");
       }
+      this.d.halt.assertRunning("verify");
       await this.requestVerificationLocked(c.id, ctx.msg.sender, true);
       return { text: `Re-verification of ${displaySha(c.headSha)} requested.`, caseId: c.id };
     });
@@ -267,7 +271,10 @@ export class VerificationWorkflow implements AgentInbox, FixerHandoff {
       if (!c) return { text: formatReason("CASE_NOT_FOUND", { caseId }), caseId: null };
       const allowed = decision === "approve" ? ["AwaitingApproval"] : ["AwaitingApproval", "ReadyToMerge"];
       if (!allowed.includes(c.state) || c.prNumber === null || c.headSha === null) return this.refuse(ctx, c, "INVALID_STATE", decision);
+      this.d.halt.assertRunning(decision);
       const live = await this.livePull(c);
+      // Halt boundary: every write below (audit, Stale transition, approval) happens after this.
+      this.d.halt.assertRunning(decision);
       if (typeof live === "string") return this.refuse(ctx, c, live, decision);
       // D25 (revised): exact full-SHA equality, never a prefix match.
       if (approvedSha !== null && live.headSha !== approvedSha) {
@@ -324,7 +331,10 @@ export class VerificationWorkflow implements AgentInbox, FixerHandoff {
       // eligible state, non-empty note (parser), audited.
       if (c.repo !== this.d.repo) return this.refuse(ctx, c, "NOT_AUTHORIZED", "retask");
       if (c.state !== "Blocked" && c.state !== "VerificationFailed") return this.refuse(ctx, c, "INVALID_STATE", "retask");
+      this.d.halt.assertRunning("retask");
       const problem = await this.check(c);
+      // Halt boundary: the refusal audit and the FixInProgress transition happen after this.
+      this.d.halt.assertRunning("retask");
       if (problem !== null) return this.refuse(ctx, c, problem, "retask");
       const previous = c.state;
       const prior = c.blockedReason;

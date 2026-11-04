@@ -44,7 +44,7 @@ export interface ConnectionStore {
 
 export type StopCode =
   | "taken_over" | "unauthorized" | "forbidden" | "protocol" | "stale_generation"
-  | "room_lost" | "retries_exhausted" | "storage" | "stopped";
+  | "room_lost" | "retries_exhausted" | "storage" | "policy_mismatch" | "stopped";
 export interface StopReason {
   readonly code: StopCode;
   readonly detail: string;
@@ -124,6 +124,11 @@ export class SwitchConnection {
   async stop(): Promise<void> {
     this.finish({ code: "stopped", detail: "stopped by the gate" });
     await this.queue;
+  }
+
+  /** Stop for good because the gate's Switch addressing policy is no longer the expected one. */
+  policyMismatch(detail: string): void {
+    this.finish({ code: "policy_mismatch", detail });
   }
 
   /** Called by the chat transport when Switch refuses a call because this client lost the connection. */

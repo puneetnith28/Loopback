@@ -14,8 +14,20 @@ import {
   markProcessed,
   type CaseRecord,
 } from "../persistence/repos.js";
+import { HaltedError } from "../cases/halt.js";
+import { admit, assertAdmissionPolicy, type AdmissionCode, type AdmissionPolicy } from "../policy/admission.js";
 import { authorize, roleOf, type IdentityPolicy, type Role } from "../policy/authorize.js";
 import { USAGE, parseCommand } from "./parse.js";
+
+/**
+ * Audit-spam bound for admission refusals: an ordinary refusal (NOT_ADDRESSED from a
+ * person) is audited at most once per sender per window, and the next audited row
+ * records how many were suppressed. Attribution refusals and refusals of the configured
+ * fixer/verifier are security or availability evidence and are always audited.
+ */
+const REFUSAL_AUDIT_WINDOW_MS = 60_000;
+const REFUSAL_AUDIT_MAX_KEYS = 1_000;
+const NEVER_THROTTLED: ReadonlySet<AdmissionCode> = new Set<AdmissionCode>(["DELEGATED_SENDER", "PLATFORM_SENDER", "UNRECOGNISED_SENDER_KIND"]);
 
 export interface Reply {
   readonly text: string;
@@ -51,9 +63,8 @@ export interface RouterDeps {
   readonly db: Db;
   readonly chat: ChatPort;
   readonly identity: IdentityPolicy;
-  readonly fixerId: string;
-  readonly verifierId: string;
-  readonly gateMention: string;
+  /** Admission inputs: the gate's own id, the exact fixer/verifier ids and the gate mention. */
+  readonly admission: AdmissionPolicy;
   readonly repo: string;
   readonly quorum: number;
   readonly requiredChecks: readonly string[];
@@ -63,37 +74,56 @@ export interface RouterDeps {
   readonly now: () => Date;
 }
 
-function startsWithMention(body: string, mention: string): boolean {
-  return body.trim().toLowerCase().startsWith(mention.toLowerCase());
-}
-
 export class Router {
-  constructor(private readonly d: RouterDeps) {}
+  /** Recently audited (code, sender) refusals: when, and how many were suppressed since. Bounded. */
+  private readonly recentRefusals = new Map<string, { at: number; suppressed: number; sender: string; code: AdmissionCode }>();
 
-  /** Handle one inbound message. Redelivered events are no-ops. */
+  constructor(private readonly d: RouterDeps) {
+    // Fail at construction (startup), not on every message.
+    assertAdmissionPolicy(d.admission);
+  }
+
+  /**
+   * Handle one inbound message. Redelivered events are no-ops. Every message passes
+   * admission first: only an addressed report from the exact fixer/verifier id reaches
+   * the agent inbox, and only an addressed message from a person reaches the parser.
+   */
   async handle(msg: InboundMessage): Promise<void> {
     const { db, now } = this.d;
     if (isProcessed(db, msg.eventId)) return;
+    this.flushExpiredRefusals(now().getTime());
 
-    const agent = msg.sender === this.d.fixerId ? "fixer" : msg.sender === this.d.verifierId ? "verifier" : null;
-    if (agent !== null && !startsWithMention(msg.body, this.d.gateMention)) {
-      await this.d.agents.onAgentMessage(msg, agent);
-      markProcessed(db, msg.eventId, now());
-      return;
+    const admission = admit(msg, this.d.admission);
+    switch (admission.kind) {
+      case "self":
+      case "ignore":
+        markProcessed(db, msg.eventId, now());
+        return;
+      case "refused":
+        // Audited, never answered: Switch already declined these, and replying could loop.
+        // At most one audit row per sender per window, so a refused sender cannot flood the log.
+        if (this.shouldAuditRefusal(msg.sender, admission.code)) {
+          await this.refuse(msg, null, admission.code, {}, "admission", { reply: false });
+        } else {
+          markProcessed(db, msg.eventId, now());
+        }
+        return;
+      case "agent_report":
+        await this.d.agents.onAgentMessage(msg, admission.agent);
+        markProcessed(db, msg.eventId, now());
+        return;
+      case "command":
+        break;
     }
 
-    const parsed = parseCommand(msg.body, this.d.gateMention);
+    const parsed = parseCommand(msg.body, this.d.admission.gateMention);
     if (!parsed.ok) {
-      if (!startsWithMention(msg.body, this.d.gateMention)) {
-        markProcessed(db, msg.eventId, now()); // not addressed to us
-        return;
-      }
       await this.refuse(msg, null, "UNKNOWN_COMMAND", { detail: `${parsed.error}. Usage:\n${USAGE}` }, "unknown");
       return;
     }
 
     const command = parsed.command;
-    const role = roleOf(msg, this.d.identity);
+    const role = roleOf(msg.sender, this.d.identity);
     const decision = authorize(command.kind, role, this.d.identity);
     if (!decision.ok) {
       const caseId = "caseId" in command ? command.caseId : null;
@@ -101,9 +131,55 @@ export class Router {
       return;
     }
 
-    const reply = await this.dispatch(command, { msg, role });
+    let reply: Reply | null;
+    try {
+      reply = await this.dispatch(command, { msg, role });
+    } catch (e) {
+      if (!(e instanceof HaltedError)) throw e;
+      // Halted mid-command: record it and mark the event processed, so it is never
+      // re-run after a restart. No reply: posting is refused once the gate has stopped.
+      const caseId = "caseId" in command ? command.caseId : null;
+      await this.refuse(msg, caseId, "GATE_HALTED", {}, command.kind, { reply: false });
+      return;
+    }
     if (command.kind !== "report") markProcessed(db, msg.eventId, now());
     if (reply) await this.post(msg, reply);
+  }
+
+  /**
+   * Whether to write an audit row for this admission refusal. Throttled refusals are
+   * counted and reported in a summary row when their window closes. Fails toward
+   * auditing: when the tracking table is full of live entries, the refusal is audited.
+   */
+  private shouldAuditRefusal(sender: string, code: AdmissionCode): boolean {
+    const a = this.d.admission;
+    if (NEVER_THROTTLED.has(code) || sender === a.fixerId || sender === a.verifierId) return true;
+    const t = this.d.now().getTime();
+    this.flushExpiredRefusals(t);
+    const key = `${code}\u0000${sender}`;
+    const entry = this.recentRefusals.get(key);
+    if (entry !== undefined) {
+      entry.suppressed += 1;
+      return false;
+    }
+    // Table full of live entries: audit untracked rather than lose the evidence.
+    if (this.recentRefusals.size >= REFUSAL_AUDIT_MAX_KEYS) return true;
+    this.recentRefusals.set(key, { at: t, suppressed: 0, sender, code });
+    return true;
+  }
+
+  /** Close expired windows; a window that suppressed refusals leaves a summary audit row. */
+  private flushExpiredRefusals(t: number): void {
+    for (const [key, v] of this.recentRefusals) {
+      if (t - v.at < REFUSAL_AUDIT_WINDOW_MS) continue;
+      this.recentRefusals.delete(key);
+      if (v.suppressed > 0) {
+        append(this.d.db, {
+          caseId: null, actorId: v.sender, type: "command.refused", reasonCode: v.code,
+          payload: { command: "admission", suppressed: v.suppressed, windowStartedAt: new Date(v.at).toISOString() },
+        }, this.d.now());
+      }
+    }
   }
 
   private async dispatch(command: Command, ctx: CommandContext): Promise<Reply | null> {
@@ -190,17 +266,18 @@ export class Router {
     code: ReasonCode,
     ctx: Parameters<typeof formatReason>[1],
     command: string,
+    opts: { readonly reply: boolean; readonly payload?: Readonly<Record<string, unknown>> } = { reply: true },
   ): Promise<void> {
     const { db, now } = this.d;
     const knownCase = caseId !== null && getCase(db, caseId) !== undefined ? caseId : null;
     db.transaction(() => {
       append(db, {
         caseId: knownCase, actorId: msg.sender, type: "command.refused", reasonCode: code,
-        payload: { command, eventId: msg.eventId, addressed: msg.addressed },
+        payload: { command, eventId: msg.eventId, addressed: msg.addressed, ...opts.payload },
       }, now());
       markProcessed(db, msg.eventId, now());
     })();
-    await this.post(msg, { text: formatReason(code, ctx), caseId: knownCase });
+    if (opts.reply) await this.post(msg, { text: formatReason(code, ctx), caseId: knownCase });
   }
 
   private async post(msg: InboundMessage, reply: Reply): Promise<void> {

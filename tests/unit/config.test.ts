@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   ConfigError,
+  assertIdentityConsistency,
   assertPrivateKeyFile,
   loadGitHubConfig,
   loadIdentityConfig,
@@ -9,6 +10,8 @@ import {
 } from "../../apps/switch-gate/src/config.js";
 
 const SECRET = "sk-super-secret-value-123456";
+const POLICY_USER = "2a8934be-9a66-4944-a410-456e9e23b98c";
+const POLICY_AGENT = "11111111-2222-4333-8444-555555555555";
 
 const switchEnv = {
   SWITCH_BRIDGE_URL: "http://localhost:8080",
@@ -16,6 +19,8 @@ const switchEnv = {
   SWITCH_AGENT_API_KEY: SECRET,
   SWITCH_ROOM_ID: "room-1",
   SWITCH_SELF_ID: "@switch-agent-gate:loopback",
+  SWITCH_POLICY_USER_IDS: POLICY_USER,
+  SWITCH_POLICY_AGENT_IDS: POLICY_AGENT,
 };
 const identityEnv = {
   LOOPBACK_MAINTAINERS: "@switch-user-a1:loopback",
@@ -44,10 +49,25 @@ function issuesOf(fn: () => unknown): { variable: string; message: string }[] {
 }
 
 describe("Switch group", () => {
-  it("loads a complete group and leaves privileged commands disabled without a verified sender kind", () => {
+  it("loads a complete group with the expected addressing-policy ids", () => {
     const c = loadSwitchConfig(switchEnv);
     expect(c.roomId).toBe("room-1");
-    expect(c.humanSenderKind).toBeNull();
+    expect(c.policyUserIds).toEqual(new Set([POLICY_USER]));
+    expect(c.policyAgentIds).toEqual(new Set([POLICY_AGENT]));
+  });
+
+  it("requires explicit policy id lists of lower-case UUIDs (no wildcard, no participant ids)", () => {
+    for (const bad of ["", "*", "@switch-mattermost-x:localhost", POLICY_USER.toUpperCase(), `${POLICY_USER},nope`]) {
+      const issues = issuesOf(() => loadSwitchConfig({ ...switchEnv, SWITCH_POLICY_USER_IDS: bad }));
+      expect(issues.map((i) => i.variable), bad).toContain("SWITCH_POLICY_USER_IDS");
+    }
+    const issues = issuesOf(() => loadSwitchConfig({ ...switchEnv, SWITCH_POLICY_AGENT_IDS: undefined }));
+    expect(issues.map((i) => i.variable)).toContain("SWITCH_POLICY_AGENT_IDS");
+  });
+
+  it("ignores the retired SWITCH_HUMAN_SENDER_KIND: it can no longer grant anything", () => {
+    const c = loadSwitchConfig({ ...switchEnv, SWITCH_HUMAN_SENDER_KIND: "member" });
+    expect(c).not.toHaveProperty("humanSenderKind");
   });
 
   it("names each missing variable and never echoes a value", () => {
@@ -86,6 +106,30 @@ describe("identity group", () => {
       loadIdentityConfig({ ...identityEnv, LOOPBACK_REPORTERS: "@switch-agent-verifier:loopback" }),
     );
     expect(issues2.map((i) => i.variable)).toContain("LOOPBACK_REPORTERS");
+  });
+
+  it("leaves privileged commands disabled unless LOOPBACK_PRIVILEGED_ENABLED is exactly true", () => {
+    expect(loadIdentityConfig(identityEnv).privilegedEnabled).toBe(false);
+    expect(loadIdentityConfig({ ...identityEnv, LOOPBACK_PRIVILEGED_ENABLED: "false" }).privilegedEnabled).toBe(false);
+    expect(loadIdentityConfig({ ...identityEnv, LOOPBACK_PRIVILEGED_ENABLED: "true" }).privilegedEnabled).toBe(true);
+    for (const bad of ["yes", "1", "TRUE", "on"]) {
+      const issues = issuesOf(() => loadIdentityConfig({ ...identityEnv, LOOPBACK_PRIVILEGED_ENABLED: bad }));
+      expect(issues.map((i) => i.variable), bad).toContain("LOOPBACK_PRIVILEGED_ENABLED");
+    }
+  });
+
+  it("refuses a gate id that is also a maintainer, reporter, fixer or verifier", () => {
+    const id = loadIdentityConfig(identityEnv);
+    expect(() => assertIdentityConsistency({ selfId: "@switch-agent-gate:loopback" }, id)).not.toThrow();
+    for (const [selfId, variable] of [
+      ["@switch-user-a1:loopback", "LOOPBACK_MAINTAINERS"],
+      ["@switch-user-r2:loopback", "LOOPBACK_REPORTERS"],
+      ["@switch-agent-fixer:loopback", "SWITCH_SELF_ID"],
+      ["@switch-agent-verifier:loopback", "SWITCH_SELF_ID"],
+    ] as const) {
+      const issues = issuesOf(() => assertIdentityConsistency({ selfId }, id));
+      expect(issues.map((i) => i.variable), selfId).toContain(variable);
+    }
   });
 
   it("rejects identical fixer and verifier ids", () => {

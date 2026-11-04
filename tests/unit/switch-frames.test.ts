@@ -85,11 +85,17 @@ describe("toInbound", () => {
     });
   });
 
-  it("maps absent optional fields to null rather than guessing", () => {
+  it("maps absent descriptive fields (thread_id, sender_role) to null rather than guessing", () => {
     const raw = JSON.parse(message()) as { data: { payload: Record<string, unknown> } };
-    for (const k of ["sender_kind", "on_behalf_of", "thread_id", "sender_role"]) delete raw.data.payload[k];
+    for (const k of ["thread_id", "sender_role"]) delete raw.data.payload[k];
     const m = toInbound(event(JSON.stringify(raw)));
-    expect(m).toMatchObject({ senderKind: null, onBehalfOf: null, threadId: null, senderRole: null });
+    expect(m).toMatchObject({ threadId: null, senderRole: null });
+  });
+
+  it.each(["sender_kind", "on_behalf_of"])("rejects a message whose %s key is absent (it must not read as the human value)", (k) => {
+    const raw = JSON.parse(message()) as { data: { payload: Record<string, unknown> } };
+    delete raw.data.payload[k];
+    expect(parseFrame(JSON.stringify(raw)).kind).toBe("invalid");
   });
 
   it("drops a message whose body exceeds the contract limit", () => {

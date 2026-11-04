@@ -1,36 +1,28 @@
 import type { CommandKind, ReasonCode } from "@loopback/contracts";
 
-export type Role = "maintainer" | "reporter" | "agent" | "outsider";
+/**
+ * Roles of an admitted sender. Agents never get a role: admission (policy/admission.ts)
+ * routes the configured fixer and verifier to the report path and refuses delegated,
+ * platform and unaddressed messages before any role is resolved.
+ */
+export type Role = "maintainer" | "reporter" | "outsider";
 
 export interface IdentityPolicy {
+  /** Exact Switch participant ids (the message `sender`). Never names or roles. */
   readonly maintainers: ReadonlySet<string>;
   readonly reporters: ReadonlySet<string>;
-  readonly agentSenders: ReadonlySet<string>;
-  /** The human sender_kind verified on the real Switch install; null = not yet verified (D16, Q3). */
-  readonly humanSenderKind: string | null;
-}
-
-export interface SenderAttribution {
-  readonly sender: string;
-  readonly senderKind: string | null;
-  readonly onBehalfOf: string | null;
+  /** Explicit operator switch for privileged commands. Off unless set to true. */
+  readonly privilegedEnabled: boolean;
 }
 
 /**
- * Resolve a sender's role. Attribution is checked before any allowlist (D16):
- * a message sent on behalf of someone, from a configured agent id, or with a
- * sender kind other than the verified human kind is always an agent message,
- * even if its sender id is a maintainer's. Display names are never consulted.
+ * Resolve the role of a sender that has already passed admission. The sender id is
+ * compared exactly against the configured lists; display names, `sender_role` and
+ * `sender_kind` are never consulted.
  */
-export function roleOf(msg: SenderAttribution, policy: IdentityPolicy): Role {
-  if (policy.agentSenders.has(msg.sender)) return "agent";
-  if (msg.onBehalfOf !== null) return "agent";
-  // Until the human sender kind is verified on the real install (Q3), nobody can be
-  // proven human, so nobody gets more than outsider rights (help and whoami only).
-  if (policy.humanSenderKind === null) return "outsider";
-  if (msg.senderKind !== policy.humanSenderKind) return "agent";
-  if (policy.maintainers.has(msg.sender)) return "maintainer";
-  if (policy.reporters.has(msg.sender)) return "reporter";
+export function roleOf(sender: string, policy: Pick<IdentityPolicy, "maintainers" | "reporters">): Role {
+  if (policy.maintainers.has(sender)) return "maintainer";
+  if (policy.reporters.has(sender)) return "reporter";
   return "outsider";
 }
 
@@ -47,24 +39,20 @@ const ALLOWED: Readonly<Record<CommandKind, readonly Role[]>> = {
   retask: ["maintainer"],
 };
 
-/** Commands that change authorization state. Disabled until attribution is verified (D16). */
+/** Commands that change authorization or repository state. Off unless explicitly enabled. */
 export const PRIVILEGED: ReadonlySet<CommandKind> = new Set<CommandKind>(["verify", "approve", "reject", "merge", "retask"]);
 
 export type Decision =
   | { readonly ok: true }
   | { readonly ok: false; readonly code: ReasonCode; readonly message: string };
 
-export function authorize(kind: CommandKind, role: Role, policy: Pick<IdentityPolicy, "humanSenderKind">): Decision {
+export function authorize(kind: CommandKind, role: Role, policy: Pick<IdentityPolicy, "privilegedEnabled">): Decision {
   const allowed = ALLOWED[kind];
   if (!allowed.includes(role)) {
     return { ok: false, code: "NOT_AUTHORIZED", message: `${kind} requires: ${allowed.join(", ")}` };
   }
-  if (PRIVILEGED.has(kind) && policy.humanSenderKind === null) {
-    return {
-      ok: false,
-      code: "PRIVILEGED_DISABLED",
-      message: `${kind} is disabled until sender attribution is verified on this Switch install`,
-    };
+  if (PRIVILEGED.has(kind) && policy.privilegedEnabled !== true) {
+    return { ok: false, code: "PRIVILEGED_DISABLED", message: `${kind} is disabled (LOOPBACK_PRIVILEGED_ENABLED is not true)` };
   }
   return { ok: true };
 }

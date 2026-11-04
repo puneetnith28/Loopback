@@ -39,6 +39,15 @@ const idList = z.string().trim().min(1, "required").transform((s, ctx) => {
   }
   return new Set(ids);
 });
+/** Comma-separated Switch row ids (UUIDs): ExternalUser ids or Switch agent ids. */
+const uuidList = z.string().trim().min(1, "required").transform((s, ctx) => {
+  const ids = s.split(",").map((x) => x.trim()).filter(Boolean);
+  if (ids.length === 0 || ids.some((id) => !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(id))) {
+    ctx.addIssue({ code: "custom", message: "must be a comma-separated list of lower-case UUIDs" });
+    return z.NEVER;
+  }
+  return new Set(ids);
+});
 const positiveInt = (fallback: number) =>
   z.string().optional().transform((s, ctx) => {
     if (s === undefined || s.trim() === "") return fallback;
@@ -76,7 +85,11 @@ const SwitchSchema = z.object({
   SWITCH_SELF_ID: ParticipantId,
   // How messages address the gate; the registered agent name (verified live before use).
   SWITCH_GATE_MENTION: z.string().trim().regex(/^@[a-z0-9][a-z0-9._-]*$/, "must be @ followed by the agent name").default("@loopback-gate"),
-  SWITCH_HUMAN_SENDER_KIND: z.string().trim().optional().transform((s) => (s ? s : null)),
+  // The gate's Switch addressing policy must admit exactly these (startup self-check):
+  // ExternalUser ids of the people who may address it, and Switch agent ids of the
+  // fixer and verifier. Not participant ids; see docs/setup.md.
+  SWITCH_POLICY_USER_IDS: uuidList,
+  SWITCH_POLICY_AGENT_IDS: uuidList,
 });
 
 export interface SwitchConfig {
@@ -87,8 +100,10 @@ export interface SwitchConfig {
   readonly selfId: string;
   /** The @mention that addresses the gate in a message body. */
   readonly gateMention: string;
-  /** Verified human sender_kind; null keeps privileged commands disabled (D16). */
-  readonly humanSenderKind: string | null;
+  /** ExternalUser ids the Switch addressing policy must admit (and nothing else). */
+  readonly policyUserIds: ReadonlySet<string>;
+  /** Switch agent ids the Switch addressing policy must admit (and nothing else). */
+  readonly policyAgentIds: ReadonlySet<string>;
 }
 
 const IdentitySchema = z.object({
@@ -98,6 +113,8 @@ const IdentitySchema = z.object({
   LOOPBACK_VERIFIER_ID: ParticipantId,
   LOOPBACK_FIXER_ALIAS: z.string().regex(/^@[a-z0-9][a-z0-9._-]*$/).default("@loopback-fixer"),
   LOOPBACK_VERIFIER_ALIAS: z.string().regex(/^@[a-z0-9][a-z0-9._-]*$/).default("@loopback-verifier"),
+  // Privileged commands (verify, approve, reject, merge, retask). Off unless exactly "true".
+  LOOPBACK_PRIVILEGED_ENABLED: bool(false),
 });
 
 export interface IdentityConfig {
@@ -107,6 +124,7 @@ export interface IdentityConfig {
   readonly verifierId: string;
   readonly fixerAlias: string;
   readonly verifierAlias: string;
+  readonly privilegedEnabled: boolean;
 }
 
 const DEMO_RUN_ID = /^\d{8}-[0-9a-f]{16}$/;
@@ -196,7 +214,8 @@ export function loadSwitchConfig(env: Env): SwitchConfig {
     roomId: v.SWITCH_ROOM_ID,
     selfId: v.SWITCH_SELF_ID,
     gateMention: v.SWITCH_GATE_MENTION,
-    humanSenderKind: v.SWITCH_HUMAN_SENDER_KIND,
+    policyUserIds: v.SWITCH_POLICY_USER_IDS,
+    policyAgentIds: v.SWITCH_POLICY_AGENT_IDS,
   };
 }
 
@@ -223,7 +242,22 @@ export function loadIdentityConfig(env: Env): IdentityConfig {
     verifierId: v.LOOPBACK_VERIFIER_ID,
     fixerAlias: v.LOOPBACK_FIXER_ALIAS,
     verifierAlias: v.LOOPBACK_VERIFIER_ALIAS,
+    privilegedEnabled: v.LOOPBACK_PRIVILEGED_ENABLED,
   };
+}
+
+/**
+ * Cross-group identity checks: the gate's own id must never be a maintainer, a
+ * reporter or an agent, so its own (echoed) messages can never carry authority.
+ */
+export function assertIdentityConsistency(sw: Pick<SwitchConfig, "selfId">, id: IdentityConfig): void {
+  const issues: ConfigIssue[] = [];
+  if (id.maintainers.has(sw.selfId)) issues.push({ variable: "LOOPBACK_MAINTAINERS", message: "must not contain SWITCH_SELF_ID" });
+  if (id.reporters.has(sw.selfId)) issues.push({ variable: "LOOPBACK_REPORTERS", message: "must not contain SWITCH_SELF_ID" });
+  if (sw.selfId === id.fixerId || sw.selfId === id.verifierId) {
+    issues.push({ variable: "SWITCH_SELF_ID", message: "must differ from the fixer and verifier ids" });
+  }
+  if (issues.length > 0) throw new ConfigError("identity", issues);
 }
 
 /** Throws unless the key file exists and is not group- or world-accessible (owner-only). */

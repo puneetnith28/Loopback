@@ -33,7 +33,7 @@ class FakeSocket implements SocketLike {
 function message(id: string, body: string, over: Record<string, unknown> = {}, roomPos = 1): object {
   return {
     type: "message", room_id: ROOM,
-    payload: { addressed: true, sender: "@alice:localhost", sender_name: "Alice", message_id: id, body, timestamp: 1, ...over },
+    payload: { addressed: true, sender: "@alice:localhost", sender_name: "Alice", sender_kind: null, on_behalf_of: null, message_id: id, body, timestamp: 1, ...over },
     position: { [`r:${ROOM}`]: roomPos },
   };
 }
@@ -284,6 +284,16 @@ describe("refusals and reconnects", () => {
       vi.advanceTimersByTime(1_000);
     }
     expect(t.stops).toEqual([expect.objectContaining({ code: "retries_exhausted" })]);
+  });
+
+  it("stops for good on a policy mismatch, without reconnecting", () => {
+    const t = setup();
+    t.conn.start();
+    t.last().state();
+    t.conn.policyMismatch("users widened");
+    expect(t.stops).toEqual([{ code: "policy_mismatch", detail: "users widened" }]);
+    vi.advanceTimersByTime(120_000);
+    expect(t.sockets).toHaveLength(1);
   });
 
   it("stops when the gate's room is no longer claimed", () => {

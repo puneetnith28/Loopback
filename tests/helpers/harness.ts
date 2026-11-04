@@ -11,6 +11,7 @@ import { getCase, kvSet } from "../../apps/switch-gate/src/persistence/repos.js"
 import type { BaseProtection, LiveSnapshot } from "../../apps/switch-gate/src/policy/evaluate.js";
 import { Poller } from "../../apps/switch-gate/src/workflow/poller.js";
 import { VerificationWorkflow, type WorkflowDeps } from "../../apps/switch-gate/src/workflow/verification.js";
+import { HaltSwitch } from "../../apps/switch-gate/src/cases/halt.js";
 
 export const A = "a".repeat(40);
 export const B = "b".repeat(40);
@@ -21,6 +22,7 @@ export const REP = "@switch-user-rep:x";
 export const OUT = "@switch-user-out:x";
 export const FIXER = "@switch-agent-fixer:x";
 export const VERIFIER = "@switch-agent-verifier:x";
+export const SELF = "@switch-agent-gate:x";
 export const G = "@loopback-gate";
 export const REPO = "o/r";
 
@@ -114,6 +116,7 @@ export interface Harness {
   wf: VerificationWorkflow;
   poller: Poller;
   exec: MergeExecutor;
+  halt: HaltSwitch;
   clock: { now: Date };
   say(sender: string, body: string, over?: Partial<InboundMessage>): Promise<void>;
   lastRunId(): string;
@@ -123,7 +126,7 @@ export interface Harness {
   state(id?: string): string | undefined;
 }
 
-export function createHarness(opts: { mergeEnabled?: boolean; expectedBase?: string | null; quorum?: number; retryLimit?: number; maxAttempts?: number } = {}): Harness {
+export function createHarness(opts: { mergeEnabled?: boolean; expectedBase?: string | null; quorum?: number; retryLimit?: number; maxAttempts?: number; privilegedEnabled?: boolean } = {}): Harness {
   const db = openDatabase(":memory:");
   migrate(db);
   const gh = new FakeGitHub();
@@ -132,11 +135,12 @@ export function createHarness(opts: { mergeEnabled?: boolean; expectedBase?: str
   const now = () => new Date(clock.now);
   const chat = { post: async (_room: string, content: string) => { posts.push(content); } };
   const locks = new CaseLocks();
+  const halt = new HaltSwitch();
   const maintainers = new Set([MAINT, MAINT2]);
   const wfDeps: WorkflowDeps = {
     db, chat, github: gh, locks, now, repo: REPO, baseBranch: "main", requiredChecks: ["test"],
     checkSources: new Map([["test", "github-actions"]]), gateMention: G, fixerAlias: "@loopback-fixer",
-    verifierAlias: "@loopback-verifier", verifyTimeoutMs: 600_000, fixTimeoutMs: 2_700_000,
+    verifierAlias: "@loopback-verifier", verifyTimeoutMs: 600_000, fixTimeoutMs: 2_700_000, halt,
     expectedBaseSha: () => opts.expectedBase ?? null,
   };
   const wf = new VerificationWorkflow(wfDeps);
@@ -146,15 +150,16 @@ export function createHarness(opts: { mergeEnabled?: boolean; expectedBase?: str
     return { merged: true, sha: "d".repeat(40) };
   });
   const exec = new MergeExecutor({
-    db, chat, github: gh, merger, locks, now, mergeEnabled: opts.mergeEnabled ?? true, configComplete: true,
+    db, chat, github: gh, merger, locks, now, mergeEnabled: opts.mergeEnabled ?? true, configComplete: true, halt,
     transientRetryLimit: opts.retryLimit ?? 3, mergeMaxAttempts: opts.maxAttempts ?? 2,
     policy: { baseBranch: "main", requiredChecks: ["test"], checkSources: new Map([["test", "github-actions"]]), gateStatusContext: "loopback/gate", maintainers, quorum: opts.quorum ?? 1 },
     requestVerification: (id) => wf.requestVerificationLocked(id, "system", false),
     onMergeConfirmed: (sha) => kvSet(db, "expected_base_sha", sha),
   });
   const router = new Router({
-    db, chat, fixerId: FIXER, verifierId: VERIFIER, gateMention: G, repo: REPO, quorum: opts.quorum ?? 1, requiredChecks: ["test"],
-    identity: { maintainers, reporters: new Set([REP]), agentSenders: new Set([FIXER, VERIFIER]), humanSenderKind: "member" },
+    db, chat, repo: REPO, quorum: opts.quorum ?? 1, requiredChecks: ["test"],
+    admission: { selfId: SELF, fixerId: FIXER, verifierId: VERIFIER, gateMention: G },
+    identity: { maintainers, reporters: new Set([REP]), privilegedEnabled: opts.privilegedEnabled ?? true },
     privileged: {
       verify: (ctx, id) => wf.verifyCommand(ctx, id),
       approve: (ctx, id, sha) => wf.approve(ctx, id, sha),
@@ -167,7 +172,7 @@ export function createHarness(opts: { mergeEnabled?: boolean; expectedBase?: str
   let seq = 0;
   const say = async (sender: string, body: string, over: Partial<InboundMessage> = {}) => {
     seq += 1;
-    await router.handle({ eventId: `e${seq}`, roomId: "room", sequence: seq, messageId: `e${seq}`, sender, senderKind: "member", onBehalfOf: null, senderRole: null, addressed: true, body, threadId: null, timestamp: seq, ...over });
+    await router.handle({ eventId: `e${seq}`, roomId: "room", sequence: seq, messageId: `e${seq}`, sender, senderKind: null, onBehalfOf: null, senderRole: null, addressed: true, body, threadId: null, timestamp: seq, ...over });
   };
   const lastRunId = () => {
     const m = [...posts].reverse().map((p) => /Run id: ([0-9a-f-]{36})/.exec(p)).find(Boolean);
@@ -175,7 +180,7 @@ export function createHarness(opts: { mergeEnabled?: boolean; expectedBase?: str
     return m[1]!;
   };
   const h: Harness = {
-    db, gh, posts, merger, router, wf, poller, exec, clock, say, lastRunId,
+    db, gh, posts, merger, router, wf, poller, exec, halt, clock, say, lastRunId,
     state: (id = "LB-001") => getCase(db, id)?.state,
     async verifierReply(verdict, over = {}) {
       const c = getCase(db, "LB-001")!;

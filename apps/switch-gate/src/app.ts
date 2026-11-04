@@ -1,10 +1,11 @@
 import { readFileSync } from "node:fs";
 import type { Logger } from "pino";
+import { HaltSwitch } from "./cases/halt.js";
 import { CaseLocks } from "./cases/lock.js";
 import { MergeExecutor } from "./cases/service.js";
 import type { ChatPort } from "./chat/port.js";
 import { Router } from "./commands/router.js";
-import type { GitHubConfig, IdentityConfig, RuntimeConfig, SwitchConfig } from "./config.js";
+import { assertIdentityConsistency, type GitHubConfig, type IdentityConfig, type RuntimeConfig, type SwitchConfig } from "./config.js";
 import { GitHubClient } from "./github/client.js";
 import { createMerger } from "./github/merge.js";
 import { GitHubTransport } from "./github/transport.js";
@@ -26,6 +27,8 @@ export interface Gate {
   readonly poller: Poller;
   readonly workflow: VerificationWorkflow;
   readonly executor: MergeExecutor;
+  /** One-way halt shared by privileged operations; set when the Switch policy fails. */
+  readonly halt: HaltSwitch;
   /** Reconcile interrupted merges, then start polling and sweeping. */
   start(): Promise<void>;
   stop(): void;
@@ -34,6 +37,7 @@ export interface Gate {
 /** Build the gate from validated configuration and a chat transport (composition root). */
 export function createGate(cfg: GateConfig, chat: ChatPort, log: Logger, deps: { github?: GitHubClient; now?: () => Date } = {}): Gate {
   const now = deps.now ?? (() => new Date());
+  assertIdentityConsistency(cfg.switch, cfg.identity);
   const db = openDatabase(cfg.runtime.dbPath);
   migrate(db);
   const transport = new GitHubTransport({
@@ -42,6 +46,7 @@ export function createGate(cfg: GateConfig, chat: ChatPort, log: Logger, deps: {
   });
   const github = deps.github ?? new GitHubClient(transport, cfg.github.repo, cfg.github.gateStatusContext);
   const locks = new CaseLocks();
+  const halt = new HaltSwitch();
   const gateMention = cfg.switch.gateMention;
   const expectedBaseSha = () => (cfg.github.demoResetSha === null ? null : kvGet(db, "expected_base_sha") ?? cfg.github.demoResetSha);
 
@@ -49,16 +54,16 @@ export function createGate(cfg: GateConfig, chat: ChatPort, log: Logger, deps: {
     db, chat, github, locks, now, repo: cfg.github.repo, baseBranch: cfg.github.baseBranch,
     requiredChecks: cfg.github.requiredChecks, checkSources: cfg.github.checkSources, gateMention,
     fixerAlias: cfg.identity.fixerAlias, verifierAlias: cfg.identity.verifierAlias,
-    verifyTimeoutMs: cfg.runtime.verifyTimeoutMs, fixTimeoutMs: cfg.runtime.fixTimeoutMs, expectedBaseSha,
+    verifyTimeoutMs: cfg.runtime.verifyTimeoutMs, fixTimeoutMs: cfg.runtime.fixTimeoutMs, expectedBaseSha, halt,
     log: { error: (o, m) => log.error(o, m) },
   };
   const workflow = new VerificationWorkflow(wfDeps);
   const poller = new Poller(wfDeps, workflow, { warn: (o, m) => log.warn(o, m) });
   const executor = new MergeExecutor({
     db, chat, github, merger: createMerger(transport, cfg.github.repo), locks, now,
-    mergeEnabled: cfg.runtime.mergeEnabled,
-    // Privileged commands are refused until sender attribution is verified (D16).
-    configComplete: cfg.switch.humanSenderKind !== null,
+    mergeEnabled: cfg.runtime.mergeEnabled, halt,
+    // Merging needs privileged commands explicitly enabled and at least one maintainer.
+    configComplete: cfg.identity.privilegedEnabled && cfg.identity.maintainers.size > 0,
     transientRetryLimit: cfg.runtime.transientRetryLimit, mergeMaxAttempts: cfg.runtime.mergeMaxAttempts,
     policy: {
       baseBranch: cfg.github.baseBranch, requiredChecks: cfg.github.requiredChecks, checkSources: cfg.github.checkSources,
@@ -69,12 +74,11 @@ export function createGate(cfg: GateConfig, chat: ChatPort, log: Logger, deps: {
     log: { warn: (o, m) => log.warn(o, m), error: (o, m) => log.error(o, m) },
   });
   const router = new Router({
-    db, chat, gateMention, repo: cfg.github.repo, quorum: cfg.runtime.quorum, requiredChecks: cfg.github.requiredChecks,
-    fixerId: cfg.identity.fixerId, verifierId: cfg.identity.verifierId,
+    db, chat, repo: cfg.github.repo, quorum: cfg.runtime.quorum, requiredChecks: cfg.github.requiredChecks,
+    admission: { selfId: cfg.switch.selfId, fixerId: cfg.identity.fixerId, verifierId: cfg.identity.verifierId, gateMention },
     identity: {
       maintainers: cfg.identity.maintainers, reporters: cfg.identity.reporters,
-      agentSenders: new Set([cfg.identity.fixerId, cfg.identity.verifierId, cfg.switch.selfId]),
-      humanSenderKind: cfg.switch.humanSenderKind,
+      privilegedEnabled: cfg.identity.privilegedEnabled,
     },
     privileged: {
       verify: (ctx, id) => workflow.verifyCommand(ctx, id),
@@ -96,7 +100,7 @@ export function createGate(cfg: GateConfig, chat: ChatPort, log: Logger, deps: {
   };
 
   return {
-    db, router, poller, workflow, executor,
+    db, router, poller, workflow, executor, halt,
     async start() {
       await executor.reconcileStartup();
       every(cfg.runtime.pollIntervalMs, "poll", () => poller.tick());
