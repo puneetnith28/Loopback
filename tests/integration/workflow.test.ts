@@ -196,3 +196,31 @@ describe("PR lifecycle on GitHub", () => {
     expect(listRuns(h.db, "LB-001").at(-1)).toMatchObject({ headSha: B, status: "requested" });
   });
 });
+
+describe("second review: retask is not undone by discovery", () => {
+  it("after a retask the case waits for a new commit and still times out", async () => {
+    const h = createHarness();
+    await h.say(REP, `${G} report slugify.extend({'%': null}) throws a TypeError`);
+    h.gh.setPull(42);
+    await h.poller.tick();
+    await h.verifierReply("fail");
+    expect(h.state()).toBe("VerificationFailed");
+    await h.say(MAINT, `${G} retask LB-001 cover the null case`);
+    await h.poller.tick();
+    expect(h.state()).toBe("FixInProgress"); // same head: ignored
+    h.clock.now = new Date(h.clock.now.getTime() + 2_700_001);
+    await h.wf.sweep();
+    expect(getCase(h.db, "LB-001")).toMatchObject({ state: "Blocked", blockedReason: "FIXER_TIMEOUT" });
+  });
+  it("a new commit after a retask is discovered and verified", async () => {
+    const h = createHarness();
+    await h.say(REP, `${G} report slugify.extend({'%': null}) throws a TypeError`);
+    h.gh.setPull(42);
+    await h.poller.tick();
+    await h.verifierReply("fail");
+    await h.say(MAINT, `${G} retask LB-001 cover the null case`);
+    h.gh.setPull(42, { headSha: B });
+    await h.poller.tick();
+    expect(getCase(h.db, "LB-001")).toMatchObject({ state: "Verifying", headSha: B });
+  });
+});

@@ -246,15 +246,16 @@ export interface MergeOp {
   readonly attempt: number;
   readonly status: MergeOpStatus;
   readonly githubMergeSha: string | null;
+  readonly startedAt: string;
 }
 
 const OpRow = z.object({
   id: z.string(), case_id: z.string(), head_sha: z.string().length(40), attempt: z.number().int(),
-  status: z.enum(["started", "succeeded", "failed", "unknown"]), github_merge_sha: z.string().nullable(),
+  status: z.enum(["started", "succeeded", "failed", "unknown"]), github_merge_sha: z.string().nullable(), started_at: z.string(),
 });
 const toOp = (raw: unknown): MergeOp => {
   const r = OpRow.parse(raw);
-  return { id: r.id, caseId: r.case_id, headSha: r.head_sha, attempt: r.attempt, status: r.status, githubMergeSha: r.github_merge_sha };
+  return { id: r.id, caseId: r.case_id, headSha: r.head_sha, attempt: r.attempt, status: r.status, githubMergeSha: r.github_merge_sha, startedAt: r.started_at };
 };
 
 export function listMergeOps(db: Db, caseId: string, headSha?: string): MergeOp[] {

@@ -206,23 +206,32 @@ export class VerificationWorkflow implements AgentInbox, FixerHandoff {
     const { db, now } = this.d;
     const nowMs = now().getTime();
     for (const c of listCasesInStates(db, ["FixInProgress"])) {
-      if (c.prNumber !== null || nowMs - Date.parse(c.stateEnteredAt) < this.d.fixTimeoutMs) continue;
-      await this.d.locks.with(c.id, async () => {
+      if (nowMs - Date.parse(c.stateEnteredAt) < this.d.fixTimeoutMs) continue;
+      await this.safely(() => this.d.locks.with(c.id, async () => {
         const fresh = getCase(db, c.id);
         if (!fresh || fresh.state !== "FixInProgress" || fresh.version !== c.version) return;
         transition(db, { caseId: c.id, to: "Blocked", actorId: "system", trigger: "sweep", reason: "FIXER_TIMEOUT", expectedVersion: c.version }, now());
         await this.announce(c, formatReason("FIXER_TIMEOUT", { caseId: c.id }));
-      });
+      }));
     }
     for (const run of listExpiredRuns(db, new Date(nowMs - this.d.verifyTimeoutMs))) {
-      await this.d.locks.with(run.caseId, async () => {
+      await this.safely(() => this.d.locks.with(run.caseId, async () => {
         const done = db.transaction(() => {
           if (!completeRun(db, run.id, "timeout", null, now())) return false;
           append(db, { caseId: run.caseId, actorId: "system", type: "verification.failed", targetSha: run.headSha, reasonCode: "VERIFICATION_TIMEOUT", payload: { runId: run.id } }, now());
           return true;
         })();
         if (done) await this.progressLocked(run.caseId);
-      });
+      }));
+    }
+  }
+
+  /** Isolate one sweep item: a failure is retried on the next sweep and never stops the rest. */
+  private async safely(fn: () => Promise<void>): Promise<void> {
+    try {
+      await fn();
+    } catch {
+      // durable state is unchanged for the failed item
     }
   }
 
@@ -276,7 +285,16 @@ export class VerificationWorkflow implements AgentInbox, FixerHandoff {
           caseId: c.id, repo: c.repo, prNumber: c.prNumber!, approverId: ctx.msg.sender, headSha: live.headSha,
           decision, sourceEventId: ctx.msg.eventId, reason,
         }, now());
-        if (ins === "duplicate") return "duplicate" as const;
+        if (ins === "duplicate") {
+          const prior = db.prepare("SELECT decision FROM approvals WHERE case_id = ? AND head_sha = ? AND approver_id = ?")
+            .get(c.id, live.headSha, ctx.msg.sender) as { decision: string } | undefined;
+          // Re-approving the same commit after the case returned to AwaitingApproval must not dead-end it.
+          if (decision === "approve" && prior?.decision === "approve" && c.state === "AwaitingApproval") {
+            transitionInTx(db, { caseId: c.id, to: "ReadyToMerge", actorId: ctx.msg.sender, trigger: "command", reason: null, targetSha: live.headSha }, now());
+            return "recorded" as const;
+          }
+          return "duplicate" as const;
+        }
         append(db, { caseId: c.id, actorId: ctx.msg.sender, type: decision === "approve" ? "approval.accepted" : "approval.rejected", targetSha: live.headSha, reasonCode: decision === "reject" ? "REJECTED" : null, payload: reason ? { reason } : {} }, now());
         if (decision === "approve") {
           transitionInTx(db, { caseId: c.id, to: "ReadyToMerge", actorId: ctx.msg.sender, trigger: "command", reason: null, targetSha: live.headSha }, now());

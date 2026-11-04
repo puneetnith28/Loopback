@@ -261,3 +261,75 @@ describe("rejection and quorum", () => {
     expect((h.db.prepare("SELECT count(*) AS n FROM approvals").get() as { n: number }).n).toBe(1);
   });
 });
+
+describe("second review: crash and failure recovery", () => {
+  it("crash after posting the gate status but before the merge call: status reset, attempt closed, case retryable", async () => {
+    const h = createHarness();
+    await h.driveToReady();
+    // simulate: Revalidating, attempt started, success status posted (intent audited), then crash
+    transition(h.db, { caseId: "LB-001", to: "Revalidating", actorId: MAINT, trigger: "maintainer_merge", reason: null });
+    insertMergeOp(h.db, "LB-001", A, 1, new Date());
+    const { append } = await import("../../apps/switch-gate/src/audit/index.js");
+    append(h.db, { caseId: "LB-001", actorId: "system", type: "gate_status.posted", targetSha: A });
+    await h.exec.reconcileStartup();
+    expect(getCase(h.db, "LB-001")).toMatchObject({ state: "Blocked", blockedReason: "AWAITING_MERGE_COMMAND" });
+    expect(h.gh.statuses.map((s) => s.state)).toEqual(["failure"]);
+    expect(listMergeOps(h.db, "LB-001")[0]!.status).toBe("failed");
+    await h.say(MAINT, `${G} merge LB-001`);
+    expect(h.state()).toBe("Merged");
+    expect(h.merger).toHaveBeenCalledTimes(1);
+  });
+  it("an uncertain outcome is not treated as 'not merged' until GitHub had time to settle", async () => {
+    const h = createHarness();
+    await h.driveToReady();
+    h.merger.mockImplementationOnce(async () => { throw new Uncertain("502", 502); });
+    await h.say(MAINT, `${G} merge LB-001`);
+    expect(h.state()).toBe("MergeUnknown");
+    await h.exec.reconcileUnknown();
+    expect(h.state()).toBe("MergeUnknown"); // still inside the settle window
+    h.gh.setPull(42, { merged: true, state: "closed", mergeCommitSha: "f".repeat(40) }); // the merge landed late
+    h.clock.now = new Date(h.clock.now.getTime() + 61_000);
+    await h.exec.reconcileUnknown();
+    expect(h.state()).toBe("Merged");
+    expect(h.merger).toHaveBeenCalledTimes(1);
+  });
+  it("after the settle window a confirmed 'not merged' waits for a fresh command", async () => {
+    const h = createHarness();
+    await h.driveToReady();
+    h.merger.mockImplementationOnce(async () => { throw new Uncertain("502", 502); });
+    await h.say(MAINT, `${G} merge LB-001`);
+    h.clock.now = new Date(h.clock.now.getTime() + 61_000);
+    await h.exec.reconcileUnknown();
+    expect(getCase(h.db, "LB-001")).toMatchObject({ state: "Blocked", blockedReason: "AWAITING_MERGE_COMMAND" });
+    expect(h.gh.statuses.map((s) => s.state)).toEqual(["success", "failure"]);
+    expect(h.merger).toHaveBeenCalledTimes(1);
+  });
+  it("an unexpected error during revalidation settles the case instead of leaving it stuck", async () => {
+    const h = createHarness();
+    await h.driveToReady();
+    h.gh.snapshot = async () => { throw new TypeError("malformed JSON"); };
+    await h.say(MAINT, `${G} merge LB-001`);
+    expect(getCase(h.db, "LB-001")).toMatchObject({ state: "Blocked", blockedReason: "GITHUB_UNAVAILABLE" });
+    expect(h.merger).not.toHaveBeenCalled();
+  });
+  it("a failed correction stays outstanding and is retried later", async () => {
+    const h = createHarness();
+    await h.driveToReady();
+    h.merger.mockImplementationOnce(async () => { h.gh.failStatus = true; throw new NotMergeable("405", 405); });
+    await h.say(MAINT, `${G} merge LB-001`);
+    expect(audit(h)).toContain("gate_status.correction_failed");
+    h.gh.failStatus = false;
+    transition(h.db, { caseId: "LB-001", to: "Revalidating", actorId: MAINT, trigger: "maintainer_merge", reason: "AWAITING_MERGE_COMMAND", }); // simulate interrupted retry
+    await h.exec.reconcileStartup();
+    expect(h.gh.statuses.at(-1)).toMatchObject({ sha: A, state: "failure" });
+  });
+  it("a re-sent approval for the same commit still advances the case", async () => {
+    const h = createHarness();
+    await h.driveToReady();
+    transition(h.db, { caseId: "LB-001", to: "Stale", actorId: "system", trigger: "system", reason: "HEAD_MOVED" });
+    transition(h.db, { caseId: "LB-001", to: "Verifying", actorId: "system", trigger: "system", reason: null });
+    transition(h.db, { caseId: "LB-001", to: "AwaitingApproval", actorId: "system", trigger: "system", reason: null });
+    await h.say(MAINT, `${G} approve LB-001 ${A.slice(0, 12)}`);
+    expect(h.state()).toBe("ReadyToMerge");
+  });
+});

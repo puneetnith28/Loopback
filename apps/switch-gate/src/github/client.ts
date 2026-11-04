@@ -183,7 +183,9 @@ export class GitHubClient implements GitHubReader {
         pull: after,
         snapshot: {
           repo: this.repo, prNumber: n, pr: after, checks, baseProtection: rules,
-          changedFiles: files, changedFilesHeadSha: before.headSha,
+          changedFiles: files,
+          // A head or base change between the reads leaves the snapshot inconsistent: policy blocks.
+          changedFilesHeadSha: before.baseRef === after.baseRef ? before.headSha : undefined,
         },
       };
     } catch (e) {

@@ -73,6 +73,8 @@ export class Poller {
   private async discover(c: CaseRecord): Promise<void> {
     const pr = await this.d.github.findOpenPullByBranch(c.branch ?? `loopback/${c.id}`);
     if (!pr) return;
+    // After a retask the PR still points at the commit that already failed: wait for a new one.
+    if (c.headSha !== null && pr.headSha === c.headSha) return;
     if (pr.baseRef !== this.d.baseBranch || pr.headRepo !== this.d.repo) {
       const key = `warned:${c.id}:${pr.number}:${pr.baseRef}`;
       if (kvGet(this.d.db, key) === undefined) {

@@ -143,6 +143,9 @@ export interface MergeDeps {
   readonly onMergeConfirmed: (mergeCommitSha: string) => void;
 }
 
+/** How long an uncertain merge outcome is given to settle before "not merged" is believed. */
+export const UNCERTAIN_SETTLE_MS = 60_000;
+
 export interface MergeReply {
   readonly text: string;
   readonly caseId: string | null;
@@ -179,13 +182,16 @@ export class MergeExecutor {
       this.audit(c, "system", "gate_status.corrected", sha, code);
     } catch {
       this.audit(c, "system", "gate_status.correction_failed", sha, code, { severity: "critical" });
-      await this.announce(c, `ALERT: could not reset the ${this.d.policy.gateStatusContext} status on ${sha.slice(0, 12)} after an aborted merge. Do not merge ${c.id} manually; a maintainer must check the commit status.`);
+      try {
+        await this.announce(c, `ALERT: could not reset the ${this.d.policy.gateStatusContext} status on ${sha.slice(0, 12)} after an aborted merge. Do not merge ${c.id} manually; a maintainer must check the commit status.`);
+      } catch {
+        // The critical audit event above is the durable record; chat is best effort here.
+      }
     }
   }
 
   private gateStatusOutstanding(c: CaseRecord, sha: string): boolean {
-    return countEvents(this.d.db, c.id, "gate_status.posted", sha) >
-      countEvents(this.d.db, c.id, "gate_status.corrected", sha) + countEvents(this.d.db, c.id, "gate_status.correction_failed", sha);
+    return countEvents(this.d.db, c.id, "gate_status.posted", sha) > countEvents(this.d.db, c.id, "gate_status.corrected", sha);
   }
 
   /** Apply a non-merge policy decision from Revalidating. Requires the lock. */
@@ -234,15 +240,15 @@ export class MergeExecutor {
       return this.settle(c, { action: "block", code: "IDENTITY_MISMATCH", message: "case has no PR", headSha: null }, "system");
     }
 
-    // 2–8: live snapshot + pure policy.
-    let snap: Awaited<ReturnType<GitHubReader["snapshot"]>>;
+    // 2–8: live snapshot + pure policy. Any failure here settles the case; nothing is posted yet.
+    let decision: MergeDecision;
     try {
-      snap = await this.d.github.snapshot(c.prNumber);
+      const snap = await this.d.github.snapshot(c.prNumber);
+      decision = evaluateMerge(this.evidence(c), snap.snapshot, this.d.policy);
     } catch (e) {
-      if (e instanceof RateLimited) return this.settle(c, { action: "block", code: "RATE_LIMITED", message: "", headSha: c.headSha }, "system");
-      throw e;
+      const code: ReasonCode = e instanceof RateLimited ? "RATE_LIMITED" : "GITHUB_UNAVAILABLE";
+      return this.settle(c, { action: "block", code, message: "", headSha: c.headSha }, "system");
     }
-    const decision = evaluateMerge(this.evidence(c), snap.snapshot, this.d.policy);
     if (decision.action !== "merge") return this.settle(c, decision, "system");
     const sha = decision.headSha;
 
@@ -258,13 +264,14 @@ export class MergeExecutor {
     const op = insertMergeOp(db, c.id, sha, attempts.length + 1, now());
 
     // 9: post the gate status for this SHA, then re-check the head immediately.
+    // The audit entry is written BEFORE the POST, so a crash in between still leaves a
+    // record that a success status may exist and must be reset (D9).
+    this.audit(c, "system", "gate_status.posted", sha, null, { attempt: op.attempt });
     try {
       await this.d.github.setGateStatus(sha, "success", `Approved for ${sha.slice(0, 12)} by Loopback`);
-      this.audit(c, "system", "gate_status.posted", sha, null, { attempt: op.attempt });
     } catch {
-      this.audit(c, "system", "gate_status.posted", sha, null, { attempt: op.attempt, outcome: "unconfirmed" });
-      await this.correctGateStatus(c, sha, "GITHUB_UNAVAILABLE");
       finishMergeOp(db, op.id, "failed", null, "gate status not confirmed", now());
+      await this.correctGateStatus(c, sha, "GITHUB_UNAVAILABLE");
       return this.settle(c, { action: "block", code: "GITHUB_UNAVAILABLE", message: "", headSha: sha }, "system");
     }
     let again: PullDetails | undefined;
@@ -274,8 +281,8 @@ export class MergeExecutor {
       again = undefined;
     }
     if (again?.headSha !== sha) {
-      await this.correctGateStatus(c, sha, again ? "HEAD_MOVED" : "GITHUB_UNAVAILABLE");
       finishMergeOp(db, op.id, "failed", null, "head moved before merge", now());
+      await this.correctGateStatus(c, sha, again ? "HEAD_MOVED" : "GITHUB_UNAVAILABLE");
       return again
         ? this.settle(c, { action: "stale", code: "HEAD_MOVED", message: "", headSha: again.headSha }, "system")
         : this.settle(c, { action: "block", code: "GITHUB_UNAVAILABLE", message: "", headSha: sha }, "system");
@@ -314,6 +321,14 @@ export class MergeExecutor {
       return { text: formatReason("MERGE_OUTCOME_UNKNOWN", { caseId }), caseId };
     }
     const open = listMergeOps(db, c.id).filter((o) => o.status === "started" || o.status === "unknown");
+    if (pull.merged && pull.headSha !== c.headSha) {
+      this.audit(c, "system", "policy.violation", pull.headSha, null, { detail: "PR merged at a different head than the case recorded", caseHead: c.headSha });
+      await this.announce(c, `ALERT: PR #${c.prNumber} was merged at ${pull.headSha.slice(0, 12)}, not the approved ${c.headSha.slice(0, 12)}. Recorded as a policy violation.`);
+    }
+    if (!pull.merged && open.some((o) => o.status === "unknown" && now().getTime() - Date.parse(o.startedAt) < UNCERTAIN_SETTLE_MS)) {
+      // An uncertain outcome is not "not merged" until GitHub has had time to settle (D14).
+      return { text: formatReason("MERGE_OUTCOME_UNKNOWN", { caseId }), caseId };
+    }
     if (pull.merged) {
       db.transaction(() => {
         for (const o of open) finishMergeOp(db, o.id, "succeeded", pull.mergeCommitSha, null, now());
@@ -348,27 +363,49 @@ export class MergeExecutor {
 
   /** On startup: reconcile cases left mid-merge by a crash, before accepting commands. */
   async reconcileStartup(): Promise<void> {
-    const { db, now } = this.d;
+    const { db } = this.d;
     const ids = new Set(listUnfinishedMergeOps(db).map((o) => o.caseId));
     for (const c of listCasesInStates(db, ["Merging", "MergeUnknown", "Revalidating"])) ids.add(c.id);
     for (const id of ids) {
-      await this.d.locks.with(id, async () => {
+      try {
+        await this.d.locks.with(id, () => this.recoverLocked(id));
+      } catch {
+        // One case failing to recover must not stop the others; it is retried periodically.
+      }
+    }
+  }
+
+  /** Periodic, read-only reconciliation of MergeUnknown cases (never merges). */
+  async reconcileUnknown(): Promise<void> {
+    for (const c of listCasesInStates(this.d.db, ["MergeUnknown"])) {
+      try {
+        await this.d.locks.with(c.id, () => this.reconcileLocked(c.id));
+      } catch {
+        // retried on the next tick
+      }
+    }
+  }
+
+  private async recoverLocked(id: string): Promise<void> {
+    const { db, now } = this.d;
+    {
+      {
         const c = getCase(db, id);
         if (!c) return;
         if (c.state === "Merging") {
           transition(db, { caseId: id, to: "MergeUnknown", actorId: "system", trigger: "system", reason: "MERGE_OUTCOME_UNKNOWN", auditType: "merge.outcome_unknown", payload: { cause: "restart" } }, now());
         } else if (c.state === "Revalidating") {
-          // Interrupted before any merge call (no open attempt): block transiently; a maintainer may retry.
-          const open = listMergeOps(db, id).some((o) => o.status === "started" || o.status === "unknown");
-          if (!open) {
-            transition(db, { caseId: id, to: "Blocked", actorId: "system", trigger: "system", reason: "AWAITING_MERGE_COMMAND", payload: { cause: "restart" } }, now());
-            return;
+          // Interrupted before the merge call (Merging is entered first): no merge happened.
+          // Close open attempts, reset any success status, and wait for a fresh command.
+          for (const o of listMergeOps(db, id).filter((x) => x.status === "started" || x.status === "unknown")) {
+            finishMergeOp(db, o.id, "failed", null, "interrupted before merge call", now());
           }
-          transition(db, { caseId: id, to: "Stale", actorId: "system", trigger: "system", reason: "MERGE_OUTCOME_UNKNOWN" }, now());
+          if (c.headSha !== null && this.gateStatusOutstanding(c, c.headSha)) await this.correctGateStatus(c, c.headSha, "AWAITING_MERGE_COMMAND");
+          transition(db, { caseId: id, to: "Blocked", actorId: "system", trigger: "system", reason: "AWAITING_MERGE_COMMAND", payload: { cause: "restart" } }, now());
           return;
         }
         if (getCase(db, id)?.state === "MergeUnknown") await this.reconcileLocked(id);
-      });
+      }
     }
   }
 }
