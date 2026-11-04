@@ -25,7 +25,7 @@ export function startHealthServer(opts: HealthOptions): Promise<Server> {
     };
     if (req.method !== "GET") return send(405, { ok: false });
     if (req.url === "/healthz") {
-      let ok = false;
+      let ok: boolean;
       try {
         ok = opts.live();
       } catch {

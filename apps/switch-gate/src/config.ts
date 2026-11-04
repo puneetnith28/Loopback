@@ -168,7 +168,8 @@ function issuesFrom(error: z.ZodError): ConfigIssue[] {
 }
 
 function parseGroup<T extends z.ZodTypeAny>(group: string, schema: T, env: Env): z.output<T> {
-  const keys = Object.keys((schema as unknown as z.AnyZodObject).shape);
+  const shape = (schema as unknown as z.AnyZodObject).shape as Record<string, unknown>;
+  const keys = Object.keys(shape);
   const result = schema.safeParse(pick(env, keys));
   if (!result.success) throw new ConfigError(group, issuesFrom(result.error));
   return result.data as z.output<T>;

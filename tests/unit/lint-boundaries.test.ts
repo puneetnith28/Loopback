@@ -54,6 +54,8 @@ describe("module boundaries", () => {
     const code = `import { GitHubTransport } from "../github/transport.js";`;
     expect(await errors(`import { GitHubTransport } from "./transport.js";`, `${SRC}/github/merge.ts`)).toEqual([]);
     expect(await errors(`import { GitHubTransport } from "./github/transport.js";`, `${SRC}/main.ts`)).toEqual([]);
+    expect(await errors(`import { GitHubTransport } from "./github/transport.js";\nimport { createMerger } from "./github/merge.js";`, `${SRC}/app.ts`)).toEqual([]);
+    expect(await errors(`import { createMerger } from "../github/merge.js";`, `${SRC}/workflow/poller.ts`)).toHaveLength(1);
     expect(await errors(code, `${SRC}/cases/service.ts`)).toHaveLength(1);
     expect(await errors(code, `${SRC}/approvals/approve.ts`)).toHaveLength(1);
     expect(await errors(code, `${SRC}/policy/evaluate.ts`)).not.toEqual([]);

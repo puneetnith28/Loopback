@@ -19,6 +19,7 @@ type Prefix = "BLOCKED" | "REFUSED" | "UNKNOWN" | "STOPPED";
 export function safe(value: string | undefined, max = 200): string {
   if (value === undefined) return "?";
   // Drop control and bidirectional-override characters, which can visually spoof ids.
+  // eslint-disable-next-line no-control-regex -- removing control characters is the purpose
   const cleaned = value.replace(/[\u0000-\u001f\u007f-\u009f‎‏‪-‮⁦-⁩]/g, " ");
   const chars = Array.from(cleaned); // code points: never split a surrogate pair
   const clipped = chars.length > max ? `${chars.slice(0, max).join("")}…` : cleaned;

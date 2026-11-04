@@ -140,11 +140,11 @@ export class GitHubTransport {
   /** A write. Never retried here: callers decide, and merges are never retried blindly. */
   async write(method: "POST" | "PUT" | "PATCH", path: string, body: unknown): Promise<{ status: number; body: unknown }> {
     const res = await this.send(method, path, body);
-    let parsed: unknown = null;
+    let parsed: unknown;
     try {
       parsed = await res.json();
     } catch {
-      parsed = null;
+      parsed = null; // empty or non-JSON body
     }
     return { status: res.status, body: parsed };
   }

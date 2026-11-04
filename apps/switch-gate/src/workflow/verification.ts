@@ -237,7 +237,7 @@ export class VerificationWorkflow implements AgentInbox, FixerHandoff {
 
   // --- maintainer decisions (8.1, 8.2) and retask (7.9) -----------------------------------
 
-  private async refuse(ctx: CommandContext, c: CaseRecord | null, code: ReasonCode, command: string, extra: Record<string, string> = {}): Promise<Reply> {
+  private refuse(ctx: CommandContext, c: CaseRecord | null, code: ReasonCode, command: string, extra: Record<string, string> = {}): Reply {
     append(this.d.db, { caseId: c?.id ?? null, actorId: ctx.msg.sender, type: "command.refused", reasonCode: code, payload: { command, ...extra } }, this.d.now());
     return { text: formatReason(code, { caseId: c?.id ?? "", command, state: c?.state ?? "", ...extra }), caseId: c?.id ?? null };
   }

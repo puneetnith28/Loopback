@@ -14,13 +14,13 @@ const PURITY = {
 // Regexes, not globs: gitignore-style globs do not match "../"-relative specifiers.
 const MERGE = {
   regex: "(^|/)github/merge(\\.js)?$",
-  message: "Only cases/service.ts may import the merge operation.",
+  message: "Only cases/service.ts (and the composition root, to inject it) may import the merge operation.",
 };
 // The raw transport can issue any request (including a merge PUT); only github/*
-// modules and the composition root (main.ts) may hold it.
+// modules and the composition root (app.ts, main.ts) may hold it.
 const TRANSPORT = {
   regex: "(^|/)github/transport(\\.js)?$",
-  message: "Only github/* modules and main.ts may import the GitHub transport.",
+  message: "Only github/* modules and the composition root may import the GitHub transport.",
 };
 const AUDIT = {
   regex: "(^|/)audit/(?!index(\\.js)?$)[^/]+$",
@@ -39,11 +39,12 @@ export const boundaryConfigs = [
   restrict(
     [`${SRC}/**/*.ts`],
     [MERGE, AUDIT, TRANSPORT],
-    [`${SRC}/policy/**`, `${SRC}/cases/service.ts`, `${SRC}/github/**`, `${SRC}/audit/**`, `${SRC}/main.ts`],
+    [`${SRC}/policy/**`, `${SRC}/cases/service.ts`, `${SRC}/github/**`, `${SRC}/audit/**`, `${SRC}/main.ts`, `${SRC}/app.ts`],
   ),
   restrict([`${SRC}/policy/**/*.ts`], [PURITY, MERGE, AUDIT, TRANSPORT]),
   restrict([`${SRC}/cases/service.ts`], [AUDIT, TRANSPORT]),
   restrict([`${SRC}/github/**/*.ts`], [AUDIT]),
   restrict([`${SRC}/audit/**/*.ts`], [MERGE, TRANSPORT]),
-  restrict([`${SRC}/main.ts`], [AUDIT]),
+  // Composition root: builds and injects the merge capability; holds no audit internals.
+  restrict([`${SRC}/main.ts`, `${SRC}/app.ts`], [AUDIT]),
 ];

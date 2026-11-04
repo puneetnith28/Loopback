@@ -31,8 +31,9 @@ flowchart TB
 | `app.ts`, `main.ts` | Composition root and entry point |
 
 Lint boundaries (tested in `tests/unit/lint-boundaries.test.ts`): `policy/` imports only the
-contracts; only `cases/service.ts` may import the merge call; only `github/*` and `main.ts` may
-import the raw GitHub transport; audit internals are reachable only through `audit/index`.
+contracts; the merge call is reachable only from `cases/service.ts` and the composition root
+(`app.ts`, which injects it); only `github/*` and the composition root may import the raw GitHub
+transport; audit internals are reachable only through `audit/index`.
 
 ## Trust boundaries
 
