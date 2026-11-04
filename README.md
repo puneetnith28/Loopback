@@ -72,7 +72,8 @@ instance, local only, Switch transport pending, live GitHub configuration not ye
 ```bash
 npm ci
 npm run typecheck
-npm test
+npm run lint      # type-aware ESLint over sources and tests, with module-boundary rules
+npm test          # unit, integration and security suites
 ```
 
 ## 8. Honesty notes
