@@ -14,8 +14,8 @@ describe("line-ending policy (.gitattributes)", () => {
   });
 
   it("forces LF on checkout for shell scripts, Node modules and sources, and binary for keys and databases", () => {
-    const attrs = git(["check-attr", "text", "eol", "--", "scripts/verify-isolation.sh", "scripts/sign-verifier-report.mjs", "apps/switch-gate/src/main.ts", "x.pem", "x.db"]);
-    for (const f of ["scripts/verify-isolation.sh", "scripts/sign-verifier-report.mjs", "apps/switch-gate/src/main.ts"]) {
+    const attrs = git(["check-attr", "text", "eol", "--", "deploy/isolation/rootless-docker.sh", "scripts/verify-isolation.mjs", "apps/switch-gate/src/main.ts", "x.pem", "x.db"]);
+    for (const f of ["deploy/isolation/rootless-docker.sh", "scripts/verify-isolation.mjs", "apps/switch-gate/src/main.ts"]) {
       expect(attrs).toContain(`${f}: text: set`);
       expect(attrs).toContain(`${f}: eol: lf`);
     }

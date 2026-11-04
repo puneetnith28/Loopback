@@ -1,7 +1,7 @@
 # Live environment setup
 
-**Runtime platform: Linux only.** The gate needs Node 22.13+, systemd and polkit (for the
-separate-users agent runtime), POSIX file permissions (it refuses a GitHub App key or key
+**Runtime platform: Linux only.** The gate needs Node 22.13+, rootless Docker prerequisites
+for the agent containers (`deploy/isolation/README.md`), POSIX file permissions (it refuses a GitHub App key or key
 directory others can read or write), and SIGTERM/SIGINT for a clean shutdown. Windows is
 supported for development only (see `CONTRIBUTING.md`).
 
@@ -60,10 +60,12 @@ labels verification **advisory** in chat and in the audit log:
 3. Evidence is recorded: `id`, file permissions of both working directories, and a failed attempt
    by each user to read the other's credentials.
 
-**Known gap today:** the gate, the fixer session and you all run as the same desktop user, so the
-fixer session can read the gate's `.env` and `secrets/gate.pem` (file modes do not separate a
-user from itself). Isolating only the verifier does not close this; the gate needs its own
-identity too. Until then, treat the GitHub App key as reachable by the fixer.
+**Known gap today:** agent sessions still run as your desktop user, the same user as the gate,
+so they can read the gate's `.env` and `secrets/gate.pem` (file modes do not separate a user from
+itself). The container runtime in `deploy/isolation/` closes this for the agents: the fixer and
+verifier containers have no bind mounts, so the gate's files are not in their filesystem
+(checked by `agents.sh verify`). It takes effect only once the agent sessions run inside those
+containers; until then, treat the GitHub App key as reachable by the fixer.
 
 #### Identities and credentials (target layout)
 
@@ -93,45 +95,38 @@ altered (run id, repository, PR, SHA, verdict, findings). It does **not** prove 
 ran the tests, nor that its runtime is isolated: that is what the OS separation and the isolation
 proof are for.
 
-#### Signing helper inside an agent sandbox
+#### Signing helper and key inside the verifier container
 
-Agents cannot read `/home`, so install the helper and the gate's signature module side by side in
-a root-owned, read-only directory (after `npm run build`):
-
-```bash
-sudo install -d -m 755 /usr/local/lib/loopback-signer
-sudo install -m 644 scripts/sign-verifier-report.mjs apps/switch-gate/dist/agents/signature.js /usr/local/lib/loopback-signer/
-# the verifier then runs: /opt/node-v22.23.3-linux-x64/bin/node /usr/local/lib/loopback-signer/sign-verifier-report.mjs < report.json
-```
-
-The helper uses the `signature.js` beside it (falling back to the repository build) and refuses a
+The agent image (`deploy/isolation/agent/Dockerfile`) installs the helper and the gate's
+signature module side by side in `/usr/local/lib/loopback-signer`, root-owned and read-only. The
+helper uses the `signature.js` beside it (falling back to the repository build) and refuses a
 module that is world-writable or owned by anyone but root or the caller.
 
-#### Signing key (done by you, as the verifier identity; not done yet)
+The key is created **inside** the verifier container, as uid 10002, in its own volume; only the
+public key is printed (a second run refuses to overwrite an existing key):
 
 ```bash
-# as loopback-verifier
-install -d -m 700 ~/.config/loopback-verifier
-openssl genpkey -algorithm ed25519 -out ~/.config/loopback-verifier/signing-key.pem
-chmod 600 ~/.config/loopback-verifier/signing-key.pem
-# the PUBLIC key for the gate's VERIFIER_PUBLIC_KEY (raw base64, one line):
-openssl pkey -in ~/.config/loopback-verifier/signing-key.pem -pubout -outform DER | tail -c 32 | base64
+deploy/isolation/agents.sh verifier-keygen
+# put the printed PUBLIC key (PEM) in the gate's VERIFIER_PUBLIC_KEY (owner step)
 ```
 
 Only the public key leaves the verifier identity. The verifier signs each report with
-`node scripts/sign-verifier-report.mjs < report.json` (it refuses a key file that is not mode 600,
+`node /usr/local/lib/loopback-signer/sign-verifier-report.mjs < report.json` (it refuses a key file that is not mode 600,
 not owned by the caller, a symlink, or not Ed25519, and never prints the key).
 
 #### Isolation proof
 
-1. Run `scripts/verify-isolation.sh` (read-only) for each role on the separate-users runtime:
-   `gate` as your user (checks the setup exists, each slot directory is owned by its `sa<uid>-NN`
-   user and closed to others, the gate key is owner-only, and the signer is root-owned);
-   `fixer` and `verifier` **inside their agent units** (checks `/home` is hidden, no other agent's
-   directory is visible, the gate's credentials cannot be read, the signer is root-owned; for the
-   verifier also its own mode-600 signing key, no git credential helper and a read-only GitHub
-   GET). Outside a unit, or before the runtime is installed, it exits 2 ("CANNOT RUN … NOT
-   PROVEN"). Missing evidence counts as failure (exit 1). Save the output.
+1. Run `deploy/isolation/agents.sh verify` (read-only; `scripts/verify-isolation.mjs`): `host`
+   checks the daemon is the per-user rootless one and each container's hardening (non-root uid,
+   no capabilities, no-new-privileges, read-only root, no bind mounts or Docker socket, its own
+   home volume, one internal network shared only with the proxy, limits, no `GITHUB_TOKEN`) and
+   that fixer and verifier share no uid, volume or network; `fixer` and `verifier` run **inside
+   their containers** (the other role's home unreadable, no capabilities, read-only root, root-owned
+   signer, direct connections to the internet, GitHub, LAN, the host gateway and the metadata
+   address fail, the proxy allows only the allowlist; for the verifier also its own mode-600
+   signing key, no git credential helper and a read-only GitHub GET). Outside a container, or
+   without the daemon, it exits 2 ("CANNOT RUN … NOT PROVEN"). Missing evidence counts as failure
+   (exit 1). Save the output (latest run: `docs/evidence/phase-06-isolation.md`).
 2. Separately authorised: probe that the verifier token cannot write (requests that cannot change
    anything, e.g. a status on a non-existent commit: 403 = no permission, 422 = permission present).
 3. A real signed report on a live PR is recorded with `signature: "valid"`; a forged one (unsigned,

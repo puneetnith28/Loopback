@@ -36,7 +36,8 @@ re-checked against live GitHub state. Details are in
   are green; Loopback detects and alerts on such merges but cannot prevent them.
 - The public intake room accepts reports from anyone Switch admits; reports are
   rate-limited per sender and never reach the fixer without maintainer triage.
-- Verification is labelled advisory until the verifier runs as a separate OS user
-  with its own credentials; on one OS user it is not independent of the fixer.
+- Verification is labelled advisory until the verifier runs in its own isolated
+  container (`deploy/isolation/`) with its own credentials and the isolation proof
+  passes; on one OS user it is not independent of the fixer.
 - Agent pushes and PRs are attributed on GitHub to the maintainer's personal
   account that owns the agents' fine-grained tokens.

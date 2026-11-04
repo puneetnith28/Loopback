@@ -1,13 +1,17 @@
+# Build contexts are the repository root; keep secrets and local state out at ANY depth.
 node_modules
+**/node_modules
 **/dist
 coverage
 data
-secrets
-.env
-.env.*
-*.pem
-*.db
+**/secrets
+**/.env
+**/.env.*
+**/*.pem
+**/*.key
+**/*.db
 plan.md
 implementation.md
+ANTIGRAVITY_HANDOFF.md
 .git
 tests

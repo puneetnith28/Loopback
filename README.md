@@ -80,7 +80,7 @@ refusal paths and recovery guide are documented in [docs/demo-runbook.md](docs/d
 See [SECURITY.md](SECURITY.md) and the full [threat model](docs/threat-model.md), which maps
 each threat to its defence and tests and lists the accepted residual risks. Known limits: single
 instance, local only, live Switch messaging and live GitHub configuration not yet exercised.
-Verification is advisory until the verifier's isolation is proven on separate OS identities.
+Verification is advisory until the verifier's isolation is proven in its own container (`deploy/isolation/`).
 Not yet met (they need the live setup): a real human-and-agent task through Switch, a genuine
 fixer PR with its regression test, the ruleset proof that only the gatekeeper can merge, and a
 recorded demo. The item-by-item status is in [docs/release-readiness.md](docs/release-readiness.md).
