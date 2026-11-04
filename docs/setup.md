@@ -88,6 +88,20 @@ altered (run id, repository, PR, SHA, verdict, findings). It does **not** prove 
 ran the tests, nor that its runtime is isolated: that is what the OS separation and the isolation
 proof are for.
 
+#### Signing helper inside an agent sandbox
+
+Agents cannot read `/home`, so install the helper and the gate's signature module side by side in
+a root-owned, read-only directory (after `npm run build`):
+
+```bash
+sudo install -d -m 755 /usr/local/lib/loopback-signer
+sudo install -m 644 scripts/sign-verifier-report.mjs apps/switch-gate/dist/agents/signature.js /usr/local/lib/loopback-signer/
+# the verifier then runs: /opt/node-v22.23.3-linux-x64/bin/node /usr/local/lib/loopback-signer/sign-verifier-report.mjs < report.json
+```
+
+The helper uses the `signature.js` beside it (falling back to the repository build) and refuses a
+module that is world-writable or owned by anyone but root or the caller.
+
 #### Signing key (done by you, as the verifier identity; not done yet)
 
 ```bash
@@ -105,10 +119,14 @@ not owned by the caller, a symlink, or not Ed25519, and never prints the key).
 
 #### Isolation proof
 
-1. Run `scripts/verify-isolation.sh gate|fixer|verifier` as each identity (read-only: it attempts
-   to read the other identities' credential files, which must fail, reports home ownership and
-   modes, whether `GH_TOKEN` is set and whether a git credential helper exists, and makes one
-   read-only GitHub GET as the verifier). Missing paths count as failures. Save the output.
+1. Run `scripts/verify-isolation.sh` (read-only) for each role on the separate-users runtime:
+   `gate` as your user (checks the setup exists, each slot directory is owned by its `sa<uid>-NN`
+   user and closed to others, the gate key is owner-only, and the signer is root-owned);
+   `fixer` and `verifier` **inside their agent units** (checks `/home` is hidden, no other agent's
+   directory is visible, the gate's credentials cannot be read, the signer is root-owned; for the
+   verifier also its own mode-600 signing key, no git credential helper and a read-only GitHub
+   GET). Outside a unit, or before the runtime is installed, it exits 2 ("CANNOT RUN … NOT
+   PROVEN"). Missing evidence counts as failure (exit 1). Save the output.
 2. Separately authorised: probe that the verifier token cannot write (requests that cannot change
    anything, e.g. a status on a non-existent commit: 403 = no permission, 422 = permission present).
 3. A real signed report on a live PR is recorded with `signature: "valid"`; a forged one (unsigned,

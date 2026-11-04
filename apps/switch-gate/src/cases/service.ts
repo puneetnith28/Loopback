@@ -228,7 +228,7 @@ export class MergeExecutor {
     if (!c) return { text: formatReason("CASE_NOT_FOUND", { caseId }), caseId: null };
     if (!this.d.mergeEnabled) return this.refuseNoTransition(c, actorId, "MERGE_DISABLED");
     if (!this.d.configComplete) return this.refuseNoTransition(c, actorId, "CONFIG_INCOMPLETE");
-    if (c.state === "MergeUnknown") return this.reconcileLocked(caseId);
+    if (c.state === "MergeUnknown") return this.reconcileLocked(caseId, { announce: false });
     this.d.halt.assertRunning("merge");
 
     if (c.state === "ReadyToMerge") {
@@ -315,16 +315,21 @@ export class MergeExecutor {
       finishMergeOp(db, op.id, known ? "failed" : "unknown", null, e instanceof Error ? e.name : "error", now());
       transition(db, { caseId, to: "MergeUnknown", actorId: "system", trigger: "system", reason: "MERGE_OUTCOME_UNKNOWN", auditType: known ? "merge.blocked" : "merge.outcome_unknown", targetSha: sha, payload: { error: e instanceof Error ? e.name : "error" } }, now());
       if (!known) await this.announce(c, formatReason("MERGE_OUTCOME_UNKNOWN", { caseId }));
-      return this.reconcileLocked(caseId);
+      return this.reconcileLocked(caseId, { announce: false });
     }
     // 11: confirm from GitHub, not from the response alone.
     finishMergeOp(db, op.id, "unknown", null, null, now());
     transition(db, { caseId, to: "MergeUnknown", actorId: "system", trigger: "system", reason: "MERGE_OUTCOME_UNKNOWN", targetSha: sha, payload: { stage: "confirming" } }, now());
-    return this.reconcileLocked(caseId);
+    return this.reconcileLocked(caseId, { announce: false });
   }
 
-  /** Reconcile a MergeUnknown case from GitHub (§15.2 as resolved by D14). Requires the lock. */
-  async reconcileLocked(caseId: string): Promise<MergeReply> {
+  /**
+   * Reconcile a MergeUnknown case from GitHub (§15.2 as resolved by D14). Requires the lock.
+   * `announce: false` when called for the `merge` command, whose reply the router posts
+   * itself (otherwise the outcome would be posted twice); background recovery announces.
+   * Policy-violation alerts are always posted.
+   */
+  async reconcileLocked(caseId: string, opts: { readonly announce: boolean } = { announce: true }): Promise<MergeReply> {
     const { db, now } = this.d;
     const c = getCase(db, caseId);
     if (!c) return { text: formatReason("CASE_NOT_FOUND", { caseId }), caseId: null };
@@ -358,7 +363,7 @@ export class MergeExecutor {
       // The merge is recorded; follow-up work must never make it look like a failed merge.
       try {
         if (pull.mergeCommitSha) this.d.onMergeConfirmed(pull.mergeCommitSha);
-        await this.announce(c, text);
+        if (opts.announce) await this.announce(c, text);
       } catch (e) {
         this.d.log?.error({ caseId, op: "post-merge", err: errName(e) }, "post-merge follow-up failed; merge itself is recorded");
       }
@@ -381,7 +386,7 @@ export class MergeExecutor {
       ? { action: "block", code: "AWAITING_MERGE_COMMAND", message: "", headSha: decision.headSha }
       : decision;
     const reply = await this.settle(reval, settled, "system");
-    await this.announce(reval, reply.text);
+    if (opts.announce) await this.announce(reval, reply.text);
     return reply;
   }
 

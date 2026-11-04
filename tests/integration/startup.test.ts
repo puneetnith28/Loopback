@@ -147,4 +147,22 @@ describe("readinessChecks (/readyz)", () => {
     expect(await gh.check()).toBe(true);
     expect(remaining).toHaveBeenCalledTimes(3);
   });
+
+  it("re-checks a failed GitHub answer after 5 s, but keeps a good one for 30 s", async () => {
+    let t = NOW;
+    const remaining = vi.fn(() => Promise.resolve(0));
+    const gh = readinessChecks({ ...base, githubRemaining: remaining, now: () => t }).find((c) => c.name === "github")!;
+    expect(await gh.check()).toBe(false);
+    t += 4_999;
+    expect(await gh.check()).toBe(false);
+    expect(remaining).toHaveBeenCalledTimes(1);
+    t += 1;
+    remaining.mockImplementation(() => Promise.resolve(100));
+    expect(await gh.check()).toBe(true);
+    expect(remaining).toHaveBeenCalledTimes(2);
+    t += 29_999;
+    remaining.mockImplementation(() => Promise.resolve(0));
+    expect(await gh.check()).toBe(true); // still the cached good answer
+    expect(remaining).toHaveBeenCalledTimes(2);
+  });
 });

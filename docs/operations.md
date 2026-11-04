@@ -33,7 +33,10 @@ requests R/W, Commit statuses R/W, Checks R, Metadata R), its private key at
 3. Start Switch Console and the agent sessions (fixer and verifier in their isolated users).
 4. `npm run gate` — on start the gate checks the Switch policy and operations, reconciles
    interrupted merges and every open case against GitHub *before* polling or accepting commands,
-   then connects to both rooms and serves the health endpoints. Stop with SIGINT/SIGTERM.
+   then connects to both rooms and serves the health endpoints. Stop with SIGINT/SIGTERM: the
+   handlers are installed before any startup work, so a signal during startup reconciliation
+   finishes the running work and exits 0 without connecting; a second signal changes nothing; a
+   shutdown still running after 30 s exits with code 1.
 
 ## Health
 
@@ -98,6 +101,13 @@ sqlite3 data/loopback.db "select id,case_id,attempt,status from merge_operations
 ```
 
 In chat: `@loopback-gate status LB-001` and `@loopback-gate audit LB-001`.
+
+## GitHub rate limits and outages
+
+The poller pauses until GitHub's reset after a rate limit, and backs off (10 s, doubling to
+5 min) after a pass in which GitHub failed for every case; one successful read resets it. Cases
+are never moved on missing data meanwhile. `/readyz` re-checks a failed GitHub probe after 5 s
+and keeps a good one for 30 s.
 
 ## Interrupted or uncertain merges
 

@@ -75,11 +75,13 @@ against live services.
    exported ruleset at setup and by `scripts/reset-demo.sh` on every demo run.
 5. **Single instance.** The per-case lock is in-process; running two gates is unsupported.
    The lock has no timeout, so a hung network call holds a case until the process restarts.
-6. **Shutdown and background tasks (follow-up, not fixed).** On a terminal stop, `gate.stop()`
-   clears the poll, reconcile and sweep timers and closes the database, but does not wait for a
-   background run that is already in progress; such a run can fail against the closed database
-   (caught and logged) and could post a gate status during shutdown. These background paths never
-   merge. Fix separately: track in-flight background tasks and await them before closing.
+6. **Shutdown and background tasks (fixed locally).** Background runs (poll, reconcile, sweep,
+   triage notices) are tracked; on a terminal stop `main.ts` waits for message handlers and gap
+   recovery (`rooms.drained()`) and then for running background tasks (`gate.drain()`) before the
+   database closes (`tests/integration/composition.test.ts`). Signal handlers are installed before
+   startup work; SIGTERM/SIGINT during startup reconciliation, after full startup, repeated, and a
+   hung shutdown are tested (`run-lifecycle.test.ts`), and the built entry point exits 0 on real
+   OS signals (`main-signal.test.ts`).
 7. **Token attribution.** The fixer's and verifier's fine-grained tokens are owned by the
    maintainer's personal GitHub account, so their pushes, PRs and comments are attributed to that
    account on GitHub. Loopback's audit log (actor ids, run ids) is the record of which agent did
@@ -93,13 +95,14 @@ against live services.
    - The policy is re-read every 60 s and three unreadable reads are tolerated, so a widened policy
      can be live for up to about a minute (about three while unreadable) before the gate stops.
      Authority in the maintainers' room still needs the exact Loopback id lists.
-   - URLs in a public report are shown as text in the triage notice (not defanged).
+   - *(Fixed)* URLs in a public report are defanged in the triage notice (`hxxps[://]`, `www[.]`).
    - `accept`/`decline` are maintainer-only but not privileged: triage works while
      `LOOPBACK_PRIVILEGED_ENABLED=false`, like a direct `report` in the maintainers' room.
-   - Intake `help`/`status` replies are not rate-limited (one reply per addressed message).
+   - *(Fixed)* Intake `help`/`status` replies are limited to 10 per public sender per 10 minutes.
    - The key check does not verify file ownership or resolve symlinks before checking modes.
-   - A transient base/GitHub problem at `accept` blocks the case; a maintainer `retask` resumes it.
-   - Signal handlers are installed only after startup reconciliation, and `/healthz` starts last;
+   - *(Fixed)* A transient GitHub problem at `accept` (rate limit, unavailable) leaves the report
+     awaiting triage; a permanent one (base moved) still blocks it.
+   - *(Fixed: signal handlers are now installed first.)* `/healthz` still starts last;
      the `switch-operations` readiness check reflects startup discovery only.
 10. **In-flight GitHub merge.** A halt (policy failure) stops privileged work at its next write
    boundary, but cannot recall a merge request already sent to GitHub; that outcome is confirmed

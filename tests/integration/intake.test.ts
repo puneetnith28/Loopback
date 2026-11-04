@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { INTAKE_MAX_PENDING, INTAKE_MAX_REPORT_CHARS, VISIBLE_REFUSALS_PER_WINDOW, VISIBLE_REFUSAL_WINDOW_MS } from "../../apps/switch-gate/src/commands/router.js";
+import { INTAKE_MAX_PENDING, INTAKE_MAX_REPORT_CHARS, INTAKE_REPLIES_PER_WINDOW, VISIBLE_REFUSALS_PER_WINDOW, VISIBLE_REFUSAL_WINDOW_MS } from "../../apps/switch-gate/src/commands/router.js";
 import { getCase } from "../../apps/switch-gate/src/persistence/repos.js";
-import { G, IROOM, MAINT, MAINT2, MROOM, OUT, REP, createHarness, type Harness } from "../helpers/harness.js";
+import { BASE, G, IROOM, MAINT, MAINT2, MROOM, OUT, REP, createHarness, type Harness } from "../helpers/harness.js";
 
 // D26 public intake and maintainer triage, D27 refusals. A public report never tasks the
 // fixer by itself: a maintainer must accept it in the maintainers' room first.
@@ -279,5 +279,54 @@ describe("refusals (D27)", () => {
     await h.say(PUBLIC, `${G} help`, { roomId: "another-room" });
     expect(h.posts.length).toBe(n);
     expect(audit(h, "command.refused").map((r) => r.reason)).toEqual(["DELEGATED_SENDER", "WRONG_ROOM"]);
+  });
+});
+
+describe("review follow-ups (intake hardening)", () => {
+  it(`answers at most ${INTAKE_REPLIES_PER_WINDOW} help/status requests per public sender per window`, async () => {
+    const h = createHarness();
+    for (let i = 0; i < INTAKE_REPLIES_PER_WINDOW + 5; i += 1) await intake(h, PUBLIC, `${G} help`);
+    expect(inRoom(h, IROOM)).toHaveLength(INTAKE_REPLIES_PER_WINDOW);
+    await intake(h, OUT, `${G} help`); // another sender has its own budget
+    expect(inRoom(h, IROOM)).toHaveLength(INTAKE_REPLIES_PER_WINDOW + 1);
+    h.clock.now = new Date(h.clock.now.getTime() + 10 * 60_000);
+    await intake(h, PUBLIC, `${G} help`);
+    expect(inRoom(h, IROOM)).toHaveLength(INTAKE_REPLIES_PER_WINDOW + 2);
+    // Maintainers in their own room are never throttled this way.
+    for (let i = 0; i < INTAKE_REPLIES_PER_WINDOW + 5; i += 1) await h.say(MAINT, `${G} help`);
+    expect(inRoom(h, MROOM)).toHaveLength(INTAKE_REPLIES_PER_WINDOW + 5);
+  });
+
+  it("defangs links in the maintainers' triage notice", async () => {
+    const h = createHarness();
+    await intake(h, PUBLIC, `${G} report crash, details at https://evil.example/x and www.evil.example`);
+    const notice = inRoom(h, MROOM)[0]!;
+    expect(notice).not.toMatch(/https?:\/\//i);
+    // safe() also escapes the brackets for chat markdown.
+    expect(notice).toMatch(/hxxps\\?\[:\/\/\\?\]evil/);
+    expect(notice).toMatch(/www\\?\[\.\\?\]evil/);
+    expect(notice).toMatch(/links defanged/);
+  });
+
+  it("a transient GitHub problem at accept leaves the report awaiting triage; accept works once it clears", async () => {
+    const h = createHarness({ expectedBase: BASE });
+    await intake(h, PUBLIC, `${G} report slugify drops the % sign`);
+    h.gh.rateLimited = true;
+    await h.say(MAINT, `${G} accept LB-001`);
+    expect(h.state()).toBe("Reported");
+    expect(h.posts.at(-1)).toMatch(/RATE_LIMITED/);
+    expect(h.posts.at(-1)).toMatch(/still awaiting triage/);
+    expect(audit(h, "case.triaged")).toEqual([]);
+    h.gh.rateLimited = false;
+    await h.say(MAINT, `${G} accept LB-001`);
+    expect(h.state()).toBe("FixInProgress");
+  });
+
+  it("a permanent problem at accept (base moved) still blocks the case", async () => {
+    const h = createHarness({ expectedBase: BASE });
+    await intake(h, PUBLIC, `${G} report slugify drops the % sign`);
+    h.gh.branchHead = "f".repeat(40);
+    await h.say(MAINT, `${G} accept LB-001`);
+    expect(getCase(h.db, "LB-001")).toMatchObject({ state: "Blocked", blockedReason: "BASE_COMMIT_MISMATCH" });
   });
 });

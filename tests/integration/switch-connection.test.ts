@@ -430,3 +430,48 @@ describe("gap recovery hook (step 3.9)", () => {
     expect(t.stops).toEqual([]);
   });
 });
+
+describe("D23 acceptance for steps 3.4 and 3.5 (missing branches)", () => {
+  it.each([
+    ["503", 503, '{"detail":"unavailable"}'],
+    ["404", 404, '{"detail":"no such connection"}'],
+    ["409 that is not taken_over", 409, '{"detail":{"code":"stale_cursor","message":"m"}}'],
+  ])("3.4: a non-takeover beat refusal (%s) reconnects with backoff, same id, fenced on the generation held", async (_n, status, body) => {
+    const t = setup({ fetchImpl: (() => Promise.resolve(new Response(body, { status }))) as unknown as typeof fetch });
+    t.conn.start();
+    t.last().state();
+    const id = t.last().url.searchParams.get("connection_id");
+    await t.conn.sendBeat();
+    expect(t.stops).toEqual([]);
+    expect(t.sockets).toHaveLength(1); // not immediate: backoff first
+    vi.advanceTimersByTime(100 + 1);
+    expect(t.sockets).toHaveLength(2);
+    expect(t.last().url.searchParams.get("connection_id")).toBe(id);
+    expect(t.last().url.searchParams.get("expected_generation")).toBe(String(G1));
+  });
+
+  it.each(["heartbeat_lapsed", "closed"])("3.5: the recoverable eviction %s reopens with the same id, fenced", (code) => {
+    const t = setup();
+    t.conn.start();
+    t.last().state();
+    const id = t.last().url.searchParams.get("connection_id");
+    t.last().frame("evicted", { code, reason: "r", room_id: null });
+    vi.advanceTimersByTime(101);
+    expect(t.sockets).toHaveLength(2);
+    expect(t.last().url.searchParams.get("connection_id")).toBe(id);
+    expect(t.last().url.searchParams.get("expected_generation")).toBe(String(G1));
+    expect(t.stops).toEqual([]);
+  });
+
+  it("3.5: after a takeover the stored record is kept as it was (never cleared or replaced automatically)", () => {
+    const t = setup();
+    t.conn.start();
+    t.last().state();
+    const before = t.saved.at(-1);
+    t.last().frame("evicted", { code: "taken_over", reason: "r", room_id: null });
+    vi.advanceTimersByTime(120_000);
+    expect(t.stops).toEqual([expect.objectContaining({ code: "taken_over" })]);
+    expect(t.saved.at(-1)).toEqual(before);
+    expect(t.sockets).toHaveLength(1);
+  });
+});

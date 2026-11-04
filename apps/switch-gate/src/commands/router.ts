@@ -1,4 +1,4 @@
-import type { CaseState, Command, InboundMessage, ReasonCode } from "@loopback/contracts";
+import { isTransient, type CaseState, type Command, type InboundMessage, type ReasonCode } from "@loopback/contracts";
 import { append, listRecent } from "../audit/index.js";
 import { HaltedError } from "../cases/halt.js";
 import { createCase, transitionInTx } from "../cases/service.js";
@@ -46,6 +46,15 @@ export const INTAKE_MAX_REPORT_CHARS = 1000;
 /** Security review M1: public reports awaiting triage, across all senders. Beyond it, intake pauses. */
 export const INTAKE_MAX_PENDING = 50;
 const INVISIBLE = /\p{Cf}/gu;
+
+/** D27: intake help/status replies per sender per window; beyond it the gate stays silent. */
+export const INTAKE_REPLIES_PER_WINDOW = 10;
+const INTAKE_REPLY_WINDOW_MS = 10 * 60_000;
+
+/** Defang links in untrusted text shown to maintainers, so a report cannot plant a clickable link. */
+export function defangLinks(text: string): string {
+  return text.replace(/\b(h)(ttps?)(:\/\/)/gi, (_m, h: string, rest: string) => `${h === "H" ? "H" : "h"}xx${rest.slice(2)}[://]`).replace(/\bwww\./gi, "www[.]");
+}
 
 /** D26: duplicate reports from the same sender within this window are not filed twice. */
 const DUPLICATE_REPORT_WINDOW_MS = 24 * 60 * 60_000;
@@ -104,7 +113,7 @@ const triageNoticeKey = (caseId: string): string => `triage_notice:${caseId}`;
 
 function triageNotice(c: CaseRecord): string {
   return [
-    `[${c.id}] Public report awaiting triage (${c.reportText.length} chars, shown in full; untrusted, from the intake room): «${safe(c.reportText, INTAKE_MAX_REPORT_CHARS)}»`,
+    `[${c.id}] Public report awaiting triage (${c.reportText.length} chars, shown in full, links defanged; untrusted, from the intake room): «${safe(defangLinks(c.reportText), INTAKE_MAX_REPORT_CHARS + 200)}»`,
     `accept ${c.id} — task the fixer · decline ${c.id} <reason>`,
   ].join("\n");
 }
@@ -125,6 +134,8 @@ export class Router {
   private readonly visibleRefusals = new Map<string, { windowStart: number; count: number }>();
   /** Cases whose triage notice is being posted right now. */
   private readonly noticesInFlight = new Set<string>();
+  /** Intake help/status replies per sender in the current window (D27). Bounded. */
+  private readonly intakeReplies = new Map<string, { windowStart: number; count: number }>();
 
   constructor(private readonly d: RouterDeps) {
     // Fail at construction (startup), not on every message.
@@ -195,6 +206,8 @@ export class Router {
       return;
     }
     if (command.kind !== "report") markProcessed(db, msg.eventId, now());
+    // D27: answers in the public room are rate-limited per sender too (help/status).
+    if (reply && room === "intake" && !trusted && (command.kind === "help" || command.kind === "status") && !this.allowIntakeReply(msg.sender)) return;
     if (reply) await this.post(msg, reply);
   }
 
@@ -358,6 +371,11 @@ export class Router {
     const { db, now } = this.d;
     const problem = await this.d.handoff.check(c);
     const trigger = triage ? "command" : "system";
+    // A transient problem (GitHub briefly unreadable) at triage leaves the report awaiting
+    // triage, so a maintainer can simply accept it again; nothing is blocked or tasked.
+    if (problem !== null && triage && isTransient(problem)) {
+      return { text: `${formatReason(problem, { caseId: c.id })} ${c.id} is still awaiting triage; accept it again shortly.`, caseId: c.id };
+    }
     if (problem !== null) {
       const blocked = db.transaction(() => {
         if (getCase(db, c.id)?.state !== "Reported") return false;
@@ -439,6 +457,22 @@ export class Router {
   }
 
   /** At most VISIBLE_REFUSALS_PER_WINDOW visible refusals per (room, sender); a full table stays silent. */
+  private allowIntakeReply(sender: string): boolean {
+    const t = this.d.now().getTime();
+    const entry = this.intakeReplies.get(sender);
+    if (entry !== undefined && t - entry.windowStart < INTAKE_REPLY_WINDOW_MS) {
+      if (entry.count >= INTAKE_REPLIES_PER_WINDOW) return false;
+      entry.count += 1;
+      return true;
+    }
+    if (entry === undefined && this.intakeReplies.size >= VISIBLE_REFUSAL_MAX_KEYS) {
+      for (const [k, v] of this.intakeReplies) if (t - v.windowStart >= INTAKE_REPLY_WINDOW_MS) this.intakeReplies.delete(k);
+      if (this.intakeReplies.size >= VISIBLE_REFUSAL_MAX_KEYS) return false;
+    }
+    this.intakeReplies.set(sender, { windowStart: t, count: 1 });
+    return true;
+  }
+
   private allowVisibleRefusal(roomId: string, sender: string): boolean {
     const t = this.d.now().getTime();
     const key = `${roomId}\u0000${sender}`;

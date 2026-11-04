@@ -387,21 +387,30 @@ describe("silent-failure review fixes", () => {
     expect(getCase(h.db, "LB-001")).toMatchObject({ state: "Blocked", blockedReason: "AWAITING_MERGE_COMMAND" });
     expect(h.merger).not.toHaveBeenCalled();
   });
-  it("a failing post-merge follow-up never makes a recorded merge look failed", async () => {
+  it("a failing post-merge chat post never makes a recorded merge look failed, nor merges twice", async () => {
     const h = createHarness();
     await h.driveToReady();
-    let posts = 0;
+    let failed = 0;
     const origPush = h.posts.push.bind(h.posts);
     h.posts.push = (...items: string[]) => {
-      // fail only the executor's own announcement (the first MERGED post)
-      if (posts === 0 && items.some((i) => i.startsWith("[LB-001] MERGED"))) { posts += 1; throw new Error("chat down"); }
+      // The chat is down exactly when the merge outcome is reported.
+      if (failed === 0 && items.some((i) => i.startsWith("[LB-001] MERGED"))) { failed += 1; throw new Error("chat down"); }
       return origPush(...items);
     };
-    await h.say(MAINT, `${G} merge LB-001`);
-    expect(posts).toBe(1);
-    expect(h.posts.at(-1)).toMatch(/^\[LB-001\] MERGED/); // the command reply still arrives
-    expect(h.state()).toBe("Merged");
+    await expect(h.say(MAINT, `${G} merge LB-001`)).rejects.toThrow("chat down");
+    expect(failed).toBe(1);
+    expect(h.state()).toBe("Merged"); // recorded from GitHub before the reply was attempted
     expect(h.merger).toHaveBeenCalledTimes(1);
+    await h.say(MAINT, `${G} merge LB-001`); // a retry by the maintainer cannot merge again
+    expect(h.merger).toHaveBeenCalledTimes(1);
+    expect(h.state()).toBe("Merged");
+  });
+
+  it("reports the merge outcome exactly once to the merge command", async () => {
+    const h = createHarness();
+    await h.driveToReady();
+    await h.say(MAINT, `${G} merge LB-001`);
+    expect(h.posts.filter((p) => p.startsWith("[LB-001] MERGED"))).toHaveLength(1);
   });
 });
 

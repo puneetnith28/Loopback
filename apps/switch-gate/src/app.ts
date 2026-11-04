@@ -39,6 +39,12 @@ export interface Gate {
    * startup and after Switch reports a delivery gap. Never merges (D15).
    */
   reconcileNow(): Promise<void>;
+  /**
+   * Stop scheduling background work and wait for any task already running (poll,
+   * reconcile, sweep, triage notices) to finish. Call before stop(), so no task can run
+   * against a closed database (step 9.7, residual risk 6).
+   */
+  drain(): Promise<void>;
   stop(): void;
 }
 
@@ -104,11 +110,16 @@ export function createGate(cfg: GateConfig, chat: ChatPort, log: Logger, deps: {
   });
 
   const timers: NodeJS.Timeout[] = [];
+  const inFlight = new Set<Promise<void>>();
   let stopping = false;
   const every = (ms: number, op: string, fn: () => Promise<void>) => {
+    if (stopping) return; // draining has begun (e.g. a signal during start): schedule nothing
     timers.push(setInterval(() => {
       if (stopping) return;
-      fn().catch((e: unknown) => log.error({ op, err: e instanceof Error ? e.name : "unknown" }, "background task failed"));
+      const task = fn()
+        .catch((e: unknown) => log.error({ op, err: e instanceof Error ? e.name : "unknown" }, "background task failed"))
+        .finally(() => inFlight.delete(task));
+      inFlight.add(task);
     }, ms));
   };
 
@@ -137,9 +148,15 @@ export function createGate(cfg: GateConfig, chat: ChatPort, log: Logger, deps: {
       every(cfg.runtime.pollIntervalMs, "reconcile", () => executor.reconcileUnknown());
       every(Math.max(10_000, Math.floor(cfg.runtime.verifyTimeoutMs / 10)), "sweep", () => workflow.sweep());
     },
+    async drain() {
+      stopping = true;
+      for (const t of timers) clearInterval(t);
+      while (inFlight.size > 0) await Promise.allSettled([...inFlight]);
+    },
     stop() {
       stopping = true;
       for (const t of timers) clearInterval(t);
+      if (inFlight.size > 0) log.warn({ op: "stop", running: inFlight.size }, "closing the database while background tasks still run; call drain() first");
       db.close();
     },
   };

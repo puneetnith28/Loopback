@@ -104,6 +104,8 @@ export interface ReadinessInputs {
   readonly heartbeatMaxAgeMs?: number;
   /** How long a GitHub answer is reused, so /readyz polling does not hammer the API. */
   readonly githubCacheMs?: number;
+  /** How long a failed GitHub check is reused (default 5 s). */
+  readonly githubFailureCacheMs?: number;
 }
 
 /** A readiness check: a name (no details) and a boolean. */
@@ -117,6 +119,8 @@ export function readinessChecks(i: ReadinessInputs): ReadyCheck[] {
   const now = i.now ?? (() => Date.now());
   const maxAge = i.heartbeatMaxAgeMs ?? 6000;
   const cacheMs = i.githubCacheMs ?? 30_000;
+  // A failed check is re-tried sooner, so readiness recovers quickly after a blip.
+  const failureCacheMs = Math.min(cacheMs, i.githubFailureCacheMs ?? 5_000);
   let cached: { at: number; ok: boolean } | null = null;
   const checks: ReadyCheck[] = i.connections.map((c) => ({
     name: `switch-${c.name}`,
@@ -127,7 +131,7 @@ export function readinessChecks(i: ReadinessInputs): ReadyCheck[] {
     {
       name: "github",
       check: async () => {
-        if (cached !== null && now() - cached.at < cacheMs) return cached.ok;
+        if (cached !== null && now() - cached.at < (cached.ok ? cacheMs : failureCacheMs)) return cached.ok;
         let ok: boolean;
         try {
           ok = (await i.githubRemaining()) > 0;

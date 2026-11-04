@@ -10,8 +10,8 @@
 // current user with no group/world access, and its directory must not be writable by others.
 //
 // The helper never prints, logs or transmits the key, and never sends the report anywhere.
-// It uses the gate's own canonicalization contract (apps/switch-gate/dist/agents/signature.js;
-// run `npm run build` first). A signature proves key possession and report integrity, not that
+// It uses the gate's own canonicalization contract: signature.js beside this script (the
+// system-wide install), else apps/switch-gate/dist/agents/signature.js (run `npm run build`). A signature proves key possession and report integrity, not that
 // any test was executed.
 
 import { createPrivateKey } from "node:crypto";
@@ -29,13 +29,36 @@ function fail(message) {
   process.exit(1);
 }
 
+/**
+ * The signature module is taken from beside this script when installed system-wide
+ * (e.g. /usr/local/lib/loopback-signer/{sign-verifier-report.mjs,signature.js}, root-owned and
+ * read-only, so it is reachable from an agent sandbox), otherwise from the repository build.
+ * A module others can modify is refused: it decides what gets signed.
+ */
 async function loadSigner() {
   const here = dirname(fileURLToPath(import.meta.url));
-  try {
-    return await import(pathToFileURL(join(here, "..", "apps", "switch-gate", "dist", "agents", "signature.js")).href);
-  } catch {
-    return fail("the gate's signature module is not built; run `npm run build` in the repository first");
+  const candidates = [join(here, "signature.js"), join(here, "..", "apps", "switch-gate", "dist", "agents", "signature.js")];
+  for (const path of candidates) {
+    let st;
+    let dir;
+    try {
+      st = lstatSync(path);
+      dir = lstatSync(dirname(path));
+    } catch {
+      continue;
+    }
+    if (!st.isFile()) fail(`the signature module at ${path} is not a regular file`);
+    // World-writable, or owned by someone other than root or the caller: anyone could change it.
+    if ((st.mode & 0o002) !== 0 || (dir.mode & 0o002) !== 0) fail(`the signature module at ${path} (or its directory) is writable by others`);
+    const uid = typeof process.getuid === "function" ? process.getuid() : null;
+    if (uid !== null && st.uid !== 0 && st.uid !== uid) fail(`the signature module at ${path} is owned by another user`);
+    try {
+      return await import(pathToFileURL(path).href);
+    } catch {
+      return fail(`the signature module at ${path} could not be loaded`);
+    }
   }
+  return fail("the signature module was not found beside this script or in the repository build; run `npm run build`");
 }
 
 function readStdin() {

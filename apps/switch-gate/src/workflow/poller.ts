@@ -2,7 +2,7 @@ import { displaySha, type CaseState } from "@loopback/contracts";
 import { append } from "../audit/index.js";
 import { transitionInTx } from "../cases/service.js";
 import { formatReason } from "../chat/reasons.js";
-import type { PullDetails } from "../github/client.js";
+import { GitHubError, RateLimited, type PullDetails } from "../github/client.js";
 import { kvGet, kvSet, listCasesInStates, recordCiEvidence, recordCommit, type CaseRecord, getCase } from "../persistence/repos.js";
 import type { VerificationWorkflow, WorkflowDeps } from "./verification.js";
 
@@ -12,6 +12,10 @@ const WATCHED: readonly CaseState[] = [
 ];
 const STALE_ON_HEAD_CHANGE: ReadonlySet<CaseState> = new Set(["PRCreated", "Verifying", "AwaitingApproval", "ReadyToMerge"]);
 const PR_CLOSED_SOURCES: ReadonlySet<CaseState> = new Set(["PRCreated", "Verifying", "VerificationFailed", "AwaitingApproval", "ReadyToMerge", "Stale"]);
+
+/** Step 9.6: back-off after a pass in which GitHub was unavailable for every case. */
+export const OUTAGE_BACKOFF_BASE_MS = 10_000;
+export const OUTAGE_BACKOFF_MAX_MS = 5 * 60_000;
 
 export interface PollerLog {
   warn(obj: Record<string, unknown>, msg: string): void;
@@ -23,6 +27,9 @@ export interface PollerLog {
  */
 export class Poller {
   private running = false;
+  /** No pass starts before this time (rate limit or outage back-off). */
+  private pausedUntil = 0;
+  private outageStreak = 0;
 
   constructor(private readonly d: WorkflowDeps, private readonly wf: VerificationWorkflow, private readonly log: PollerLog) {}
 
@@ -30,17 +37,46 @@ export class Poller {
     await this.d.chat.post(c.roomId, c.threadId === null ? `[${c.id}] ${text}` : text, c.threadId);
   }
 
-  /** One pass over all watched cases. Overlapping ticks are skipped (single-flight). */
+  /** When the poller may next run a pass (epoch ms); 0 when not backing off. */
+  get backoffUntil(): number {
+    return this.pausedUntil;
+  }
+
+  /**
+   * One pass over all watched cases. Overlapping ticks are skipped (single-flight).
+   * Step 9.6: a rate limit stops the pass and pauses polling until GitHub's reset; a pass
+   * in which GitHub failed for every case backs off exponentially (10 s doubling to 5 min)
+   * instead of hammering an outage. Nothing is decided from cached state meanwhile.
+   */
   async tick(): Promise<void> {
     if (this.running) return;
+    const now = this.d.now().getTime();
+    if (now < this.pausedUntil) return;
     this.running = true;
+    let attempted = 0;
+    let unavailable = 0;
     try {
       for (const c of listCasesInStates(this.d.db, WATCHED)) {
+        attempted += 1;
         try {
           await this.d.locks.with(c.id, () => this.pollCase(c.id));
         } catch (e) {
+          if (e instanceof RateLimited) {
+            this.pausedUntil = this.d.now().getTime() + Math.max(1, e.retryAfterSeconds) * 1000;
+            this.log.warn({ caseId: c.id, op: "poll", retryAfterSeconds: e.retryAfterSeconds }, "GitHub rate limit; pausing polling until it resets");
+            return;
+          }
+          if (e instanceof GitHubError) unavailable += 1;
           this.log.warn({ caseId: c.id, err: e instanceof Error ? e.name : "unknown" }, "poll failed; will retry next tick");
         }
+      }
+      if (attempted > 0 && unavailable === attempted) {
+        this.outageStreak += 1;
+        const delay = Math.min(OUTAGE_BACKOFF_MAX_MS, OUTAGE_BACKOFF_BASE_MS * 2 ** (this.outageStreak - 1));
+        this.pausedUntil = this.d.now().getTime() + delay;
+        this.log.warn({ op: "poll", consecutive: this.outageStreak, backoffMs: delay }, "GitHub unavailable for every case; backing off");
+      } else if (unavailable < attempted) {
+        this.outageStreak = 0;
       }
     } finally {
       this.running = false;

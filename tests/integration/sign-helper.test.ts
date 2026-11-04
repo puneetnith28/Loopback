@@ -1,6 +1,6 @@
 import { execFileSync, spawnSync } from "node:child_process";
 import { generateKeyPairSync } from "node:crypto";
-import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -84,5 +84,29 @@ describe("sign-verifier-report.mjs", () => {
     const r = run(JSON.stringify(report), { VERIFIER_SIGNING_KEY_FILE: rsa });
     expect(r.status).toBe(1);
     expect(r.stderr).toMatch(/not an Ed25519 key/);
+  });
+});
+
+describe("sign-verifier-report.mjs installed outside the repository", () => {
+  it("uses the signature module beside it, and refuses one others could modify", () => {
+    const lib = join(dir, "loopback-signer");
+    mkdirSync(lib, { mode: 0o755 });
+    copyFileSync(SCRIPT, join(lib, "sign-verifier-report.mjs"));
+    copyFileSync(join(process.cwd(), "apps", "switch-gate", "dist", "agents", "signature.js"), join(lib, "signature.js"));
+    chmodSync(join(lib, "signature.js"), 0o644);
+    const runAt = (env: Record<string, string> = {}) => spawnSync(process.execPath, [join(lib, "sign-verifier-report.mjs")], {
+      input: JSON.stringify(report), encoding: "utf8", cwd: dir,
+      env: { PATH: process.env.PATH ?? "", HOME: dir, VERIFIER_SIGNING_KEY_FILE: keyFile, ...env },
+    });
+    const ok = runAt();
+    expect(ok.status).toBe(0);
+    const signed = JSON.parse(/```loopback-report\n(.*)\n```/s.exec(ok.stdout)![1]!) as Record<string, unknown>;
+    expect(verifyReportSignature(signed, keys.publicKey)).toEqual({ ok: true });
+
+    chmodSync(join(lib, "signature.js"), 0o666);
+    const writable = runAt();
+    expect(writable.status).toBe(1);
+    expect(writable.stderr).toMatch(/writable by others/);
+    expect(writable.stdout).toBe("");
   });
 });
