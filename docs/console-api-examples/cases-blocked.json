@@ -1,0 +1,21 @@
+{
+  "items": [
+    {
+      "id": "LB-004",
+      "state": "Blocked",
+      "blockedReason": "PROTECTED_PATH_CHANGED",
+      "blockedReasonTransient": false,
+      "repository": "puneetnith28/loopback-demo-target",
+      "pullRequest": 14,
+      "pullRequestUrl": "https://github.com/puneetnith28/loopback-demo-target/pull/14",
+      "branch": "loopback/LB-004",
+      "headSha": "27f96b1997d2c32b2c146c207daa965c94d93e3f",
+      "reporterId": "@switch-mattermost-b1-reporter:localhost",
+      "reportExcerpt": "CI is flaky on Windows runners.",
+      "stateEnteredAt": "2026-11-04T10:15:00.000Z",
+      "createdAt": "2026-11-04T10:00:00.000Z",
+      "updatedAt": "2026-11-04T10:15:00.000Z"
+    }
+  ],
+  "nextCursor": null
+}

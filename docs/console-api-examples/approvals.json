@@ -1,0 +1,13 @@
+{
+  "items": [
+    {
+      "id": "appr-003",
+      "approverId": "@switch-mattermost-b1-maintainer:localhost",
+      "headSha": "620a9737143d598e0e059a60ad0b7426d0a50397",
+      "isCurrentHead": false,
+      "decision": "approve",
+      "reason": null,
+      "createdAt": "2026-11-04T09:30:00.000Z"
+    }
+  ]
+}

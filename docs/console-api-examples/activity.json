@@ -1,0 +1,76 @@
+{
+  "items": [
+    {
+      "id": 23,
+      "caseId": "LB-006",
+      "actorId": "@switch-agent-fixer:localhost",
+      "type": "fixer.started",
+      "targetSha": null,
+      "reasonCode": null,
+      "payload": {
+        "branch": "loopback/LB-006"
+      },
+      "createdAt": "2026-11-04T11:30:00.000Z"
+    },
+    {
+      "id": 18,
+      "caseId": "LB-004",
+      "actorId": "@switch-agent-verifier:localhost",
+      "type": "verification.failed",
+      "targetSha": "27f96b1997d2c32b2c146c207daa965c94d93e3f",
+      "reasonCode": "VERIFICATION_FAILED",
+      "payload": {
+        "runId": "08c0806d-e0ce-4912-8124-336488f03d9f",
+        "verdict": "fail",
+        "findings": 1,
+        "regressionTestFailsBeforeFix": true,
+        "advisory": true,
+        "signature": "absent"
+      },
+      "createdAt": "2026-11-04T10:12:00.000Z"
+    },
+    {
+      "id": 16,
+      "caseId": "LB-003",
+      "actorId": "system",
+      "type": "commit.changed",
+      "targetSha": "6227144ff935ad46489443007bcbe03e702dd43e",
+      "reasonCode": "APPROVAL_STALE",
+      "payload": {
+        "from": "620a9737143d598e0e059a60ad0b7426d0a50397",
+        "to": "6227144ff935ad46489443007bcbe03e702dd43e"
+      },
+      "createdAt": "2026-11-04T09:40:00.000Z"
+    },
+    {
+      "id": 14,
+      "caseId": "LB-002",
+      "actorId": "@switch-agent-verifier:localhost",
+      "type": "verification.passed",
+      "targetSha": "2294ca653b8bee6e7f9db8fbfc43ac270c1ea3e5",
+      "reasonCode": null,
+      "payload": {
+        "runId": "aef504f2-def2-4929-820e-f3952d145a1c",
+        "verdict": "pass",
+        "findings": 1,
+        "regressionTestFailsBeforeFix": true,
+        "advisory": true,
+        "signature": "absent"
+      },
+      "createdAt": "2026-11-04T08:24:00.000Z"
+    },
+    {
+      "id": 13,
+      "caseId": "LB-002",
+      "actorId": "system",
+      "type": "verification.started",
+      "targetSha": "2294ca653b8bee6e7f9db8fbfc43ac270c1ea3e5",
+      "reasonCode": null,
+      "payload": {
+        "runId": "aef504f2-def2-4929-820e-f3952d145a1c"
+      },
+      "createdAt": "2026-11-04T08:06:00.000Z"
+    }
+  ],
+  "nextCursor": "13"
+}

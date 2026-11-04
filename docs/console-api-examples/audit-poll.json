@@ -1,0 +1,54 @@
+{
+  "items": [
+    {
+      "id": 21,
+      "caseId": null,
+      "actorId": "@switch-mattermost-b1-public:localhost",
+      "type": "command.refused",
+      "targetSha": null,
+      "reasonCode": "NOT_AUTHORIZED",
+      "payload": {
+        "command": "approve",
+        "room": "intake"
+      },
+      "createdAt": "2026-11-04T11:01:00.000Z"
+    },
+    {
+      "id": 22,
+      "caseId": "LB-006",
+      "actorId": "@switch-mattermost-b1-maintainer:localhost",
+      "type": "case.triaged",
+      "targetSha": null,
+      "reasonCode": null,
+      "payload": {
+        "decision": "accept"
+      },
+      "createdAt": "2026-11-04T11:28:00.000Z"
+    },
+    {
+      "id": 23,
+      "caseId": "LB-006",
+      "actorId": "@switch-agent-fixer:localhost",
+      "type": "fixer.started",
+      "targetSha": null,
+      "reasonCode": null,
+      "payload": {
+        "branch": "loopback/LB-006"
+      },
+      "createdAt": "2026-11-04T11:30:00.000Z"
+    },
+    {
+      "id": 24,
+      "caseId": "LB-007",
+      "actorId": "system",
+      "type": "merge.outcome_unknown",
+      "targetSha": "6ae4ec3069584d9c82b82a17c4f5f8ff59ea964c",
+      "reasonCode": "MERGE_OUTCOME_UNKNOWN",
+      "payload": {
+        "attempt": 1
+      },
+      "createdAt": "2026-11-04T12:00:00.000Z"
+    }
+  ],
+  "nextCursor": null
+}

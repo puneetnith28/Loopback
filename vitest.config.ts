@@ -3,8 +3,10 @@ import { defineConfig } from "vitest/config";
 
 const contractsSrc = fileURLToPath(new URL("./packages/contracts/src/index.ts", import.meta.url));
 
+const consoleContractsSrc = fileURLToPath(new URL("./packages/console-contracts/src/index.ts", import.meta.url));
+
 const shared = {
-  resolve: { alias: { "@loopback/contracts": contractsSrc } },
+  resolve: { alias: { "@loopback/contracts": contractsSrc, "@loopback/console-contracts": consoleContractsSrc } },
 };
 
 // Windows starts PowerShell for each real ACL check, and processes start slowly there.
@@ -22,7 +24,7 @@ export default defineConfig({
     ],
     coverage: {
       provider: "v8",
-      include: ["apps/switch-gate/src/**/*.ts", "packages/contracts/src/**/*.ts"],
+      include: ["apps/switch-gate/src/**/*.ts", "apps/console-api/src/**/*.ts", "packages/contracts/src/**/*.ts", "packages/console-contracts/src/**/*.ts"],
       exclude: ["**/main.ts", "**/*-cli.ts"],
       reporter: ["text-summary", "lcov"],
       thresholds: {

@@ -15,7 +15,7 @@ COPY apps/switch-gate/package.json apps/switch-gate/tsconfig.json apps/switch-ga
 RUN npm ci --no-audit --no-fund --ignore-scripts
 COPY packages/contracts/src packages/contracts/src
 COPY apps/switch-gate/src apps/switch-gate/src
-RUN npx tsc -b && npm prune --omit=dev --ignore-scripts --no-audit --no-fund
+RUN npx tsc -b apps/switch-gate && npm prune --omit=dev --ignore-scripts --no-audit --no-fund
 
 FROM node:22.23.3-bookworm-slim@sha256:3ed98443660ff48413b5af19ecefce3b9d50845a901a43420d47cc63a9fddbe9
 RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates \

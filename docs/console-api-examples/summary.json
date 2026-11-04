@@ -1,0 +1,23 @@
+{
+  "totalCases": 7,
+  "byState": {
+    "Reported": 1,
+    "Triaged": 0,
+    "FixInProgress": 1,
+    "PRCreated": 0,
+    "Verifying": 0,
+    "VerificationFailed": 0,
+    "AwaitingApproval": 1,
+    "ReadyToMerge": 0,
+    "Revalidating": 0,
+    "Merging": 0,
+    "Merged": 1,
+    "Stale": 1,
+    "Blocked": 1,
+    "MergeUnknown": 1
+  },
+  "active": 6,
+  "needsAttention": 3,
+  "lastEventAt": "2026-11-04T12:00:00.000Z",
+  "generatedAt": "2026-11-04T12:30:00.000Z"
+}

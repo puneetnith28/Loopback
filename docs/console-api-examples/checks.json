@@ -1,0 +1,15 @@
+{
+  "items": [
+    {
+      "id": "ci-LB-001-1001",
+      "headSha": "5dbde10910a36804989811f9b3279c290ca292c1",
+      "isCurrentHead": true,
+      "name": "test",
+      "source": "github-actions",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/puneetnith28/loopback-demo-target/actions/runs/1001",
+      "observedAt": "2026-11-04T06:20:00.000Z"
+    }
+  ]
+}
