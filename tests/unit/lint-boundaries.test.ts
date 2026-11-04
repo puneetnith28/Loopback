@@ -50,6 +50,15 @@ describe("module boundaries", () => {
     expect(await errors(`import { r } from "../audit/store.js";`, `${SRC}/policy/evaluate.ts`)).not.toEqual([]);
   });
 
+  it("only github/* and main.ts may import the raw transport", async () => {
+    const code = `import { GitHubTransport } from "../github/transport.js";`;
+    expect(await errors(`import { GitHubTransport } from "./transport.js";`, `${SRC}/github/merge.ts`)).toEqual([]);
+    expect(await errors(`import { GitHubTransport } from "./github/transport.js";`, `${SRC}/main.ts`)).toEqual([]);
+    expect(await errors(code, `${SRC}/cases/service.ts`)).toHaveLength(1);
+    expect(await errors(code, `${SRC}/approvals/approve.ts`)).toHaveLength(1);
+    expect(await errors(code, `${SRC}/policy/evaluate.ts`)).not.toEqual([]);
+  });
+
   it("each source file matches exactly one boundary config", async () => {
     const paths = [
       `${SRC}/policy/evaluate.ts`, `${SRC}/cases/service.ts`, `${SRC}/cases/machine.ts`,

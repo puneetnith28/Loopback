@@ -16,6 +16,12 @@ const MERGE = {
   regex: "(^|/)github/merge(\\.js)?$",
   message: "Only cases/service.ts may import the merge operation.",
 };
+// The raw transport can issue any request (including a merge PUT); only github/*
+// modules and the composition root (main.ts) may hold it.
+const TRANSPORT = {
+  regex: "(^|/)github/transport(\\.js)?$",
+  message: "Only github/* modules and main.ts may import the GitHub transport.",
+};
 const AUDIT = {
   regex: "(^|/)audit/(?!index(\\.js)?$)[^/]+$",
   message: "Import audit only through audit/index (append-only API).",
@@ -32,10 +38,12 @@ function restrict(files, patterns, ignores = []) {
 export const boundaryConfigs = [
   restrict(
     [`${SRC}/**/*.ts`],
-    [MERGE, AUDIT],
-    [`${SRC}/policy/**`, `${SRC}/cases/service.ts`, `${SRC}/github/**`, `${SRC}/audit/**`],
+    [MERGE, AUDIT, TRANSPORT],
+    [`${SRC}/policy/**`, `${SRC}/cases/service.ts`, `${SRC}/github/**`, `${SRC}/audit/**`, `${SRC}/main.ts`],
   ),
-  restrict([`${SRC}/policy/**/*.ts`], [PURITY, MERGE, AUDIT]),
-  restrict([`${SRC}/cases/service.ts`, `${SRC}/github/**/*.ts`], [AUDIT]),
-  restrict([`${SRC}/audit/**/*.ts`], [MERGE]),
+  restrict([`${SRC}/policy/**/*.ts`], [PURITY, MERGE, AUDIT, TRANSPORT]),
+  restrict([`${SRC}/cases/service.ts`], [AUDIT, TRANSPORT]),
+  restrict([`${SRC}/github/**/*.ts`], [AUDIT]),
+  restrict([`${SRC}/audit/**/*.ts`], [MERGE, TRANSPORT]),
+  restrict([`${SRC}/main.ts`], [AUDIT]),
 ];
