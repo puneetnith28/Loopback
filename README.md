@@ -60,7 +60,7 @@ Not yet runnable end to end (see section 2). What works today:
 ```bash
 npm ci
 npm run build
-npm run migrate        # creates the SQLite schema at DB_PATH
+npm run migrate        # reads .env; creates the SQLite schema at DB_PATH
 npm test               # unit, integration and security suites
 ```
 
@@ -87,9 +87,9 @@ recorded demo. The item-by-item status is in [docs/release-readiness.md](docs/re
 
 ## 7. Tests
 
-Development on Linux, or on Windows through WSL2 (recommended), is described in
-[CONTRIBUTING.md](CONTRIBUTING.md); native Windows runs the portable checks only, and the gate
-itself runs on Linux.
+Development is described in [CONTRIBUTING.md](CONTRIBUTING.md). Linux and native Windows are both
+supported, for the tests and for running the gate; [docs/windows.md](docs/windows.md) covers
+Windows, including what is weaker there.
 
 ```bash
 npm ci

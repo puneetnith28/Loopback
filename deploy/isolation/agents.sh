@@ -36,8 +36,23 @@ umask 077
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$HERE/../.." && pwd)"
+
+# Windows (Git Bash; run it as `npm run agents -- up`): Docker Desktop replaces the rootless daemon.
+# Its VM runs the same Linux containers with the same flags; docs/windows.md states what differs.
+case "$(uname -s)" in
+  MINGW*|MSYS*|CYGWIN*) DESKTOP=1; export MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' ;;
+  *) DESKTOP=0 ;;
+esac
+# A path for a native program (docker.exe, node.exe); Bash itself keeps using the POSIX form.
+native_path() { if [ "$DESKTOP" = 1 ]; then cygpath -w "$1"; else printf '%s' "$1"; fi; }
+
 CRED_DIR="${LOOPBACK_AGENT_CRED_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/loopback-agents}"
-STATE_DIR="${LOOPBACK_DOCKER_RUN_DIR:-${XDG_RUNTIME_DIR:?XDG_RUNTIME_DIR must be set}/loopback-docker}"
+if [ "$DESKTOP" = 1 ]; then
+  CRED_DIR="$(cygpath -u "$CRED_DIR")"
+  STATE_DIR="${LOOPBACK_DOCKER_RUN_DIR:-$HOME/.loopback-docker}"
+else
+  STATE_DIR="${LOOPBACK_DOCKER_RUN_DIR:-${XDG_RUNTIME_DIR:?XDG_RUNTIME_DIR must be set}/loopback-docker}"
+fi
 PROXY_IMG=loopback-egress-proxy:local
 AGENT_IMG=loopback-agent:local
 EGRESS_NET=loopback-egress
@@ -46,8 +61,14 @@ CONTAINERS=(loopback-fixer loopback-verifier loopback-signer loopback-runner loo
 
 die() { echo "agents: $*" >&2; exit 1; }
 
-DOCKER_HOST="$("$HERE/rootless-docker.sh" env)"; DOCKER_HOST="${DOCKER_HOST#DOCKER_HOST=}"; export DOCKER_HOST
-"$HERE/rootless-docker.sh" status >/dev/null || die "the Loopback rootless daemon is not running; start it with $HERE/rootless-docker.sh start"
+if [ "$DESKTOP" = 1 ]; then
+  [ -z "${DOCKER_HOST:-}" ] || die "DOCKER_HOST is set; unset it so Docker Desktop is used"
+  [ "$(docker info --format '{{.OperatingSystem}}/{{.OSType}}' 2>/dev/null | tr -d '\r')" = "Docker Desktop/linux" ] \
+    || die "Docker Desktop is not running with Linux containers; start it first"
+else
+  DOCKER_HOST="$("$HERE/rootless-docker.sh" env)"; DOCKER_HOST="${DOCKER_HOST#DOCKER_HOST=}"; export DOCKER_HOST
+  "$HERE/rootless-docker.sh" status >/dev/null || die "the Loopback rootless daemon is not running; start it with $HERE/rootless-docker.sh start"
+fi
 
 role_uid() { case "$1" in fixer) echo 10001 ;; verifier) echo 10002 ;; signer) echo 10003 ;; runner) echo 10004 ;; esac; }
 HARDEN=(--read-only --cap-drop ALL --security-opt no-new-privileges)
@@ -91,8 +112,13 @@ safe_env_file() { # path [allowed-keys-regex] -> 0 if present and safe, 1 if abs
   local f="$1" allowed="${2:-}"
   [ -e "$f" ] || [ -L "$f" ] || return 1
   [ -f "$f" ] && [ ! -L "$f" ] || die "$f is not a regular file"
-  [ "$(stat -c '%u' -- "$f")" = "$(id -u)" ] || die "$f is not owned by you"
-  [ "$(stat -c '%a' -- "$f")" = 600 ] || die "$f must have mode 600"
+  if [ "$DESKTOP" = 1 ]; then
+    # Git Bash's stat reports invented modes on NTFS, so judge the file's real ACL instead.
+    node "$(native_path "$REPO/scripts/check-private-file.mjs")" "$(native_path "$f")" || die "$f is not private to you (docs/windows.md; run npm run build first)"
+  else
+    [ "$(stat -c '%u' -- "$f")" = "$(id -u)" ] || die "$f is not owned by you"
+    [ "$(stat -c '%a' -- "$f")" = 600 ] || die "$f must have mode 600"
+  fi
   if grep -qE '^[[:space:]]*(export[[:space:]]+)?GITHUB_TOKEN([[:space:]]*=|[[:space:]]*$)' -- "$f"; then die "$f sets GITHUB_TOKEN; use only the role's GH_TOKEN"; fi
   if [ -n "$allowed" ] && grep -vE '^[[:space:]]*(#|$)' -- "$f" | grep -qvE "^($allowed)="; then die "$f may set only: ${allowed//|/, }"; fi
   return 0
@@ -103,7 +129,7 @@ start_agent() { # fixer|verifier
   uid="$(role_uid "$role")"
   reuse_or_remove "$name" && return 0
   local -a extra=()
-  if safe_env_file "$CRED_DIR/$role.env"; then extra+=(--env-file "$CRED_DIR/$role.env"); fi
+  if safe_env_file "$CRED_DIR/$role.env"; then extra+=(--env-file "$(native_path "$CRED_DIR/$role.env")"); fi
   if [ "$role" = verifier ]; then
     extra+=(-v loopback-runner-jobs:/jobs -v loopback-runner-results:/results:ro)
   fi
@@ -137,7 +163,7 @@ start_signer() {
     --user 10003:10003 "${HARDEN[@]}" --pids-limit 128 --memory 256m --cpus 1 \
     -v loopback-signer-home:/home/signer \
     -e SIGNER_HOME=/home/signer -e LOOPBACK_AGENT_ROLE=signer -e HTTPS_PROXY="http://proxy:3128" \
-    --env-file "$CRED_DIR/signer.env" \
+    --env-file "$(native_path "$CRED_DIR/signer.env")" \
     "$AGENT_IMG" node "$SIGNER_MAIN" serve >/dev/null
   docker network connect loopback-signer-egress-net "$name" || { docker rm -f "$name" >/dev/null; die "could not attach the signer to loopback-signer-egress-net"; }
   docker start "$name" >/dev/null
@@ -229,7 +255,7 @@ verify() {
     got="$(docker exec "$c" sha256sum /opt/loopback/verify-isolation.mjs | cut -d' ' -f1)"
     [ "$got" = "$want" ] || die "$c carries an outdated verify-isolation.mjs; run '$0 build', '$0 down', '$0 up'"
   done
-  node "$REPO/scripts/verify-isolation.mjs" host || { r=$?; [ "$r" -gt "$rc" ] && rc=$r; }
+  node "$(native_path "$REPO/scripts/verify-isolation.mjs")" host || { r=$?; [ "$r" -gt "$rc" ] && rc=$r; }
   for role in fixer verifier signer runner; do
     docker exec "loopback-$role" node /opt/loopback/verify-isolation.mjs "$role" || { r=$?; [ "$r" -gt "$rc" ] && rc=$r; }
   done
@@ -250,8 +276,8 @@ registry() { # on|off
 
 case "${1:-}" in
   build)
-    docker build -t "$PROXY_IMG" "$HERE/proxy"
-    docker build -t "$AGENT_IMG" -f "$HERE/agent/Dockerfile" "$REPO" ;;
+    docker build -t "$PROXY_IMG" "$(native_path "$HERE/proxy")"
+    docker build -t "$AGENT_IMG" -f "$(native_path "$HERE/agent/Dockerfile")" "$(native_path "$REPO")" ;;
   signer-init) signer_init ;;
   signer-token) signer_token ;;
   signer-rotate-token) signer_rotate_token ;;

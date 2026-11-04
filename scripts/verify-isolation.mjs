@@ -5,6 +5,7 @@
 //
 //   host      run on the host against the Loopback rootless daemon (DOCKER_HOST must point at it):
 //               DOCKER_HOST=unix://$XDG_RUNTIME_DIR/loopback-docker/docker.sock node scripts/verify-isolation.mjs host
+//             On Windows it runs against Docker Desktop instead, with DOCKER_HOST unset.
 //   fixer     run INSIDE the role's container (deploy/isolation/agents.sh verify does both);
 //   verifier  outside it the checks prove nothing and the script refuses with exit code 2.
 //
@@ -29,7 +30,7 @@ import { existsSync, lstatSync, readFileSync, readdirSync } from "node:fs";
 import http from "node:http";
 import https from "node:https";
 import net from "node:net";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import tls from "node:tls";
 import { URL, fileURLToPath } from "node:url";
 
@@ -76,7 +77,11 @@ export const DIRECT_PROBES = Object.freeze([
   { host: "10.0.2.2", port: 22, what: "the rootless host gateway (10.0.2.2)" },
   { host: "10.0.2.3", port: 53, what: "the rootless DNS forwarder (10.0.2.3)" },
   { host: "192.168.1.1", port: 80, what: "a typical LAN router (192.168.1.1)" },
+  { host: "192.168.65.1", port: 443, what: "the Docker Desktop VM gateway (192.168.65.1)" },
+  { host: "192.168.65.254", port: 80, what: "the Docker Desktop host address (192.168.65.254)" },
 ]);
+/** Docker Desktop's names for the Windows host: unresolvable or unroutable from an agent container. */
+export const DESKTOP_HOST_NAMES = Object.freeze(["host.docker.internal", "gateway.docker.internal", "kubernetes.docker.internal"]);
 /** Only these outcomes prove "no route": anything else (a refusal, a reset, a timeout) is not evidence. */
 export const NO_ROUTE = Object.freeze(["ENETUNREACH", "EHOSTUNREACH"]);
 /** A name on another network must not even resolve (or, if it did, have no route). */
@@ -105,6 +110,21 @@ export function assessDaemon(dockerInfo, dockerHost, expectedSocket) {
     check(opts.some((o) => String(o).includes("name=rootless")), "the daemon runs rootless", "the daemon is not rootless"),
     check(opts.some((o) => String(o).includes("name=seccomp")), "the daemon applies a seccomp profile", "the daemon applies no seccomp profile"),
     check(dockerInfo?.DockerRootDir !== "/var/lib/docker", "the daemon's data root is not the system Docker's", "the daemon uses /var/lib/docker (system Docker)"),
+  ];
+}
+
+/**
+ * Windows: the daemon must be Docker Desktop's, running Linux containers. It is not rootless (it
+ * is root inside Docker Desktop's VM), and that difference is reported, never passed off as equal.
+ */
+export function assessDesktopDaemon(dockerInfo, dockerHost) {
+  const opts = Array.isArray(dockerInfo?.SecurityOptions) ? dockerInfo.SecurityOptions : [];
+  return [
+    check(dockerInfo?.OperatingSystem === "Docker Desktop", "the daemon is Docker Desktop's", `the daemon is not Docker Desktop's (${dockerInfo?.OperatingSystem ?? "unknown"})`),
+    check(dockerInfo?.OSType === "linux", "the daemon runs Linux containers", `the daemon runs ${dockerInfo?.OSType ?? "unknown"} containers, not Linux`),
+    check(!dockerHost, "DOCKER_HOST is unset, so the Docker Desktop context is used", `DOCKER_HOST is set (${dockerHost}); unset it`),
+    check(opts.some((o) => String(o).includes("name=seccomp")), "the daemon applies a seccomp profile", "the daemon applies no seccomp profile"),
+    info("residual (documented): the daemon is root inside Docker Desktop's VM, not rootless; a container escape reaches that VM and the Windows folders shared with it (docs/windows.md)"),
   ];
 }
 
@@ -396,9 +416,11 @@ function docker(args) {
 
 async function hostRole() {
   const dockerHost = process.env.DOCKER_HOST;
-  if (!dockerHost) throw new CannotRun("DOCKER_HOST is not set; point it at the Loopback rootless daemon (deploy/isolation/rootless-docker.sh env)");
+  const desktop = process.platform === "win32";
+  if (!desktop && !dockerHost) throw new CannotRun("DOCKER_HOST is not set; point it at the Loopback rootless daemon (deploy/isolation/rootless-docker.sh env)");
   const runDir = process.env.LOOPBACK_DOCKER_RUN_DIR || (process.env.XDG_RUNTIME_DIR ? join(process.env.XDG_RUNTIME_DIR, "loopback-docker") : undefined);
-  const results = [...assessDaemon(docker(["info", "--format", "{{json .}}"]), dockerHost, runDir && join(runDir, "docker.sock"))];
+  const dockerInfo = docker(["info", "--format", "{{json .}}"]);
+  const results = desktop ? assessDesktopDaemon(dockerInfo, dockerHost) : [...assessDaemon(dockerInfo, dockerHost, runDir && join(runDir, "docker.sock"))];
   const names = [ROLES.fixer.container, ROLES.verifier.container, SIGNER.container, RUNNER.container, ROLES.fixer.proxy, ROLES.verifier.proxy, SIGNER.proxy];
   const all = docker(["inspect", ...names]);
   const byName = (n) => all.find((c) => c?.Name === `/${n}`);
@@ -415,13 +437,21 @@ async function hostRole() {
   results.push(...assessSeparation(byName(ROLES.fixer.container), byName(ROLES.verifier.container)));
   const here = dirname(fileURLToPath(import.meta.url));
   const key = process.env.LOOPBACK_GATE_KEY || join(here, "..", "secrets", "gate.pem");
-  if (existsSync(key)) {
+  if (!existsSync(key)) {
+    results.push(fail(`gate key not found at ${key} (set LOOPBACK_GATE_KEY)`));
+  } else if (desktop) {
+    let problem;
+    try {
+      problem = (await import("../apps/switch-gate/dist/platform/windows-acl.js")).windowsPermissions().file(key);
+    } catch {
+      problem = "permissions not checked; run npm run build";
+    }
+    results.push(check(problem === null, "gate key is private to you (ACL)", `gate key: ${problem}`));
+  } else {
     const mode = lstatSync(key).mode & 0o777;
     results.push(check(mode === 0o600 || mode === 0o400, "gate key is owner-only", `gate key mode ${mode.toString(8)} is not owner-only`));
-  } else {
-    results.push(fail(`gate key not found at ${key} (set LOOPBACK_GATE_KEY)`));
   }
-  results.push(info("residual (documented): the desktop user owns the rootless daemon and can read every volume, including the signer's key"));
+  results.push(info(`residual (documented): the desktop user owns the ${desktop ? "Docker Desktop" : "rootless"} daemon and can read every volume, including the signer's key`));
   return results;
 }
 
@@ -440,6 +470,10 @@ async function agentRole(roleName) {
   results.push(check(otherRead === "EACCES", `the other role's home (${other.home}) is not readable (EACCES)`, `the other role's home (${other.home}): ${otherRead}, expected EACCES`));
   results.push(...sandboxBasics());
   results.push(...await directProbes());
+  for (const host of DESKTOP_HOST_NAMES) {
+    const outcome = await tcpAttempt(host, 443);
+    results.push(check(NOT_REACHABLE_BY_NAME.includes(outcome), `${host} is not reachable (${outcome})`, `${host}: ${outcome}, expected unreachable`));
+  }
   for (const host of [other.container, other.proxy]) {
     const outcome = await tcpAttempt(host, 3128);
     results.push(check(NOT_REACHABLE_BY_NAME.includes(outcome), `${host} is not reachable (${outcome})`, `${host}: ${outcome}, expected unreachable`));
@@ -612,6 +646,8 @@ export async function main(argv = process.argv.slice(2), out = (s) => process.st
   return 1;
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+const invokedPath = process.argv[1] ?? "";
+const scriptPath = fileURLToPath(import.meta.url);
+if (process.platform === "win32" ? scriptPath.toLowerCase() === resolve(invokedPath).toLowerCase() : scriptPath === invokedPath) {
   process.exitCode = await main();
 }

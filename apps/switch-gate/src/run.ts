@@ -34,8 +34,16 @@ const POLICY_MAX_UNREADABLE = 3;
 /** A shutdown that has not finished by then is reported, and main.ts exits (step 9.7). */
 export const SHUTDOWN_TIMEOUT_MS = 30_000;
 
-export type Signal = "SIGTERM" | "SIGINT";
-const SIGNALS: readonly Signal[] = ["SIGTERM", "SIGINT"];
+export type Signal = "SIGTERM" | "SIGINT" | "SIGBREAK" | "SIGHUP";
+
+/**
+ * The signals that mean "shut down cleanly". Windows delivers SIGINT (Ctrl+C), SIGBREAK
+ * (Ctrl+Break) and SIGHUP (console closed); it never delivers SIGTERM, so a process killed from
+ * outside there stops without this handler and relies on startup reconciliation instead.
+ */
+export function gracefulSignals(platform: NodeJS.Platform = process.platform): readonly Signal[] {
+  return platform === "win32" ? ["SIGTERM", "SIGINT", "SIGBREAK", "SIGHUP"] : ["SIGTERM", "SIGINT"];
+}
 
 /** What the lifecycle needs from its process; main.ts passes `process` and the real I/O. */
 export interface RunDeps {
@@ -91,7 +99,7 @@ export async function runGate(d: RunDeps): Promise<number> {
     armBackstop();
     stopRooms();
   };
-  const listeners = SIGNALS.map((s) => [s, () => onSignal(s)] as const);
+  const listeners = gracefulSignals().map((s) => [s, () => onSignal(s)] as const);
   for (const [s, fn] of listeners) d.signals.on(s, fn);
   try {
     return await lifecycle();

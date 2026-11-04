@@ -4,6 +4,10 @@ The fixer and the verifier each run in their own container on a **session-only r
 daemon** that belongs to your desktop user. This replaces the separate-Linux-users plan for D28
 (step 6.4). Nothing here needs root, and nothing changes the system Docker.
 
+**On Windows** the same containers run under Docker Desktop instead of this daemon, which is a
+weaker boundary: see [docs/windows.md](../../docs/windows.md). Skip `rootless-docker.sh`, and run
+`npm run agents -- <command>` in place of `deploy/isolation/agents.sh <command>`.
+
 ## Layout
 
 ```

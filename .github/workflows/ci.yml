@@ -44,13 +44,11 @@ jobs:
           tar -xzf "$RUNNER_TEMP/gitleaks.tar.gz" -C "$RUNNER_TEMP" gitleaks
           "$RUNNER_TEMP/gitleaks" git --config .gitleaks.toml --redact --no-banner --exit-code 1 .
 
-  # Portable checks on Windows for contributors developing there. The Linux job above stays the
-  # authoritative one: it alone runs the coverage thresholds, the secret scan and the
-  # POSIX-only tests (bash scripts, file permissions, OS signals), which skip themselves here
-  # with a stated reason. The gate itself is deployed on Linux only.
+  # Windows is a supported runtime (docs/windows.md): this job also proves its real NTFS ACL checks
+  # and console control events. The Linux job above stays the authoritative one: it alone runs the
+  # coverage thresholds, the secret scan and the tests of code that only ever runs in the Linux
+  # containers (signer, sandbox runner, isolation roles), which skip themselves here.
   windows-portable:
-    # windows-2022: better-sqlite3 may need a native build there, and node-gyp does not yet
-    # recognise the Visual Studio version on windows-latest.
     runs-on: windows-2022
     timeout-minutes: 20
     steps:

@@ -23,7 +23,9 @@ export const NO_ROUTE: readonly string[];
 export const NOT_REACHABLE_BY_NAME: readonly string[];
 export const PROXY_DENIED: number;
 
+export const DESKTOP_HOST_NAMES: readonly string[];
 export function assessDaemon(dockerInfo: unknown, dockerHost: string | undefined, expectedSocket: string | undefined): CheckResult[];
+export function assessDesktopDaemon(dockerInfo: unknown, dockerHost: string | undefined): CheckResult[];
 export function assessContainer(roleName: Role, container: unknown, network: unknown): CheckResult[];
 export function assessProxy(roleName: Role | "signer", container: unknown): CheckResult[];
 export function assessSigner(container: unknown, signerNet: unknown, egressNet: unknown): CheckResult[];

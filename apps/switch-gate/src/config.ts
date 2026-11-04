@@ -1,6 +1,7 @@
 import { createPrivateKey, type KeyObject } from "node:crypto";
 import { readFileSync, statSync } from "node:fs";
 import { dirname, isAbsolute } from "node:path";
+import { cloudSyncRoot, windowsPermissions, type HostPermissions } from "./platform/windows-acl.js";
 import { z } from "zod";
 import { FullSha, ParticipantId, RepoSlug } from "@loopback/contracts";
 import { PublicKeyError, parsePublicKey } from "./agents/signature.js";
@@ -345,8 +346,17 @@ export function assertIdentityConsistency(
   if (issues.length > 0) throw new ConfigError("identity", issues);
 }
 
-/** Throws unless the key file exists and is not group- or world-accessible (owner-only). */
-export function assertPrivateKeyFile(path: string, stat: (p: string) => { mode: number; isFile(): boolean } = statSync, variable = "GH_APP_PRIVATE_KEY_PATH", group = "GitHub"): void {
+/**
+ * Throws unless the key file exists and only its owner can reach it: POSIX mode bits, or on
+ * Windows the file's ACL. An injected `stat` means mode bits are being tested, on any platform.
+ */
+export function assertPrivateKeyFile(
+  path: string,
+  stat: (p: string) => { mode: number; isFile(): boolean } = statSync,
+  variable = "GH_APP_PRIVATE_KEY_PATH",
+  group = "GitHub",
+  host: HostPermissions | null = stat === statSync && process.platform === "win32" ? windowsPermissions() : null,
+): void {
   let st: { mode: number; isFile(): boolean };
   try {
     st = stat(path);
@@ -355,6 +365,16 @@ export function assertPrivateKeyFile(path: string, stat: (p: string) => { mode: 
   }
   if (!st.isFile()) {
     throw new ConfigError(group, [{ variable, message: "not a regular file" }]);
+  }
+  if (host !== null) {
+    try {
+      stat(dirname(path));
+    } catch {
+      throw new ConfigError(group, [{ variable, message: "directory not found or unreadable" }]);
+    }
+    const problem = host.file(path) ?? host.directory(dirname(path));
+    if (problem !== null) throw new ConfigError(group, [{ variable, message: problem }]);
+    return;
   }
   if ((st.mode & 0o077) !== 0) {
     throw new ConfigError(group, [{ variable, message: "file must not be group- or world-accessible (chmod 600)" }]);
@@ -490,6 +510,11 @@ export function loadGitHubConfig(env: Env, opts: { checkKeyFile?: boolean } = {}
 
 export function loadRuntimeConfig(env: Env): RuntimeConfig {
   const v = parseGroup("runtime", RuntimeSchema, env);
+  // A sync client copying a live SQLite file and its WAL can corrupt it, and M15 relies on this
+  // database to recover merges. The audit trail would also leave the machine.
+  if (v.DB_PATH !== ":memory:" && cloudSyncRoot(v.DB_PATH, env) !== null) {
+    throw new ConfigError("runtime", [{ variable: "DB_PATH", message: "database is in a cloud-synced folder (OneDrive); move it (docs/windows.md)" }]);
+  }
   return {
     dbPath: v.DB_PATH,
     mergeEnabled: v.MERGE_ENABLED,

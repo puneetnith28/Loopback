@@ -7,15 +7,18 @@ const shared = {
   resolve: { alias: { "@loopback/contracts": contractsSrc } },
 };
 
+// Windows starts PowerShell for each real ACL check, and processes start slowly there.
+const testTimeout = process.platform === "win32" ? 30_000 : 5_000;
+
 export default defineConfig({
   ...shared,
   test: {
     passWithNoTests: true,
     projects: [
-      { ...shared, test: { name: "unit", include: ["tests/unit/**/*.test.ts"] } },
-      { ...shared, test: { name: "integration", include: ["tests/integration/**/*.test.ts"] } },
-      { ...shared, test: { name: "security", include: ["tests/security/**/*.test.ts"] } },
-      { ...shared, test: { name: "e2e", include: ["tests/e2e/**/*.test.ts"] } },
+      { ...shared, test: { name: "unit", testTimeout, include: ["tests/unit/**/*.test.ts"] } },
+      { ...shared, test: { name: "integration", testTimeout, include: ["tests/integration/**/*.test.ts"] } },
+      { ...shared, test: { name: "security", testTimeout, include: ["tests/security/**/*.test.ts"] } },
+      { ...shared, test: { name: "e2e", testTimeout, include: ["tests/e2e/**/*.test.ts"] } },
     ],
     coverage: {
       provider: "v8",

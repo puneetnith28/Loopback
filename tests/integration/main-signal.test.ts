@@ -1,18 +1,21 @@
 import { execFileSync, spawn, type ChildProcess } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { writePrivateKey } from "../helpers/private-key.js";
 
-/** POSIX-only: the code under test depends on Linux behaviour (see the reason at each skip). */
 const ON_WINDOWS = process.platform === "win32";
-// Skipped on Windows: Windows has no catchable SIGTERM/SIGINT delivery to a child process; the gate runs on Linux.
 
 // Step 9.7 with real OS signals: the built entry point (dist/main.js, exactly what
 // `npm run gate` runs) against a local fake of Switch's HTTP API. GitHub is never contacted
 // (empty database). The Switch WebSocket is refused by the fake, so the gate keeps retrying
 // in the background, which is fine: the test is about signals, not the transport.
+//
+// Windows has no kill(2): `child.kill()` terminates the process outright. The real delivery there
+// is a console control event, so the child gets its own hidden console and a helper sends the
+// event into it (what pressing Ctrl+C or Ctrl+Break does).
 
 const AGENT = "71feb494-e294-4367-a8d4-ac99adfab999";
 const USER = "2a8934be-9a66-4944-a410-456e9e23b98c";
@@ -35,10 +38,9 @@ let fakeSwitch: Server;
 let switchPort = 0;
 
 beforeAll(async () => {
-  if (ON_WINDOWS) return;
-  execFileSync("npx", ["tsc", "-b"], { stdio: "ignore" });
+  execFileSync(process.execPath, [join(process.cwd(), "node_modules", "typescript", "bin", "tsc"), "-b"], { stdio: "ignore" });
   dir = mkdtempSync(join(tmpdir(), "loopback-main-"));
-  writeFileSync(join(dir, "gate.pem"), "not used: GitHub is not contacted in this test", { mode: 0o600 });
+  writePrivateKey(join(dir, "gate.pem"));
   fakeSwitch = createServer((req, res) => {
     const send = (body: unknown) => { res.writeHead(200, { "content-type": "application/json" }); res.end(JSON.stringify(body)); };
     if (req.url?.endsWith("/ops/get_agent_detail")) return send({ result: { id: AGENT, addressing_policy: { rules: [
@@ -54,7 +56,6 @@ beforeAll(async () => {
   switchPort = typeof addr === "object" && addr !== null ? addr.port : 0;
 }, 60_000);
 afterAll(() => {
-  if (ON_WINDOWS) return;
   fakeSwitch.close();
   rmSync(dir, { recursive: true, force: true });
 });
@@ -62,8 +63,10 @@ afterAll(() => {
 function launch(name: string, port: number): { child: ChildProcess; port: number; exited: Promise<number | null> } {
   const child = spawn(process.execPath, [join(process.cwd(), "apps", "switch-gate", "dist", "main.js")], {
     stdio: "ignore",
+    windowsHide: true, // on Windows: its own hidden console, which the control event targets
     env: {
       PATH: process.env.PATH ?? "", LOG_LEVEL: "fatal",
+      ...(ON_WINDOWS ? { SystemRoot: process.env.SystemRoot ?? "C:\\Windows" } : {}),
       SWITCH_BRIDGE_URL: `http://127.0.0.1:${switchPort}`, SWITCH_AGENT_ID: AGENT, SWITCH_AGENT_API_KEY: "test-key",
       SWITCH_ROOM_ID: MROOM, SWITCH_INTAKE_ROOM_ID: IROOM, SWITCH_SELF_ID: "@switch-agent-gate:loopback",
       SWITCH_POLICY_USER_IDS: USER, SWITCH_POLICY_AGENT_IDS: AGENT_POLICY,
@@ -89,6 +92,29 @@ async function waitHealthy(port: number, ms = 15_000): Promise<void> {
   }
 }
 
+/** Send a console control event into the console of `pid`, as a key press there would. */
+function consoleEvent(pid: number, event: "CTRL_C" | "CTRL_BREAK"): void {
+  const script = `
+$sig = '[DllImport("kernel32.dll", SetLastError=true)] public static extern bool FreeConsole();
+[DllImport("kernel32.dll", SetLastError=true)] public static extern bool AttachConsole(uint p);
+[DllImport("kernel32.dll", SetLastError=true)] public static extern bool SetConsoleCtrlHandler(IntPtr h, bool add);
+[DllImport("kernel32.dll", SetLastError=true)] public static extern bool GenerateConsoleCtrlEvent(uint e, uint g);'
+$k = Add-Type -MemberDefinition $sig -Name K -Namespace Loopback -PassThru
+[void]$k::FreeConsole()
+if (-not $k::AttachConsole(${String(pid)})) { exit 3 }
+[void]$k::SetConsoleCtrlHandler([IntPtr]::Zero, $true)
+if (-not $k::GenerateConsoleCtrlEvent(${event === "CTRL_C" ? "0" : "1"}, 0)) { exit 4 }
+Start-Sleep -Milliseconds 300
+[void]$k::FreeConsole()
+exit 0`;
+  const encoded = Buffer.from(script, "utf16le").toString("base64");
+  // A Ctrl+Break can also end this helper, because it shares the console: that exit is expected,
+  // and the assertion is on what the gate does.
+  try {
+    execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-EncodedCommand", encoded], { stdio: "ignore", windowsHide: true, timeout: 20_000 });
+  } catch { /* judged by the gate's exit code */ }
+}
+
 describe.skipIf(ON_WINDOWS)("main.js under real OS signals (step 9.7)", () => {
   it.each(["SIGTERM", "SIGINT"] as const)("exits 0 on %s after full startup, also when the signal is repeated", async (signal) => {
     const g = launch(signal, await freePort());
@@ -97,4 +123,15 @@ describe.skipIf(ON_WINDOWS)("main.js under real OS signals (step 9.7)", () => {
     g.child.kill(signal);
     expect(await g.exited).toBe(0);
   }, 30_000);
+});
+
+describe.runIf(ON_WINDOWS)("main.js under real Windows console events", () => {
+  it.each(["CTRL_C", "CTRL_BREAK"] as const)("exits 0 on %s after full startup", async (event) => {
+    const g = launch(event, await freePort());
+    await waitHealthy(g.port);
+    consoleEvent(g.child.pid ?? 0, event);
+    const code = await Promise.race([g.exited, new Promise<string>((r) => setTimeout(() => r("still running"), 20_000))]);
+    if (code === "still running") g.child.kill();
+    expect(code).toBe(0);
+  }, 60_000);
 });

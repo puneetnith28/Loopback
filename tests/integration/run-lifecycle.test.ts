@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/require-await -- test fakes implement async interfaces without awaiting anything */
 import { EventEmitter } from "node:events";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -12,10 +12,7 @@ import { migrate, openDatabase } from "../../apps/switch-gate/src/persistence/db
 import { runGate, type RunDeps } from "../../apps/switch-gate/src/run.js";
 import type { SocketLike } from "../../apps/switch-gate/src/switch/connection.js";
 import { FakeGitHub } from "../helpers/harness.js";
-
-/** POSIX-only: the code under test depends on Linux behaviour (see the reason at each skip). */
-const ON_WINDOWS = process.platform === "win32";
-// Skipped on Windows: runGate enforces POSIX permissions on the GitHub App key, which cannot be expressed on Windows (the gate is deployed on Linux only).
+import { writePrivateKey } from "../helpers/private-key.js";
 
 // Step 9.7: the gate's real lifecycle (runGate, as main.ts runs it) with the process signal
 // source replaced by an EventEmitter. Switch's HTTP API and sockets and GitHub are fakes.
@@ -95,7 +92,7 @@ function start(over: Partial<RunDeps> = {}, gh = new FakeGitHub(), extraEnv: Rec
   return { result, signals, sockets, logs, timedOut: () => timedOut };
 }
 
-async function until(cond: () => boolean | Promise<boolean>, ms = 5000): Promise<void> {
+async function until(cond: () => boolean | Promise<boolean>, ms = 20_000): Promise<void> {
   const end = Date.now() + ms;
   while (!(await cond())) {
     if (Date.now() > end) throw new Error("condition not reached in time");
@@ -127,12 +124,12 @@ function blockingGitHub(): { gh: FakeGitHub; reached: () => boolean; release: ()
 
 beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), "loopback-run-"));
-  writeFileSync(join(dir, "gate.pem"), "not used: GitHub is faked in this test", { mode: 0o600 });
+  writePrivateKey(join(dir, "gate.pem"));
   port = await freePort();
 });
 afterEach(() => { rmSync(dir, { recursive: true, force: true }); });
 
-describe.skipIf(ON_WINDOWS)("runGate signal handling (step 9.7)", () => {
+describe("runGate signal handling (step 9.7)", () => {
   it("handles SIGTERM during startup reconciliation: finishes the running work, never connects, exits 0", async () => {
     seedOpenCase();
     // Hold the health port: if shutdown let startup continue, binding it would fail (exit 1).

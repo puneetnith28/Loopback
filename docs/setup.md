@@ -1,9 +1,10 @@
 # Live environment setup
 
-**Runtime platform: Linux only.** The gate needs Node 22.13+, rootless Docker prerequisites
-for the agent containers (`deploy/isolation/README.md`), POSIX file permissions (it refuses a GitHub App key or key
-directory others can read or write), and SIGTERM/SIGINT for a clean shutdown. Windows is
-supported for development only (see `CONTRIBUTING.md`).
+**Runtime platforms: Linux and Windows.** The gate needs Node 22.13+, and refuses a GitHub App key
+or key directory others can read or write. On Linux it uses rootless Docker for the agent containers
+(`deploy/isolation/README.md`) and POSIX file permissions. On Windows it uses Docker Desktop and NTFS
+ACLs; **read [windows.md](windows.md) first**, including what is weaker there. The commands below are
+written for Linux.
 
 Everything here is a manual step for the maintainer. None of it has been performed or
 verified yet; each section ends with the checks that turn it from "configured" into

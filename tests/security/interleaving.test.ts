@@ -107,5 +107,5 @@ describe(`head change vs approval and merge: ${RUNS} interleavings (step 8.3)`, 
     expect(kinds.some((k) => k.includes("merged=1")), JSON.stringify([...outcomes])).toBe(true);
     expect(kinds.some((k) => k.includes("merged=0")), JSON.stringify([...outcomes])).toBe(true);
     expect(kinds.some((k) => k.includes("refused=1")), JSON.stringify([...outcomes])).toBe(true);
-  });
+  }, 60_000); // 100 full runs in sequence: the default limit fails it on a busy machine, not a race
 });

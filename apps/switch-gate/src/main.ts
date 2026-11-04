@@ -1,5 +1,5 @@
 import { createLogger } from "./observability/logger.js";
-import { runGate } from "./run.js";
+import { gracefulSignals, runGate } from "./run.js";
 import type { OpenSocket, SocketLike } from "./switch/connection.js";
 
 // Entry point (`npm run gate`): the real process wiring for the lifecycle in run.ts, which
@@ -29,6 +29,5 @@ process.exitCode = code;
 // the process winds down exits with the recorded code rather than a signal death, and if some
 // handle keeps the event loop alive, the process still exits after 5 s with that code.
 const exitNow = () => process.exit(code);
-process.on("SIGTERM", exitNow);
-process.on("SIGINT", exitNow);
+for (const signal of gracefulSignals()) process.on(signal, exitNow);
 setTimeout(exitNow, 5_000).unref();

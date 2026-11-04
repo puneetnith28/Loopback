@@ -122,6 +122,9 @@ and keeps a good one for 30 s.
 
 ## Backup
 
+On Windows, see [windows.md](windows.md) for stopping the gate and scheduling backups
+(`npm run backup` with Task Scheduler).
+
 `scripts/backup-db.sh` takes an online, consistent SQLite backup (safe while the gate runs),
 verifies it with `PRAGMA integrity_check`, and keeps the newest `KEEP` (default 14) copies in
 `data/backups/` (mode 600 via `umask 077`):

@@ -127,6 +127,12 @@ against live services.
     - *Merging on advisory verification.* `MERGE_ENABLED=true` is allowed while
       `VERIFIER_ISOLATION_PROVEN=false`; the maintainer's exact-SHA approval is then the only
       independent check, and chat says so on every approval prompt.
+12. **Windows runtime (`docs/windows.md`).** Under Docker Desktop the daemon is root inside its VM,
+    not rootless, so a kernel-level container escape reaches that VM and the Windows folders shared
+    with it; `verify` reports this rather than passing it. Key privacy rests on NTFS ACLs, checked at
+    startup, and they allow SYSTEM and Administrators. A process killed from outside skips the clean
+    shutdown, because Windows has no SIGTERM; data safety then rests on WAL and startup
+    reconciliation. Only OneDrive is detected as a cloud-synced folder for keys and the database.
 
 ## Invariant traceability (M1–M15)
 

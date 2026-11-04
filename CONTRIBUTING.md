@@ -4,16 +4,9 @@
 
 | Environment | What works | Use it for |
 |---|---|---|
-| **Linux** (Ubuntu) | Everything: full test suite, coverage, secret scan, running the gate | The reference environment; the gate is deployed on Linux only |
-| **Windows + WSL2 (Ubuntu)** | Everything, as on Linux | **Recommended** for Windows contributors |
-| **Native Windows** | Install, typecheck, lint and the portable tests | Quick edits; POSIX-only tests skip themselves with a stated reason |
-
-Native Windows note: `npm ci` may compile `better-sqlite3` from source, which needs Visual Studio
-2022 Build Tools ("Desktop development with C++") and Python. WSL2 avoids this.
-
-The gate depends on Linux by design: it runs under systemd with separate agent users,
-enforces POSIX permissions on its GitHub App key, and handles SIGTERM/SIGINT. Do not try to
-run the gate on native Windows.
+| **Linux** (Ubuntu) | Everything: full test suite, coverage, secret scan, running the gate | The reference environment for the release documents |
+| **Native Windows** | Everything except the Linux-container test suites, which `npm run test:linux` runs through Docker; the gate; agent isolation under Docker Desktop | Day-to-day work on Windows: see [docs/windows.md](docs/windows.md) |
+| **Windows + WSL2 (Ubuntu)** | Everything, as on Linux | Windows contributors who want the Linux reference environment |
 
 ### WSL2 setup (Windows)
 
@@ -36,17 +29,19 @@ npm run typecheck
 npm run lint
 npm test                 # unit, integration and security suites (live suites skip themselves)
 npm run test:coverage    # what CI runs on Linux, with coverage thresholds
+npm run test:linux       # from Windows: the complete Linux suite in a throwaway container
 npm run build
 ```
 
 CI runs two jobs: **check** (Linux, authoritative: coverage and a full-history gitleaks scan) and
-**windows-portable** (typecheck, lint, portable tests). Both must be green before merging.
+**windows-portable** (typecheck, lint, and every test that can run natively). Both must be green
+before merging.
 
 ## Branches, pull requests and commits
 
-- The maintainer may push tested milestones directly to `main`. Other contributors work on a
-  branch named `<type>/<short-topic>` (e.g. `fix/poller-backoff`, `docs/setup-windows`) and open a
-  pull request into `main`; merge only with CI green and the maintainer's review.
+- Nobody pushes directly to `main`. Everyone works on a branch named `<type>/<short-topic>` (e.g.
+  `fix/poller-backoff`, `docs/setup-windows`) and opens a pull request into `main`; merge only with
+  CI green and the maintainer's review.
 - Never force-push to `main`, rewrite published history, or amend published commits.
 - Commit messages follow Conventional Commits: `<type>: <description>`, with `feat`, `fix`,
   `refactor`, `docs`, `test`, `chore`, `perf` or `ci`. Describe the change, not the plan step.
