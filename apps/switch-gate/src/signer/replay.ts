@@ -1,4 +1,4 @@
-import { lstatSync, writeFileSync } from "node:fs";
+import { lstatSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ReplayStore } from "./policy.js";
 
@@ -15,6 +15,20 @@ export class FileReplayStore implements ReplayStore {
     const st = lstatSync(dir);
     if (!st.isDirectory()) throw new Error(`replay state ${dir} is not a directory`);
     if ((st.mode & 0o022) !== 0) throw new Error(`replay state ${dir} is writable by others`);
+  }
+
+  lookup(runId: string): string | null {
+    if (!RUN_ID.test(runId)) throw new Error("invalid run id");
+    let text: string;
+    try {
+      text = readFileSync(join(this.dir, runId), "utf8");
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code === "ENOENT") return null;
+      throw e;
+    }
+    const digest = (JSON.parse(text) as { reportDigest?: unknown }).reportDigest;
+    if (typeof digest !== "string") throw new Error("corrupt replay record");
+    return digest;
   }
 
   claim(runId: string, reportDigest: string): boolean {

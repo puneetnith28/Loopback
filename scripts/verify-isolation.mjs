@@ -21,6 +21,7 @@
 // and a live signed report is accepted while a forged one is rejected. This script never sets
 // VERIFIER_ISOLATION_PROVEN.
 
+import { Buffer } from "node:buffer";
 import { execFileSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { lookup } from "node:dns/promises";
@@ -34,10 +35,38 @@ import { URL, fileURLToPath } from "node:url";
 
 export const EGRESS_NETWORK = "loopback-egress";
 export const PROXY_URL = "http://proxy:3128";
+export const SIGNER_NETWORK = "loopback-signer-net";
+export const SIGNER_EGRESS_NETWORK = "loopback-signer-egress-net";
+export const JOBS_VOLUME = "loopback-runner-jobs";
+export const RESULTS_VOLUME = "loopback-runner-results";
+/**
+ * Agent roles. `networks` is the exact set each container is attached to (the first is its
+ * primary, shared only with its own proxy); `volumes` maps every allowed named volume to
+ * [destination, read-write].
+ */
 export const ROLES = Object.freeze({
-  fixer: Object.freeze({ uid: 10001, container: "loopback-fixer", proxy: "loopback-proxy-fixer", network: "loopback-fixer-net", volume: "loopback-fixer-home", home: "/home/fixer" }),
-  verifier: Object.freeze({ uid: 10002, container: "loopback-verifier", proxy: "loopback-proxy-verifier", network: "loopback-verifier-net", volume: "loopback-verifier-home", home: "/home/verifier" }),
+  fixer: Object.freeze({
+    uid: 10001, container: "loopback-fixer", proxy: "loopback-proxy-fixer", network: "loopback-fixer-net", volume: "loopback-fixer-home", home: "/home/fixer",
+    networks: Object.freeze(["loopback-fixer-net"]),
+    volumes: Object.freeze({ "loopback-fixer-home": ["/home/fixer", true] }),
+  }),
+  verifier: Object.freeze({
+    uid: 10002, container: "loopback-verifier", proxy: "loopback-proxy-verifier", network: "loopback-verifier-net", volume: "loopback-verifier-home", home: "/home/verifier",
+    networks: Object.freeze(["loopback-verifier-net", SIGNER_NETWORK]),
+    volumes: Object.freeze({ "loopback-verifier-home": ["/home/verifier", true], [JOBS_VOLUME]: ["/jobs", true], [RESULTS_VOLUME]: ["/results", false] }),
+  }),
 });
+/** D29: the signer holds the verifier signing key; the runner executes PR code. */
+export const SIGNER = Object.freeze({
+  uid: 10003, container: "loopback-signer", proxy: "loopback-proxy-signer", volume: "loopback-signer-home", home: "/home/signer",
+  keyFile: "/home/signer/keys/signing-key.pem", tokenFile: "/home/signer/keys/client-token",
+  networks: Object.freeze([SIGNER_NETWORK, SIGNER_EGRESS_NETWORK]),
+});
+export const RUNNER = Object.freeze({ uid: 10004, container: "loopback-runner", jobs: "/jobs", results: "/results" });
+/** The internal network each role's proxy serves. */
+export const PROXY_NETWORK = Object.freeze({ fixer: "loopback-fixer-net", verifier: "loopback-verifier-net", signer: SIGNER_EGRESS_NETWORK });
+/** Environment variable names that must never reach the runner (it executes PR code). */
+const SECRET_ENV = /^(GH_TOKEN|GITHUB_TOKEN|GH_ENTERPRISE_TOKEN|SIGNER_[A-Z_]*|SWITCH_[A-Z_]*|ANTHROPIC_[A-Z_]*|CLAUDE_[A-Z_]*|NPM_TOKEN|NODE_AUTH_TOKEN)=/;
 export const ROOTFUL_SOCKETS = Object.freeze(["/var/run/docker.sock", "/run/docker.sock"]);
 /** Direct destinations that must be unreachable from an agent container (no route out). */
 export const DIRECT_PROBES = Object.freeze([
@@ -107,6 +136,18 @@ function hardening(p, c) {
   ];
 }
 
+const sameSet = (a, b) => JSON.stringify([...a].sort()) === JSON.stringify([...b].sort());
+
+/** Every named volume must be one this container may have, at its destination, with its mode. */
+function volumeChecks(p, mounts, allowed) {
+  const vols = mounts.filter((m) => m.Type === "volume");
+  const bad = vols.filter((m) => {
+    const spec = allowed[m.Name];
+    return spec === undefined || spec[0] !== m.Destination || spec[1] !== (m.RW !== false);
+  });
+  return [check(bad.length === 0, `${p} only its own volumes, each at its place and mode`, `${p} unexpected volume(s): ${bad.map((m) => `${m.Name}:${m.Destination}${m.RW === false ? ":ro" : ""}`).join(", ")}`)];
+}
+
 /** One agent container, as returned by `docker inspect`, with its network from `docker network inspect`. */
 export function assessContainer(roleName, c, network) {
   const role = ROLES[roleName];
@@ -119,7 +160,8 @@ export function assessContainer(roleName, c, network) {
     ...hardening(p, c),
     check(c?.Config?.User === `${role.uid}:${role.uid}`, `${p} runs as uid/gid ${role.uid}`, `${p} user is ${c?.Config?.User || "root (unset)"}, not ${role.uid}:${role.uid}`),
     check((c?.Mounts ?? []).some((m) => m.Type === "volume" && m.Name === role.volume && m.Destination === role.home), `${p} home is its own volume ${role.volume}`, `${p} home is not the volume ${role.volume}`),
-    check(nets.length === 1 && nets[0] === role.network && hc.NetworkMode === role.network, `${p} attached only to ${role.network}`, `${p} networks are [${nets.join(", ")}], not only ${role.network}`),
+    ...volumeChecks(p, c?.Mounts ?? [], role.volumes),
+    check(sameSet(nets, role.networks) && hc.NetworkMode === role.network, `${p} attached exactly to [${role.networks.join(", ")}]`, `${p} networks are [${nets.join(", ")}], expected [${role.networks.join(", ")}]`),
     check(network?.Internal === true, `${p} ${role.network} is internal (no route out)`, `${p} ${role.network} is not internal`),
     check(JSON.stringify(memberNames(network)) === JSON.stringify([role.container, role.proxy].sort()), `${p} only its own proxy shares its network`, `${p} ${role.network} members are [${memberNames(network).join(", ")}]`),
     check(!env.some((e) => e === "GITHUB_TOKEN" || e.startsWith("GITHUB_TOKEN=")), `${p} GITHUB_TOKEN not set`, `${p} GITHUB_TOKEN is set (only the role's GH_TOKEN is allowed)`),
@@ -130,7 +172,7 @@ export function assessContainer(roleName, c, network) {
 
 /** A role's egress proxy: hardened, non-root, on exactly its role's network and the egress network. */
 export function assessProxy(roleName, c) {
-  const role = ROLES[roleName];
+  const role = { proxy: `loopback-proxy-${roleName}`, network: PROXY_NETWORK[roleName] };
   const env = c?.Config?.Env ?? [];
   const user = c?.Config?.User ?? "";
   const nets = Object.keys(c?.NetworkSettings?.Networks ?? {}).sort();
@@ -141,15 +183,62 @@ export function assessProxy(roleName, c) {
     check(JSON.stringify(nets) === JSON.stringify([EGRESS_NETWORK, role.network].sort()), `${p} on exactly ${role.network} and ${EGRESS_NETWORK}`, `${p} networks are [${nets.join(", ")}]`),
     check(env.includes(`LOOPBACK_PROXY_ROLE=${roleName}`), `${p} serves the ${roleName} policy`, `${p} is not configured for ${roleName}`),
   ];
-  if (roleName === "verifier") {
+  if (roleName !== "fixer") {
     results.push(check(!env.includes("LOOPBACK_FIXER_REGISTRY=1"), `${p} has no registry access`, `${p} has registry access enabled`));
   }
   return results;
 }
 
+/**
+ * D29: the signer container: its own uid and key volume, reachable only on the network it shares
+ * with the verifier, with egress only through its own GitHub-API proxy.
+ */
+export function assessSigner(c, signerNet, egressNet) {
+  const p = "signer:";
+  const env = c?.Config?.Env ?? [];
+  const nets = Object.keys(c?.NetworkSettings?.Networks ?? {});
+  return [
+    ...hardening(p, c),
+    check(c?.Config?.User === `${SIGNER.uid}:${SIGNER.uid}`, `${p} runs as uid/gid ${SIGNER.uid}`, `${p} user is ${c?.Config?.User || "root (unset)"}`),
+    ...volumeChecks(p, c?.Mounts ?? [], { [SIGNER.volume]: [SIGNER.home, true] }),
+    check((c?.Mounts ?? []).some((m) => m.Type === "volume" && m.Name === SIGNER.volume), `${p} key volume ${SIGNER.volume} mounted`, `${p} key volume missing`),
+    check(sameSet(nets, SIGNER.networks), `${p} attached exactly to [${SIGNER.networks.join(", ")}]`, `${p} networks are [${nets.join(", ")}]`),
+    check(signerNet?.Internal === true && sameSet(memberNames(signerNet), [SIGNER.container, ROLES.verifier.container]), `${p} ${SIGNER_NETWORK} is internal and shared only with the verifier`, `${p} ${SIGNER_NETWORK} internal=${signerNet?.Internal}, members [${memberNames(signerNet).join(", ")}]`),
+    check(egressNet?.Internal === true && sameSet(memberNames(egressNet), [SIGNER.container, SIGNER.proxy]), `${p} ${SIGNER_EGRESS_NETWORK} is internal and shared only with its proxy`, `${p} ${SIGNER_EGRESS_NETWORK} internal=${egressNet?.Internal}, members [${memberNames(egressNet).join(", ")}]`),
+    check(!env.some((e) => /^(GITHUB_TOKEN|GH_TOKEN)(=|$)/.test(e)), `${p} no GitHub write-capable token variable`, `${p} has GH_TOKEN or GITHUB_TOKEN set`),
+    check(env.includes(`HTTPS_PROXY=${PROXY_URL}`), `${p} uses its own proxy`, `${p} HTTPS_PROXY is not ${PROXY_URL}`),
+  ];
+}
+
+/** D29: the runner executes PR code: no network at all, no credentials, jobs read-only. */
+export function assessRunner(c) {
+  const p = "runner:";
+  const hc = c?.HostConfig ?? {};
+  const env = c?.Config?.Env ?? [];
+  const nets = Object.keys(c?.NetworkSettings?.Networks ?? {});
+  return [
+    ...hardening(p, c),
+    check(c?.Config?.User === `${RUNNER.uid}:${RUNNER.uid}`, `${p} runs as uid/gid ${RUNNER.uid}`, `${p} user is ${c?.Config?.User || "root (unset)"}`),
+    check(hc.NetworkMode === "none" && nets.every((n) => n === "none"), `${p} has no network (--network none)`, `${p} network mode ${hc.NetworkMode}, networks [${nets.join(", ")}]`),
+    ...volumeChecks(p, c?.Mounts ?? [], { [JOBS_VOLUME]: [RUNNER.jobs, false], [RESULTS_VOLUME]: [RUNNER.results, true] }),
+    check(!env.some((e) => SECRET_ENV.test(e) || e === "GH_TOKEN" || e === "GITHUB_TOKEN"), `${p} no credentials in its environment`, `${p} has a credential variable in its environment`),
+  ];
+}
+
 /** Named volumes must be plain local volumes (a local volume with bind options is a host bind mount). */
 export function assessVolumes(volumes) {
   return (volumes ?? []).map((v) => check(v?.Driver === "local" && empty(v?.Options), `volume ${v?.Name} is a plain local volume`, `volume ${v?.Name} has driver ${v?.Driver} or options (possible host bind)`));
+}
+
+/** D29: the signer's key volume is mounted by the signer alone; the runner's volumes never by the fixer. */
+export function assessVolumeOwnership(containers) {
+  const users = (vol) => containers.filter((c) => (c?.Mounts ?? []).some((m) => m.Type === "volume" && m.Name === vol)).map((c) => String(c?.Name ?? "").replace(/^\//, ""));
+  const signerUsers = users(SIGNER.volume);
+  const fixerRunner = [JOBS_VOLUME, RESULTS_VOLUME].filter((v) => users(v).includes(ROLES.fixer.container));
+  return [
+    check(sameSet(signerUsers, [SIGNER.container]), `${SIGNER.volume} is mounted by the signer alone`, `${SIGNER.volume} is mounted by [${signerUsers.join(", ")}]`),
+    check(fixerRunner.length === 0, "the fixer mounts no runner volume", `the fixer mounts ${fixerRunner.join(", ")}`),
+  ];
 }
 
 /** Fixer and verifier must share no identity, volume or network. */
@@ -173,13 +262,20 @@ export function parseProcStatus(text) {
   return { capEff: capEff === undefined ? null : BigInt(`0x${capEff}`), noNewPrivs: field("NoNewPrivs") === "1" };
 }
 
-/** Is "/" mounted read-only, according to /proc/self/mountinfo? */
-export function rootIsReadOnly(mountinfo) {
+/** Is the mount at `point` read-only, according to /proc/self/mountinfo? (Last entry wins, as mounts stack.) */
+export function mountIsReadOnly(mountinfo, point) {
+  let ro = false;
+  let found = false;
   for (const line of mountinfo.split("\n")) {
     const f = line.split(" ");
-    if (f[4] === "/") return f[5]?.split(",").includes("ro") === true;
+    if (f[4] === point) { found = true; ro = f[5]?.split(",").includes("ro") === true; }
   }
-  return false;
+  return found && ro;
+}
+
+/** Is "/" mounted read-only, according to /proc/self/mountinfo? */
+export function rootIsReadOnly(mountinfo) {
+  return mountIsReadOnly(mountinfo, "/");
 }
 
 /** Expected CONNECT outcome per role: true = must be 200, false = must be the proxy's 403, null = report only. */
@@ -266,10 +362,23 @@ const readOutcome = (path) => {
 };
 const rootLocked = (path) => { try { const s = lstatSync(path); return s.uid === 0 && (s.mode & 0o022) === 0; } catch { return false; } };
 
-function signerChecks() {
-  const dir = process.env.LOOPBACK_SIGNER_DIR || "/usr/local/lib/loopback-signer";
-  return [dir, join(dir, "sign-verifier-report.mjs"), join(dir, "signature.js")].map((p) =>
+/** Root-owned, read-only tooling and signer runtime: no role can swap what it runs or checks. */
+function toolingChecks() {
+  const signer = "/opt/loopback-app/apps/switch-gate/dist";
+  return ["/opt/loopback", "/opt/loopback/verify-isolation.mjs", "/opt/loopback/request-signature.mjs", "/opt/loopback/run-in-sandbox.mjs",
+    "/opt/loopback/sandbox-runner.mjs", "/opt/loopback/signature.js", "/opt/loopback-app", "/opt/loopback-app/node_modules",
+    ...["signer", "signer/main.js", "signer/policy.js", "signer/server.js", "signer/replay.js", "signer/github-pull.js", "agents/capability.js", "agents/signature.js"].map((f) => `${signer}/${f}`)].map((p) =>
     check(rootLocked(p), `${p} is root-owned and not writable by others`, `${p} is missing, not root-owned, or writable by others`));
+}
+
+/** An HTTP request to the signer on the internal network (never via the proxy). Status only. */
+function signerHttp(method, path, headers = {}, body = "") {
+  return new Promise((resolve) => {
+    const req = http.request({ host: "signer", port: 8080, method, path, headers: { ...headers, "content-length": Buffer.byteLength(body) }, timeout: CONNECT_TIMEOUT_MS }, (res) => { res.resume(); resolve(res.statusCode); });
+    req.once("timeout", () => { req.destroy(); resolve("timeout"); });
+    req.once("error", (e) => resolve(e.code ?? "error"));
+    req.end(body);
+  });
 }
 
 function gitCredentialHelpers() {
@@ -290,15 +399,20 @@ async function hostRole() {
   if (!dockerHost) throw new CannotRun("DOCKER_HOST is not set; point it at the Loopback rootless daemon (deploy/isolation/rootless-docker.sh env)");
   const runDir = process.env.LOOPBACK_DOCKER_RUN_DIR || (process.env.XDG_RUNTIME_DIR ? join(process.env.XDG_RUNTIME_DIR, "loopback-docker") : undefined);
   const results = [...assessDaemon(docker(["info", "--format", "{{json .}}"]), dockerHost, runDir && join(runDir, "docker.sock"))];
-  const [fixer, verifier] = docker(["inspect", ROLES.fixer.container, ROLES.verifier.container]);
-  for (const [name, c] of [["fixer", fixer], ["verifier", verifier]]) {
-    const [network] = docker(["network", "inspect", ROLES[name].network]);
-    results.push(...assessContainer(name, c, network));
-    const [proxy] = docker(["inspect", ROLES[name].proxy]);
-    results.push(...assessProxy(name, proxy));
+  const names = [ROLES.fixer.container, ROLES.verifier.container, SIGNER.container, RUNNER.container, ROLES.fixer.proxy, ROLES.verifier.proxy, SIGNER.proxy];
+  const all = docker(["inspect", ...names]);
+  const byName = (n) => all.find((c) => c?.Name === `/${n}`);
+  const net = (n) => docker(["network", "inspect", n])[0];
+  for (const name of ["fixer", "verifier"]) {
+    results.push(...assessContainer(name, byName(ROLES[name].container), net(ROLES[name].network)));
+    results.push(...assessProxy(name, byName(ROLES[name].proxy)));
   }
-  results.push(...assessVolumes(docker(["volume", "inspect", ROLES.fixer.volume, ROLES.verifier.volume])));
-  results.push(...assessSeparation(fixer, verifier));
+  results.push(...assessSigner(byName(SIGNER.container), net(SIGNER_NETWORK), net(SIGNER_EGRESS_NETWORK)));
+  results.push(...assessProxy("signer", byName(SIGNER.proxy)));
+  results.push(...assessRunner(byName(RUNNER.container)));
+  results.push(...assessVolumes(docker(["volume", "inspect", ROLES.fixer.volume, ROLES.verifier.volume, SIGNER.volume, JOBS_VOLUME, RESULTS_VOLUME])));
+  results.push(...assessVolumeOwnership(all));
+  results.push(...assessSeparation(byName(ROLES.fixer.container), byName(ROLES.verifier.container)));
   const here = dirname(fileURLToPath(import.meta.url));
   const key = process.env.LOOPBACK_GATE_KEY || join(here, "..", "secrets", "gate.pem");
   if (existsSync(key)) {
@@ -307,16 +421,14 @@ async function hostRole() {
   } else {
     results.push(fail(`gate key not found at ${key} (set LOOPBACK_GATE_KEY)`));
   }
-  results.push(info("residual (documented): the desktop user owns the rootless daemon and can read the agents' volumes"));
+  results.push(info("residual (documented): the desktop user owns the rootless daemon and can read every volume, including the signer's key"));
   return results;
 }
 
 async function agentRole(roleName) {
   const role = ROLES[roleName];
-  const uid = typeof process.getuid === "function" ? process.getuid() : -1;
-  if (!existsSync("/.dockerenv")) throw new CannotRun(`not inside a container; run this inside the ${roleName}'s container`);
-  if (process.env.LOOPBACK_AGENT_ROLE !== roleName) throw new CannotRun(`LOOPBACK_AGENT_ROLE is not ${roleName}; not the ${roleName}'s container`);
-  if (uid !== role.uid) throw new CannotRun(`uid ${uid} is not the ${roleName}'s uid ${role.uid}`);
+  const uid = role.uid;
+  containerPreconditions(roleName, uid);
   // The proxy address is fixed by the role's network, not taken from the (agent-controlled) environment.
   const proxy = new URL(PROXY_URL);
 
@@ -326,17 +438,8 @@ async function agentRole(roleName) {
   const other = ROLES[roleName === "fixer" ? "verifier" : "fixer"];
   const otherRead = readOutcome(other.home);
   results.push(check(otherRead === "EACCES", `the other role's home (${other.home}) is not readable (EACCES)`, `the other role's home (${other.home}): ${otherRead}, expected EACCES`));
-  results.push(check(!ROOTFUL_SOCKETS.some((s) => existsSync(s)) && !process.env.DOCKER_HOST, "no Docker socket or DOCKER_HOST inside", "a Docker socket or DOCKER_HOST is visible inside"));
-  const st = parseProcStatus(readFileSync("/proc/self/status", "utf8"));
-  results.push(check(st.capEff === 0n, "no effective capabilities", "effective capabilities are not empty"));
-  results.push(check(st.noNewPrivs, "no_new_privs is set", "no_new_privs is not set"));
-  results.push(check(rootIsReadOnly(readFileSync("/proc/self/mountinfo", "utf8")), "root filesystem is read-only", "root filesystem is writable"));
-  results.push(...signerChecks());
-
-  for (const probe of DIRECT_PROBES) {
-    const outcome = await tcpAttempt(probe.host, probe.port);
-    results.push(check(NO_ROUTE.includes(outcome), `direct connection to ${probe.what}: no route (${outcome})`, `direct connection to ${probe.what}: ${outcome}, expected no route`));
-  }
+  results.push(...sandboxBasics());
+  results.push(...await directProbes());
   for (const host of [other.container, other.proxy]) {
     const outcome = await tcpAttempt(host, 3128);
     results.push(check(NOT_REACHABLE_BY_NAME.includes(outcome), `${host} is not reachable (${outcome})`, `${host}: ${outcome}, expected unreachable`));
@@ -359,9 +462,19 @@ async function agentRole(roleName) {
   const helpers = gitCredentialHelpers();
   if (roleName === "verifier") {
     results.push(check(helpers === "", "verifier has no git credential helper", "verifier has a git credential helper configured"));
-    const sk = join(role.home, ".config", "loopback-verifier", "signing-key.pem");
-    const s = lstatSync(sk, { throwIfNoEntry: false });
-    results.push(check(s?.isFile() === true && s.uid === uid && (s.mode & 0o777) === 0o600, "the signing key is the verifier's own (mode 600)", `no signing key owned by ${uid} with mode 600 at ${sk}`));
+    // D29: the verifier holds a signer client token, never a signing key.
+    const keys = findPrivateKeys(role.home);
+    results.push(check(keys.length === 0, "no private key anywhere in the verifier's home", `private key file(s) in the verifier's home: ${keys.join(", ")}`));
+    results.push(check(readOutcome(SIGNER.home) !== "readable" && !existsSync(SIGNER.keyFile), "the signer's key directory is not here", "the signer's key directory is visible in the verifier"));
+    const tk = join(role.home, ".config", "loopback-verifier", "signer-token");
+    const ts = lstatSync(tk, { throwIfNoEntry: false });
+    results.push(check(ts?.isFile() === true && ts.uid === uid && (ts.mode & 0o777) === 0o600, "the signer client token is the verifier's own (mode 600)", `no signer client token owned by ${uid} with mode 600 at ${tk} (run agents.sh signer-token)`));
+    const health = await signerHttp("GET", "/healthz");
+    results.push(check(health === 200, "the signer answers on the signer network", `the signer is not reachable (${health})`));
+    const unauth = await signerHttp("POST", "/v1/sign", { "content-type": "application/json" }, "{}");
+    results.push(check(unauth === 401, "the signer refuses an unauthenticated request (401)", `the signer answered an unauthenticated request with ${unauth}`));
+    const runnerReach = await tcpAttempt(RUNNER.container, 8080);
+    results.push(check(NOT_REACHABLE_BY_NAME.includes(runnerReach), `the runner is not reachable over the network (${runnerReach})`, `the runner: ${runnerReach}, expected unreachable`));
     const repo = process.env.GH_REPO;
     if (repo && process.env.GH_TOKEN) {
       const status = await githubGet(proxy, `/repos/${repo}`, process.env.GH_TOKEN);
@@ -372,7 +485,104 @@ async function agentRole(roleName) {
     }
   } else {
     results.push(info(helpers === "" ? "no git credential helper" : "a git credential helper is configured (names not shown)"));
+    for (const host of ["signer", SIGNER.container]) {
+      const outcome = await tcpAttempt(host, 8080);
+      results.push(check(NOT_REACHABLE_BY_NAME.includes(outcome), `the signer (${host}) is not reachable from the fixer (${outcome})`, `the signer (${host}) from the fixer: ${outcome}, expected unreachable`));
+    }
   }
+  return results;
+}
+
+/** PEM private keys under a directory (bounded walk; names only, never contents). */
+function findPrivateKeys(dir, depth = 0, found = []) {
+  if (depth > 6 || found.length > 10) return found;
+  let entries;
+  try { entries = readdirSync(dir, { withFileTypes: true }); } catch { return found; }
+  for (const e of entries) {
+    const p = join(dir, e.name);
+    if (e.isDirectory()) findPrivateKeys(p, depth + 1, found);
+    else if (e.isFile()) {
+      try {
+        const st = lstatSync(p);
+        if (st.size <= 64 * 1024 && /-----BEGIN [A-Z ]*PRIVATE KEY-----/.test(readFileSync(p, "utf8"))) found.push(p);
+      } catch { /* unreadable: not ours */ }
+    }
+  }
+  return found;
+}
+
+function containerPreconditions(roleName, uid) {
+  if (!existsSync("/.dockerenv")) throw new CannotRun(`not inside a container; run this inside the ${roleName}'s container`);
+  if (process.env.LOOPBACK_AGENT_ROLE !== roleName) throw new CannotRun(`LOOPBACK_AGENT_ROLE is not ${roleName}; not the ${roleName}'s container`);
+  const me = typeof process.getuid === "function" ? process.getuid() : -1;
+  if (me !== uid) throw new CannotRun(`uid ${me} is not the ${roleName}'s uid ${uid}`);
+}
+
+function sandboxBasics() {
+  const st = parseProcStatus(readFileSync("/proc/self/status", "utf8"));
+  return [
+    check(st.capEff === 0n, "no effective capabilities", "effective capabilities are not empty"),
+    check(st.noNewPrivs, "no_new_privs is set", "no_new_privs is not set"),
+    check(rootIsReadOnly(readFileSync("/proc/self/mountinfo", "utf8")), "root filesystem is read-only", "root filesystem is writable"),
+    check(!ROOTFUL_SOCKETS.some((s) => existsSync(s)) && !process.env.DOCKER_HOST, "no Docker socket or DOCKER_HOST inside", "a Docker socket or DOCKER_HOST is visible inside"),
+    ...toolingChecks(),
+  ];
+}
+
+async function directProbes() {
+  const out = [];
+  for (const probe of DIRECT_PROBES) {
+    const outcome = await tcpAttempt(probe.host, probe.port);
+    out.push(check(NO_ROUTE.includes(outcome), `direct connection to ${probe.what}: no route (${outcome})`, `direct connection to ${probe.what}: ${outcome}, expected no route`));
+  }
+  return out;
+}
+
+/** D29: inside the signer: its own key, no route out, GitHub API only through its proxy, no agent reachable. */
+async function signerRole() {
+  containerPreconditions("signer", SIGNER.uid);
+  const results = [...sandboxBasics()];
+  const k = lstatSync(SIGNER.keyFile, { throwIfNoEntry: false });
+  results.push(check(k?.isFile() === true && k.uid === SIGNER.uid && (k.mode & 0o777) === 0o600, "the signing key is the signer's own (mode 600)", `no signing key owned by ${SIGNER.uid} with mode 600 at ${SIGNER.keyFile}`));
+  for (const h of [ROLES.fixer.home, ROLES.verifier.home]) {
+    const o = readOutcome(h);
+    results.push(check(o === "EACCES" || o === "ENOENT", `${h} is not readable (${o})`, `${h}: ${o}`));
+  }
+  results.push(...await directProbes());
+  const proxy = new URL(PROXY_URL);
+  for (const [host, allowed] of [["api.github.com", true], ["github.com", false], ["example.com", false], ["api.anthropic.com", false], ["169.254.169.254", false]]) {
+    const r = await proxyConnect(proxy, host, 443);
+    r.socket?.destroy();
+    results.push(check(connectAsExpected(r.status, allowed), `signer proxy CONNECT ${host}:443 → ${r.status}`, `signer proxy CONNECT ${host}:443 → ${r.status}, expected ${allowed ? 200 : PROXY_DENIED}`));
+  }
+  for (const host of [ROLES.fixer.container, ROLES.fixer.proxy, RUNNER.container]) {
+    const o = await tcpAttempt(host, 3128);
+    results.push(check(NOT_REACHABLE_BY_NAME.includes(o), `${host} is not reachable (${o})`, `${host}: ${o}, expected unreachable`));
+  }
+  results.push(check(!process.env.GITHUB_TOKEN && !process.env.GH_TOKEN, "no GH_TOKEN/GITHUB_TOKEN", "a GitHub token variable is set"));
+  return results;
+}
+
+/** D29: inside the runner: no network at all, no credentials, no key, jobs read-only. */
+async function runnerRole() {
+  containerPreconditions("runner", RUNNER.uid);
+  const results = [...sandboxBasics()];
+  const leaked = Object.keys(process.env).filter((k) => SECRET_ENV.test(`${k}=`));
+  results.push(check(leaked.length === 0, "no credential variables in the environment", `credential variable(s) present: ${leaked.join(", ")}`));
+  for (const h of [ROLES.fixer.home, ROLES.verifier.home, SIGNER.home]) {
+    const o = readOutcome(h);
+    results.push(check(o === "EACCES" || o === "ENOENT", `${h} is not readable (${o})`, `${h}: ${o}`));
+  }
+  results.push(check(findPrivateKeys("/work").length === 0 && !existsSync(SIGNER.keyFile), "no private key visible", "a private key is visible to the runner"));
+  results.push(...await directProbes());
+  for (const host of ["signer", SIGNER.container, "proxy", ROLES.verifier.container]) {
+    const o = await tcpAttempt(host, 8080);
+    results.push(check(NOT_REACHABLE_BY_NAME.includes(o), `${host} is not reachable (${o})`, `${host}: ${o}, expected unreachable`));
+  }
+  let resolved = null;
+  try { resolved = await lookup("example.com"); } catch { /* expected */ }
+  results.push(check(resolved === null, "no DNS resolution", "external names resolve inside the runner"));
+  results.push(check(mountIsReadOnly(readFileSync("/proc/self/mountinfo", "utf8"), RUNNER.jobs), "the jobs volume is mounted read-only in the runner", "the jobs volume is not mounted read-only in the runner"));
   return results;
 }
 
@@ -382,11 +592,11 @@ const TAG = { pass: "PASS ", fail: "FAIL ", info: "INFO " };
 
 export async function main(argv = process.argv.slice(2), out = (s) => process.stdout.write(`${s}\n`)) {
   const role = argv[0];
-  if (role !== "host" && !Object.hasOwn(ROLES, role ?? "")) { process.stderr.write("usage: verify-isolation.mjs host|fixer|verifier\n"); return 2; }
+  if (!["host", "fixer", "verifier", "signer", "runner"].includes(role ?? "")) { process.stderr.write("usage: verify-isolation.mjs host|fixer|verifier|signer|runner\n"); return 2; }
   out(`== isolation checks (${role})`);
   let results;
   try {
-    results = role === "host" ? await hostRole() : await agentRole(role);
+    results = role === "host" ? await hostRole() : role === "signer" ? await signerRole() : role === "runner" ? await runnerRole() : await agentRole(role);
   } catch (e) {
     if (!(e instanceof CannotRun)) throw e;
     out(`CANNOT RUN  ${e.message}`);

@@ -19,8 +19,10 @@ import { signReport, signedBytes } from "../agents/signature.js";
 export interface LivePull { readonly state: "open" | "closed"; readonly headSha: string }
 
 export interface ReplayStore {
-  /** Atomically record that `runId` was signed. False if it already was. Throws on I/O failure. */
+  /** Atomically record that `runId` was signed for `reportDigest`. False if the run already was. Throws on I/O failure. */
   claim(runId: string, reportDigest: string): boolean;
+  /** The digest a run was signed for, or null. Throws on I/O failure. */
+  lookup(runId: string): string | null;
 }
 
 export interface SignerPolicyDeps {
@@ -35,7 +37,7 @@ export interface SignerPolicyDeps {
 }
 
 export type SignErrorCode =
-  | "MALFORMED" | "REPORT_INVALID" | "DIGEST_MISMATCH" | "CAPABILITY_INVALID" | "CAPABILITY_EXPIRED" | "CONTEXT_MISMATCH"
+  | "MALFORMED" | "REPORT_INVALID" | "REPORT_INCONSISTENT" | "DIGEST_MISMATCH" | "CAPABILITY_INVALID" | "CAPABILITY_EXPIRED" | "CONTEXT_MISMATCH"
   | "REPOSITORY_NOT_ALLOWED" | "STALE_HEAD" | "PR_NOT_OPEN" | "CONTEXT_UNAVAILABLE" | "REPLAYED" | "INTERNAL";
 
 export type SignDecision =
@@ -55,12 +57,22 @@ export function reportDigest(report: Readonly<Record<string, unknown>>): string 
 
 const deny = (code: SignErrorCode, status: number): SignDecision => ({ ok: false, code, status });
 
+/**
+ * Rules the verifier cannot argue its way past: a "pass" requires that the regression test was
+ * shown to fail before the fix and that no high-severity finding is reported. Failing is always allowed.
+ */
+function consistent(report: VerifierReport): boolean {
+  if (report.verdict !== "pass") return true;
+  return report.regressionTestFailsBeforeFix && !report.findings.some((f) => f.severity === "high");
+}
+
 export async function evaluateSignRequest(body: unknown, d: SignerPolicyDeps): Promise<SignDecision> {
   const req = SignRequest.safeParse(body);
   if (!req.success) return deny("MALFORMED", 400);
   const parsed = VerifierReport.safeParse(req.data.report);
   if (!parsed.success || parsed.data.signature !== undefined) return deny("REPORT_INVALID", 400);
   const report = parsed.data;
+  if (!consistent(report)) return deny("REPORT_INCONSISTENT", 400);
   const digest = reportDigest(report);
   if (digest !== req.data.reportDigest) return deny("DIGEST_MISMATCH", 400);
 
@@ -73,6 +85,17 @@ export async function evaluateSignRequest(body: unknown, d: SignerPolicyDeps): P
   }
   if (report.repository !== d.allowedRepository) return deny("REPOSITORY_NOT_ALLOWED", 403);
 
+  const sign = (): SignDecision => ({ ok: true, signature: signReport(report, d.signingKey), reportDigest: digest, runId: report.runId });
+  // A run is signed for one report only. The same report again is an idempotent retry (Ed25519 is
+  // deterministic, so the same signature, and no GitHub call); any other report is refused.
+  let prior: string | null;
+  try {
+    prior = d.replay.lookup(report.runId);
+  } catch {
+    return deny("INTERNAL", 500);
+  }
+  if (prior !== null) return prior === digest ? sign() : deny("REPLAYED", 409);
+
   let live: LivePull;
   try {
     live = await d.livePull(report.repository, report.pullRequest);
@@ -82,10 +105,14 @@ export async function evaluateSignRequest(body: unknown, d: SignerPolicyDeps): P
   if (live.state !== "open") return deny("PR_NOT_OPEN", 409);
   if (live.headSha !== report.headSha) return deny("STALE_HEAD", 409);
 
+  // The claim comes before signing: if signing failed afterwards the run would stay claimed
+  // (fail closed; a retry of the same report is then answered from the claim).
   try {
-    if (!d.replay.claim(report.runId, digest)) return deny("REPLAYED", 409);
+    if (!d.replay.claim(report.runId, digest)) {
+      return d.replay.lookup(report.runId) === digest ? sign() : deny("REPLAYED", 409); // lost a race
+    }
   } catch {
     return deny("INTERNAL", 500);
   }
-  return { ok: true, signature: signReport(report, d.signingKey), reportDigest: digest, runId: report.runId };
+  return sign();
 }

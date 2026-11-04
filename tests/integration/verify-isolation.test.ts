@@ -42,7 +42,7 @@ describe.skipIf(ON_WINDOWS)("verify-isolation.mjs fails closed", () => {
     expect(r.stdout).toMatch(/CANNOT RUN {2}docker /);
   });
 
-  it.skipIf(existsSync("/.dockerenv")).each(["fixer", "verifier"])(
+  it.skipIf(existsSync("/.dockerenv")).each(["fixer", "verifier", "signer", "runner"])(
     "%s role outside a container is refused even when the container environment is imitated",
     (role) => {
       const r = run([role], { LOOPBACK_AGENT_ROLE: role, HOME: `/home/${role}`, HTTPS_PROXY: "http://proxy:3128" });

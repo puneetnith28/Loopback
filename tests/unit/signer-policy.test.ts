@@ -35,7 +35,10 @@ function deps(over: Partial<SignerPolicyDeps> & { pull?: LivePull | Error } = {}
       const p = over.pull ?? { state: "open", headSha: SHA };
       return p instanceof Error ? Promise.reject(p) : Promise.resolve(p);
     },
-    replay: { claim: (runId, digest) => (claimed.has(runId) ? false : (claimed.set(runId, digest), true)) },
+    replay: {
+      claim: (runId, digest) => (claimed.has(runId) ? false : (claimed.set(runId, digest), true)),
+      lookup: (runId) => claimed.get(runId) ?? null,
+    },
     ...over,
   };
   return { d, claimed, calls };
@@ -93,12 +96,37 @@ describe("evaluateSignRequest: rejections (fail closed, nothing signed, run not 
     expect(calls.livePull).toBe(0);
   });
 
-  it("signs at most once per run: a replay of the same request, or a different report for the same run, is refused", async () => {
-    const { d } = deps();
-    expect((await evaluateSignRequest(request(), d)).ok).toBe(true);
-    expect(await evaluateSignRequest(request(), d)).toEqual({ ok: false, code: "REPLAYED", status: 409 });
+  it("signs one report per run: a retry of the same report gets the same signature (no GitHub call); any other report is refused", async () => {
+    const { d, calls } = deps();
+    const first = await evaluateSignRequest(request(), d);
+    expect(first.ok).toBe(true);
+    const before = calls.livePull;
+    const retry = await evaluateSignRequest(request(), d);
+    expect(retry).toEqual(first); // Ed25519 is deterministic: an idempotent retry, not a second signature
+    expect(calls.livePull).toBe(before);
     const forged = report({ verdict: "fail", summary: "second opinion" });
     expect(await evaluateSignRequest(request({ report: forged }), d)).toEqual({ ok: false, code: "REPLAYED", status: 409 });
+    expect(calls.livePull).toBe(before); // a conflicting replay is refused before GitHub is consulted
+  });
+
+  it("a request that loses the claim race to a different report is refused", async () => {
+    const { d } = deps();
+    const racing: SignerPolicyDeps = { ...d, replay: { claim: () => false, lookup: (() => { let n = 0; return () => (n++ === 0 ? null : "sha256:" + "0".repeat(64)); })() } };
+    expect(await evaluateSignRequest(request(), racing)).toEqual({ ok: false, code: "REPLAYED", status: 409 });
+  });
+
+  it.each([
+    ["a pass whose regression test did not fail before the fix", { verdict: "pass", regressionTestFailsBeforeFix: false }],
+    ["a pass with a high-severity finding", { verdict: "pass", findings: [{ severity: "high", message: "sql injection" }] }],
+  ])("refuses an internally inconsistent report: %s", async (_n, over) => {
+    const { d, claimed } = deps();
+    expect(await evaluateSignRequest(request({ report: report(over) }), d)).toEqual({ ok: false, code: "REPORT_INCONSISTENT", status: 400 });
+    expect(claimed.size).toBe(0);
+  });
+
+  it("a fail verdict needs no such consistency (failing is always allowed)", async () => {
+    const { d } = deps();
+    expect((await evaluateSignRequest(request({ report: report({ verdict: "fail", regressionTestFailsBeforeFix: false, findings: [{ severity: "high", message: "x" }] }) }), d)).ok).toBe(true);
   });
 
   it("a transient GitHub failure does not consume the run: a retry can still be signed", async () => {
@@ -109,7 +137,7 @@ describe("evaluateSignRequest: rejections (fail closed, nothing signed, run not 
   });
 
   it("a failing replay store fails closed (nothing signed)", async () => {
-    const { d } = deps({ replay: { claim: () => { throw new Error("EIO"); } } });
+    const { d } = deps({ replay: { claim: () => { throw new Error("EIO"); }, lookup: () => null } });
     expect(await evaluateSignRequest(request(), d)).toEqual({ ok: false, code: "INTERNAL", status: 500 });
   });
 });

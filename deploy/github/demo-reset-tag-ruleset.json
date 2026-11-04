@@ -1,0 +1,12 @@
+{
+  "name": "Loopback demo-reset tag protection",
+  "target": "tag",
+  "enforcement": "active",
+  "bypass_actors": [],
+  "conditions": { "ref_name": { "include": ["refs/tags/demo-reset"], "exclude": [] } },
+  "rules": [
+    { "type": "deletion" },
+    { "type": "non_fast_forward" },
+    { "type": "update", "parameters": { "update_allows_fetch_and_merge": false } }
+  ]
+}

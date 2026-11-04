@@ -24,7 +24,8 @@ let proxyUrl: URL;
 const seen: { auth: string | undefined; path: string | undefined }[] = [];
 const connects: string[] = [];
 const sockets = new Set<{ destroy(): void }>();
-let respond: (path: string) => { status: number; body: string } = () => ({ status: 200, body: JSON.stringify({ state: "open", head: { sha: "a".repeat(40) } }) });
+const pr = (over: Record<string, unknown> = {}) => JSON.stringify({ number: 42, state: "open", head: { sha: "a".repeat(40) }, base: { repo: { full_name: "o/r" } }, ...over });
+let respond: (path: string) => { status: number; body: string } = () => ({ status: 200, body: pr() });
 
 beforeAll(async () => {
   if (!RUN) return;
@@ -72,20 +73,20 @@ const reader = (over: Partial<Parameters<typeof createPullReader>[0]> = {}) =>
 describe.skipIf(!RUN)("signer GitHub pull reader", () => {
   it("reads state and head through the CONNECT proxy, over verified TLS, unauthenticated by default", async () => {
     seen.length = 0;
-    expect(await reader()("o/r", 42)).toEqual({ state: "open", headSha: "a".repeat(40) });
-    expect(seen.at(-1)).toEqual({ auth: undefined, path: "/repos/o/r/pulls/42" });
+    expect(await reader()("O/R", 42)).toEqual({ state: "open", headSha: "a".repeat(40) }); // repository names are case-insensitive
+    expect(seen.at(-1)).toEqual({ auth: undefined, path: "/repos/O/R/pulls/42" });
     expect(connects.at(-1)).toBe(`api.github.test:${apiPort}`);
   });
 
   it("sends a configured read token as a bearer header", async () => {
-    await reader({ token: "ghp_readonly" })("o/r", 1);
+    await reader({ token: "ghp_readonly" })("o/r", 42);
     expect(seen.at(-1)!.auth).toBe("Bearer ghp_readonly");
   });
 
   it("reports a closed PR as closed", async () => {
-    respond = () => ({ status: 200, body: JSON.stringify({ state: "closed", head: { sha: "b".repeat(40) } }) });
+    respond = () => ({ status: 200, body: pr({ number: 1, state: "closed", head: { sha: "b".repeat(40) } }) });
     expect(await reader()("o/r", 1)).toEqual({ state: "closed", headSha: "b".repeat(40) });
-    respond = () => ({ status: 200, body: JSON.stringify({ state: "open", head: { sha: "a".repeat(40) } }) });
+    respond = () => ({ status: 200, body: pr() });
   });
 
   it.each([
@@ -95,10 +96,12 @@ describe.skipIf(!RUN)("signer GitHub pull reader", () => {
     ["a short head SHA", { status: 200, body: JSON.stringify({ state: "open", head: { sha: "abc" } }) }],
     ["an unknown state", { status: 200, body: JSON.stringify({ state: "draft", head: { sha: "a".repeat(40) } }) }],
     ["an oversized body", { status: 200, body: JSON.stringify({ state: "open", head: { sha: "a".repeat(40) }, pad: "x".repeat(2_000_000) }) }],
+    ["another PR number", { status: 200, body: pr({ number: 7 }) }],
+    ["another base repository", { status: 200, body: pr({ base: { repo: { full_name: "evil/r" } } }) }],
   ])("fails (throws) on %s", async (_n, r) => {
     respond = () => r;
-    await expect(reader()("o/r", 1)).rejects.toThrow();
-    respond = () => ({ status: 200, body: JSON.stringify({ state: "open", head: { sha: "a".repeat(40) } }) });
+    await expect(reader()("o/r", 42)).rejects.toThrow();
+    respond = () => ({ status: 200, body: pr() });
   });
 
   it("fails when the certificate is not trusted (no silent downgrade)", async () => {

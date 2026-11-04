@@ -8,7 +8,7 @@ import { createPublicKey, sign as cryptoSign, verify as cryptoVerify, type KeyOb
  * tests it claims, or that its runtime is isolated from the fixer; those rest on OS-level
  * isolation and on the gate's own GitHub checks.
  *
- * Canonicalization contract (version 1), shared by the gate and scripts/sign-verifier-report.mjs:
+ * Canonicalization contract (version 1), shared by the gate, the verifier signer (signer/) and scripts/request-signature.mjs:
  * - The signed bytes are UTF-8 of `SIGNING_CONTEXT` + canonical(report without "signature").
  * - canonical(null | boolean) = JSON literal; canonical(string) = JSON.stringify(string).
  * - canonical(number): finite only, JSON.stringify(number) (ECMAScript shortest form);

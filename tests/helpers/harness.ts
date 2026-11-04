@@ -17,7 +17,7 @@ import { signReport } from "../../apps/switch-gate/src/agents/signature.js";
 
 /** Test-only verifier signing key, generated per test process (D28). Never persisted. */
 export const TEST_VERIFIER_KEYS = generateKeyPairSync("ed25519");
-/** Sign a verifier report with the test verifier key (as scripts/sign-verifier-report.mjs would). */
+/** Sign a verifier report with the test verifier key (as the D29 signer service would). */
 /** D29: the gate's run-issuer key in tests. */
 export const TEST_ISSUER_KEYS = generateKeyPairSync("ed25519");
 

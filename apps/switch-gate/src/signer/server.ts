@@ -34,16 +34,19 @@ function send(res: ServerResponse, status: number, body: Record<string, unknown>
 
 function readBody(req: IncomingMessage): Promise<Buffer | "too_large"> {
   return new Promise((resolve, reject) => {
+    const declared = Number(req.headers["content-length"] ?? 0);
+    if (declared > MAX_BODY_BYTES) { resolve("too_large"); return; }
     const chunks: Buffer[] = [];
     let size = 0;
-    let over = false;
+    let done = false;
     req.on("data", (c: Buffer) => {
+      if (done) return;
       size += c.length;
-      if (size > MAX_BODY_BYTES) { over = true; return; }
-      if (!over) chunks.push(c);
+      if (size > MAX_BODY_BYTES) { done = true; req.pause(); resolve("too_large"); return; }
+      chunks.push(c);
     });
-    req.on("end", () => resolve(over ? "too_large" : Buffer.concat(chunks)));
-    req.on("error", reject);
+    req.on("end", () => { if (!done) { done = true; resolve(Buffer.concat(chunks)); } });
+    req.on("error", (e) => { if (!done) { done = true; reject(e); } });
   });
 }
 
@@ -80,7 +83,12 @@ export function createSignerServer(o: SignerServerOptions): SignerServer {
     }
     if (!/^application\/json(\s*;|$)/i.test(req.headers["content-type"] ?? "")) return send(res, 415, { error: "UNSUPPORTED_MEDIA_TYPE" });
     const raw = await readBody(req);
-    if (raw === "too_large") return send(res, 413, { error: "TOO_LARGE" });
+    if (raw === "too_large") {
+      res.setHeader("connection", "close");
+      send(res, 413, { error: "TOO_LARGE" });
+      req.destroy(); // stop reading the rest of an oversized body
+      return;
+    }
     let body: unknown;
     try {
       body = JSON.parse(raw.toString("utf8"));

@@ -67,7 +67,11 @@ export function createPullReader(o: PullReaderOptions): (repository: string, pul
       req.once("error", reject);
       req.end();
     }).finally(() => socket?.destroy());
-    const json = JSON.parse(body) as { state?: unknown; head?: { sha?: unknown } };
+    const json = JSON.parse(body) as { number?: unknown; state?: unknown; head?: { sha?: unknown }; base?: { repo?: { full_name?: unknown } } };
+    // Defence in depth: the answer must be about exactly this PR in exactly this repository.
+    if (json.number !== pullRequest) throw new Error("GitHub answered for another pull request");
+    const base = json.base?.repo?.full_name;
+    if (typeof base !== "string" || base.toLowerCase() !== repository.toLowerCase()) throw new Error("GitHub answered for another repository");
     if (json.state !== "open" && json.state !== "closed") throw new Error("unexpected pull request state");
     const sha = FullSha.safeParse(json.head?.sha);
     if (!sha.success) throw new Error("unexpected head SHA");

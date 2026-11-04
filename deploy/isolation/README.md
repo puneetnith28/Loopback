@@ -7,16 +7,23 @@ daemon** that belongs to your desktop user. This replaces the separate-Linux-use
 ## Layout
 
 ```
-                      loopback-egress (routed)
-                 ┌───────────────┴───────────────┐
-      loopback-proxy-fixer           loopback-proxy-verifier      squid, one per role, alias `proxy`:
-                 │                               │                HTTPS CONNECT only, named domains only
-      loopback-fixer-net              loopback-verifier-net       (both --internal: no route out)
-                 │                               │
-      loopback-fixer                  loopback-verifier
-      uid 10001, volume               uid 10002, volume
-      loopback-fixer-home             loopback-verifier-home
+                                 loopback-egress (routed)
+          ┌──────────────────────────────┼──────────────────────────────┐
+ loopback-proxy-fixer         loopback-proxy-verifier          loopback-proxy-signer      squid, alias `proxy`
+          │                              │                              │                 (signer: api.github.com only)
+ loopback-fixer-net           loopback-verifier-net         loopback-signer-egress-net    all --internal
+          │                              │                              │
+ loopback-fixer               loopback-verifier ── loopback-signer-net ── loopback-signer
+ uid 10001                    uid 10002, signer token        uid 10003, signing key (own volume)
+                                    │ jobs (rw)  ▲ results (ro)
+                                    ▼            │
+                              loopback-runner  uid 10004, --network none, no credentials
 ```
+
+D29: the verifier signs nothing itself. It asks the signer, which holds the only private key and
+signs once per gate-issued run after checking the live head on GitHub (`docs/architecture.md`).
+PR code runs only in the runner: it gets a copy of the tree (without `.git`) through the jobs
+volume and returns a bounded result through the results volume.
 
 Each agent can reach only its own proxy (the other proxy's name does not even resolve on its
 network), so it can only ever get its own role's policy. Each agent container: non-root uid (a
@@ -42,9 +49,12 @@ link-local or metadata address is refused.
 ```bash
 deploy/isolation/rootless-docker.sh start      # own data/exec/socket paths; no systemd, no linger, no context switch
 deploy/isolation/agents.sh build               # proxy + agent images (agent image: build context = repository root)
-deploy/isolation/agents.sh up                  # networks, proxy, fixer, verifier
-deploy/isolation/agents.sh verifier-keygen     # verifier's Ed25519 key, created inside its container; prints the PUBLIC key
-deploy/isolation/agents.sh verify              # scripts/verify-isolation.mjs: host, then inside each container
+deploy/isolation/agents.sh signer-init         # signer key + client token in the signer volume; prints the signer PUBLIC key
+deploy/isolation/agents.sh up                  # networks, three proxies, runner, verifier, fixer, signer
+deploy/isolation/agents.sh signer-token        # signer volume -> pipe -> verifier volume (never shown)
+deploy/isolation/agents.sh recycle-verifier    # fresh verifier container + home volume (before each run)
+deploy/isolation/agents.sh signer-rotate-token # new client token, key kept; signer restarted
+deploy/isolation/agents.sh verify              # scripts/verify-isolation.mjs: host, then inside all four containers
 deploy/isolation/agents.sh registry on|off     # temporary npm registry access for the fixer
 deploy/isolation/agents.sh down                # remove containers; home volumes are kept
 deploy/isolation/rootless-docker.sh stop
@@ -64,8 +74,16 @@ GH_TOKEN=<that role's fine-grained token; verifier: read-only>
 GH_REPO=puneetnith28/loopback-demo-target
 ```
 
-plus that role's Switch and model credentials. `agents.sh up` refuses a file that is not a
-regular file, not yours, not mode 600, or that sets `GITHUB_TOKEN`. Re-create a container
+plus that role's Switch and model credentials. And `signer.env` (mode 600):
+
+```
+SIGNER_REPOSITORY=puneetnith28/loopback-demo-target
+SIGNER_ISSUER_PUBLIC_KEY=<the gate's run-issuer PUBLIC key, raw 32-byte base64>
+# optional: SIGNER_GH_TOKEN=<read-only token; a public repository needs none>
+```
+
+`agents.sh up` refuses a file that is not a regular file, not yours, not mode 600, or that sets
+`GITHUB_TOKEN`; `signer.env` may set only the three names above. Re-create a container
 (`down`, `up`) after changing its file. The values are never printed.
 
 ## Prerequisites (checked by `rootless-docker.sh start`)
@@ -81,16 +99,24 @@ If a prerequisite is missing, the owner installs it (root), for example
 
 ## Known limits
 
-- You (the desktop user) own the daemon and can read both volumes, including the verifier's
-  signing key. This is the same residual as the controller's user under separate users.
+- You (the desktop user) own the daemon and can read every volume, including the signer's
+  key. This is the same residual as the controller's user under separate users.
 - `--icc=false` needs the `br_netfilter` module (root); separation instead relies on one internal
   network per role with only that role's proxy beside each agent.
 - Docker's embedded DNS resolver is reachable inside; external names do not resolve there
   (checked: a resolving name fails `verify`), and the proxy does not resolve unlisted names.
-- **The verifier's signing key and its tokens live in the same uid as any code the verifier runs.**
-  If the verifier executes PR code (tests), that code can read the key and sign a forged report.
-  Closing this needs a separate signer (own uid or container, narrow non-shell interface) and a
-  keyless sandbox for PR code; not built yet.
+- D29 closed the key co-location gap: the key is in the signer only, and PR code runs in the
+  runner. Remaining: a verifier session that is itself compromised (or that runs PR code outside
+  the runner against its brief) holds the client token and sees each run's capability in the
+  room, so until it is recycled it can obtain the one signature of every run it reaches first,
+  with a verdict of its choosing (a `pass` still needs the regression-test claim and no high
+  finding). It cannot get the key, sign for a run the gate did not issue, another repository, PR
+  or head, or sign a run twice (a retry of the identical report gets the same signature). Recycle
+  the verifier before each run. The gate's checks and the maintainer's approval remain.
+- The runner runs one job at a time and kills every other process of its uid after each job, so
+  a job cannot persist into, or forge the result of, another PR's job.
+- Runner results are produced next to PR code and are untrusted (PR code controls its own test
+  outcome); the runner is offline, so dependencies must be in the tree.
 - Allowed endpoints are exfiltration channels by design (gists/issues via an agent's token, an
   attacker-owned model API key). The allowlist narrows egress; it does not make it data-tight.
 - Squid 5.7 (Debian bookworm) is installed unpinned at build time; rebuild to pick up security

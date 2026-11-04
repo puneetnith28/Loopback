@@ -89,10 +89,12 @@ describe.skipIf(ON_WINDOWS)("signer HTTP boundary", () => {
     expect(readdirSync(dir)).toEqual([]);
   });
 
-  it("refuses a replay with 409, also across a server restart (the replay record is durable)", async () => {
+  it("refuses a different report for a signed run with 409, also across a server restart (the record is durable)", async () => {
     let url = await start();
-    expect((await post(url, body())).status).toBe(200);
-    expect((await post(url, body())).status).toBe(409);
+    const first = await (await post(url, body())).json() as { signature: string };
+    const again = await post(url, body());
+    expect(again.status).toBe(200); // an identical retry is idempotent
+    expect((await again.json() as { signature: string }).signature).toBe(first.signature);
     await new Promise<void>((ok) => server!.close(() => ok()));
     url = await start();
     const res = await post(url, body(ctx(), { verdict: "fail" }));
@@ -131,6 +133,11 @@ describe.skipIf(ON_WINDOWS)("signer HTTP boundary", () => {
     expect((await post(url, body(), { "content-type": "text/plain" })).status).toBe(415);
     expect((await post(url, "{not json")).status).toBe(400);
     expect((await post(url, JSON.stringify({ pad: "x".repeat(70_000) }))).status).toBe(413);
+    // A body far beyond the cap is cut off promptly, not read to the end.
+    const t0 = Date.now();
+    const huge = await post(url, JSON.stringify({ pad: "x".repeat(8_000_000) })).then((r) => r.status, () => "aborted");
+    expect([413, "aborted"]).toContain(huge);
+    expect(Date.now() - t0).toBeLessThan(5000);
   });
 
   it("rate-limits authenticated requests (429)", async () => {
@@ -164,8 +171,11 @@ describe.skipIf(ON_WINDOWS)("signer HTTP boundary", () => {
 describe.skipIf(ON_WINDOWS)("FileReplayStore", () => {
   it("claims a run once, rejects path-shaped run ids, and creates owner-only files", () => {
     const store = new FileReplayStore(dir);
+    expect(store.lookup("6f1c2b3a-0d4e-4f5a-8b6c-7d8e9f0a1b2c")).toBeNull();
     expect(store.claim("6f1c2b3a-0d4e-4f5a-8b6c-7d8e9f0a1b2c", "sha256:x")).toBe(true);
     expect(store.claim("6f1c2b3a-0d4e-4f5a-8b6c-7d8e9f0a1b2c", "sha256:y")).toBe(false);
+    expect(store.lookup("6f1c2b3a-0d4e-4f5a-8b6c-7d8e9f0a1b2c")).toBe("sha256:x");
+    expect(() => store.lookup("../escape")).toThrow();
     expect(() => store.claim("../escape", "sha256:x")).toThrow();
     expect(() => store.claim("6F1C2B3A-0D4E-4F5A-8B6C-7D8E9F0A1B2C/..", "sha256:x")).toThrow();
     expect(readdirSync(dir)).toEqual(["6f1c2b3a-0d4e-4f5a-8b6c-7d8e9f0a1b2c"]);

@@ -5,7 +5,7 @@ FROM debian:bookworm-slim@sha256:99c0b25c46d0214d5a2091092e7908907dcaecd6a962cde
 RUN apt-get update && apt-get install -y --no-install-recommends squid \
     && rm -rf /var/lib/apt/lists/*
 # Plain COPY + chmod: works with or without BuildKit.
-COPY squid.conf allow-github.txt allow-model.txt allow-registry.txt /etc/loopback-proxy/
+COPY squid.conf allow-github.txt allow-github-api.txt allow-model.txt allow-registry.txt /etc/loopback-proxy/
 COPY entrypoint.sh /usr/local/bin/loopback-proxy
 RUN chown -R root:root /etc/loopback-proxy /usr/local/bin/loopback-proxy \
     && chmod 0755 /etc/loopback-proxy /usr/local/bin/loopback-proxy \

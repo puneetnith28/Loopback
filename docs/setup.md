@@ -95,36 +95,52 @@ altered (run id, repository, PR, SHA, verdict, findings). It does **not** prove 
 ran the tests, nor that its runtime is isolated: that is what the OS separation and the isolation
 proof are for.
 
-#### Signing helper and key inside the verifier container
+#### Independent signer (D29)
 
-The agent image (`deploy/isolation/agent/Dockerfile`) installs the helper and the gate's
-signature module side by side in `/usr/local/lib/loopback-signer`, root-owned and read-only. The
-helper uses the `signature.js` beside it (falling back to the repository build) and refuses a
-module that is world-writable or owned by anyone but root or the caller.
+The verifier never holds a signing key. The key lives only in the `loopback-signer` container
+(uid 10003, its own volume), which the verifier alone can reach and which signs a report only
+under a capability the gate issued for that exact run (see `docs/architecture.md`, "Verifier
+signing boundary"). PR code runs only in the `loopback-runner` container (no network, no
+credentials).
 
-The key is created **inside** the verifier container, as uid 10002, in its own volume; only the
-public key is printed (a second run refuses to overwrite an existing key):
+1. Gate run-issuer key (host, gate's identity): an Ed25519 private key at an absolute path, mode
+   600; set `LOOPBACK_RUN_ISSUER_KEY_PATH` to it. Put its public key in
+   `~/.config/loopback-agents/signer.env` (mode 600) as `SIGNER_ISSUER_PUBLIC_KEY` (raw 32-byte
+   base64, because an env file holds one line), with `SIGNER_REPOSITORY=<owner/repo>`:
 
-```bash
-deploy/isolation/agents.sh verifier-keygen
-# put the printed PUBLIC key (PEM) in the gate's VERIFIER_PUBLIC_KEY (owner step)
-```
-
-Only the public key leaves the verifier identity. The verifier signs each report with
-`node /usr/local/lib/loopback-signer/sign-verifier-report.mjs < report.json` (it refuses a key file that is not mode 600,
-not owned by the caller, a symlink, or not Ed25519, and never prints the key).
+   ```bash
+   (umask 077; openssl genpkey -algorithm ed25519 -out secrets/run-issuer.pem)
+   openssl pkey -in secrets/run-issuer.pem -pubout -outform DER | tail -c 32 | base64   # SIGNER_ISSUER_PUBLIC_KEY
+   ```
+2. `deploy/isolation/agents.sh signer-init`: creates the signing key and a client token inside the
+   signer volume and prints only the signer's PUBLIC key; put it in the gate's
+   `VERIFIER_PUBLIC_KEY`.
+3. `deploy/isolation/agents.sh up`, then `deploy/isolation/agents.sh signer-token`: copies the
+   client token from the signer volume into the verifier volume through a pipe (never shown,
+   never on the host disk) and removes any D28 key left in the verifier.
+4. Before each verification run: `deploy/isolation/agents.sh recycle-verifier` (fresh verifier
+   container and home volume, so nothing a previous session planted survives). If the token may
+   have leaked: `deploy/isolation/agents.sh signer-rotate-token`.
+5. The verifier signs with `node /opt/loopback/request-signature.mjs --capability 'lbcap1…' <
+   report.json` and runs tests with `node /opt/loopback/run-in-sandbox.mjs --tree . -- <argv>`
+   (`prompts/verifier.md`).
 
 #### Isolation proof
 
 1. Run `deploy/isolation/agents.sh verify` (read-only; `scripts/verify-isolation.mjs`): `host`
    checks the daemon is the per-user rootless one and each container's hardening (non-root uid,
    no capabilities, no-new-privileges, read-only root, no bind mounts or Docker socket, its own
-   home volume, one internal network shared only with the proxy, limits, no `GITHUB_TOKEN`) and
-   that fixer and verifier share no uid, volume or network; `fixer` and `verifier` run **inside
+   home volume, its exact networks (each agent's own internal network shared only with its proxy;
+   the verifier also the signer network), limits, no `GITHUB_TOKEN`) and
+   that fixer and verifier share no uid, volume or network, that only the signer mounts its key
+   volume, and the signer's and runner's networks; `fixer` and `verifier` run **inside
    their containers** (the other role's home unreadable, no capabilities, read-only root, root-owned
-   signer, direct connections to the internet, GitHub, LAN, the host gateway and the metadata
-   address fail, the proxy allows only the allowlist; for the verifier also its own mode-600
-   signing key, no git credential helper and a read-only GitHub GET). Outside a container, or
+   tooling, direct connections to the internet, GitHub, LAN, the host gateway and the metadata
+   address fail, the proxy allows only the allowlist; for the verifier also no private key
+   anywhere in its home, its own mode-600 signer token, the signer reachable but refusing
+   unauthenticated requests, no git credential helper and a read-only GitHub GET); `signer` (its
+   own key, GitHub API only, no agent reachable) and `runner` (no network, no DNS, no credentials,
+   jobs read-only) run inside theirs. Outside a container, or
    without the daemon, it exits 2 ("CANNOT RUN … NOT PROVEN"). Missing evidence counts as failure
    (exit 1). Save the output (latest run: `docs/evidence/phase-06-isolation.md`).
 2. Separately authorised: probe that the verifier token cannot write (requests that cannot change

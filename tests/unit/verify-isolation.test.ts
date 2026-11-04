@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
-  EGRESS_NETWORK, NO_ROUTE, NOT_REACHABLE_BY_NAME, PROXY_URL, ROLES, assessContainer, assessDaemon, assessProxy, assessSeparation, assessVolumes,
-  connectAsExpected, parseProcStatus, proxyExpectations, rootIsReadOnly,
+  EGRESS_NETWORK, JOBS_VOLUME, NO_ROUTE, NOT_REACHABLE_BY_NAME, PROXY_URL, RESULTS_VOLUME, ROLES, RUNNER, SIGNER, SIGNER_EGRESS_NETWORK, SIGNER_NETWORK,
+  assessContainer, assessDaemon, assessProxy, assessRunner, assessSeparation, assessSigner, assessVolumeOwnership, assessVolumes,
+  connectAsExpected, mountIsReadOnly, parseProcStatus, proxyExpectations, rootIsReadOnly,
   type CheckResult,
 } from "../../scripts/verify-isolation.mjs";
 
@@ -26,8 +27,8 @@ function hardened(role: Role) {
     State: { Running: true },
     Config: { User: `${spec.uid}:${spec.uid}`, Env: [`LOOPBACK_AGENT_ROLE=${role}`, `HTTPS_PROXY=${PROXY_URL}`, "GH_TOKEN=x", "PATH=/usr/bin"] },
     HostConfig: hardenedHostConfig(spec.network),
-    Mounts: [{ Type: "volume", Name: spec.volume, Driver: "local", Source: `/data/volumes/${spec.volume}/_data`, Destination: spec.home }],
-    NetworkSettings: { Networks: { [spec.network]: {} } as Record<string, unknown> },
+    Mounts: Object.entries(spec.volumes).map(([name, [dest, rw]]) => ({ Type: "volume", Name: name, Driver: "local", RW: rw, Source: `/data/volumes/${name}/_data`, Destination: dest })),
+    NetworkSettings: { Networks: Object.fromEntries(spec.networks.map((n) => [n, {}])) as Record<string, unknown> },
   };
 }
 const networkOf = (role: Role) => ({ Internal: true, Containers: { a: { Name: ROLES[role].container }, b: { Name: ROLES[role].proxy } } });
@@ -88,8 +89,11 @@ describe("assessContainer", () => {
     ["another runtime", (c) => ({ ...c, HostConfig: { ...c.HostConfig, Runtime: "runsc-debug" } }), /runtime is runsc-debug/],
     ["the host cgroup namespace", (c) => ({ ...c, HostConfig: { ...c.HostConfig, CgroupnsMode: "host" } }), /host namespace/],
     ["a writable root", (c) => ({ ...c, HostConfig: { ...c.HostConfig, ReadonlyRootfs: false } }), /root filesystem is writable/],
-    ["a host bind mount", (c) => ({ ...c, Mounts: [...c.Mounts, { Type: "bind", Name: "", Driver: "", Source: "/home/u", Destination: "/host" }] }), /bind mount: \/host/],
-    ["the Docker socket", (c) => ({ ...c, Mounts: [...c.Mounts, { Type: "volume", Name: "s", Driver: "local", Source: "/run/docker.sock", Destination: "/run/docker.sock" }] }), /Docker socket is mounted/],
+    ["a host bind mount", (c) => ({ ...c, Mounts: [...c.Mounts, { Type: "bind", Name: "", Driver: "", RW: true, Source: "/home/u", Destination: "/host" }] }), /bind mount: \/host/],
+    ["the signer's key volume", (c) => ({ ...c, Mounts: [...c.Mounts, { Type: "volume", Name: SIGNER.volume, Driver: "local", RW: false, Source: "/v", Destination: "/keys" }] }), /unexpected volume/],
+    ["the runner's jobs volume", (c) => ({ ...c, Mounts: [...c.Mounts, { Type: "volume", Name: JOBS_VOLUME, Driver: "local", RW: true, Source: "/v", Destination: "/jobs" }] }), /unexpected volume/],
+    ["the signer network", (c) => ({ ...c, NetworkSettings: { Networks: { ...c.NetworkSettings.Networks, [SIGNER_NETWORK]: {} } } }), /networks are \[/],
+    ["the Docker socket", (c) => ({ ...c, Mounts: [...c.Mounts, { Type: "volume", Name: "s", Driver: "local", RW: true, Source: "/run/docker.sock", Destination: "/run/docker.sock" }] }), /Docker socket is mounted/],
     ["a shared home volume", (c) => ({ ...c, Mounts: c.Mounts.map((m) => ({ ...m, Name: "shared-home" })) }), /home is not the volume/],
     ["a host device", (c) => ({ ...c, HostConfig: { ...c.HostConfig, Devices: [{ PathOnHost: "/dev/kvm" }] } }), /host devices/],
     ["the host PID namespace", (c) => ({ ...c, HostConfig: { ...c.HostConfig, PidMode: "host" } }), /host namespace/],
@@ -118,9 +122,103 @@ describe("assessContainer", () => {
   });
 });
 
+describe("verifier layout (D29)", () => {
+  type C = ReturnType<typeof hardened>;
+  const verifierWeakenings: [string, (c: C) => C, RegExp][] = [
+    ["writable results (it could forge runner output)", (c) => ({ ...c, Mounts: c.Mounts.map((m) => (m.Name === RESULTS_VOLUME ? { ...m, RW: true } : m)) }), /unexpected volume/],
+    ["the signer's key volume", (c) => ({ ...c, Mounts: [...c.Mounts, { Type: "volume", Name: SIGNER.volume, Driver: "local", RW: false, Source: "/v", Destination: SIGNER.home }] }), /unexpected volume/],
+    ["no signer network", (c) => ({ ...c, NetworkSettings: { Networks: { [ROLES.verifier.network]: {} } } }), /networks are \[/],
+    ["the signer's egress network", (c) => ({ ...c, NetworkSettings: { Networks: { ...c.NetworkSettings.Networks, [SIGNER_EGRESS_NETWORK]: {} } } }), /networks are \[/],
+  ];
+  it.each(verifierWeakenings)("fails when the verifier has %s", (_n, weaken, pattern) => {
+    expect(failures(assessContainer("verifier", weaken(hardened("verifier")), networkOf("verifier"))).join("\n")).toMatch(pattern);
+  });
+});
+
+const signerC = () => ({
+  Name: `/${SIGNER.container}`, State: { Running: true },
+  Config: { User: "10003:10003", Env: ["SIGNER_HOME=/home/signer", `HTTPS_PROXY=${PROXY_URL}`, "SIGNER_REPOSITORY=o/r"] },
+  HostConfig: { ...hardenedHostConfig(SIGNER_NETWORK), PidsLimit: 128, Memory: 268435456 },
+  Mounts: [{ Type: "volume", Name: SIGNER.volume, Driver: "local", RW: true, Source: "/v", Destination: SIGNER.home }],
+  NetworkSettings: { Networks: { [SIGNER_NETWORK]: {}, [SIGNER_EGRESS_NETWORK]: {} } as Record<string, unknown> },
+});
+const signerNet = () => ({ Internal: true, Containers: { a: { Name: SIGNER.container }, b: { Name: ROLES.verifier.container } } as Record<string, { Name: string }> });
+const egressNet = () => ({ Internal: true, Containers: { a: { Name: SIGNER.container }, b: { Name: SIGNER.proxy } } as Record<string, { Name: string }> });
+const runnerC = () => ({
+  Name: `/${RUNNER.container}`, State: { Running: true },
+  Config: { User: "10004:10004", Env: ["HOME=/work", "LOOPBACK_AGENT_ROLE=runner", "PATH=/usr/bin"] },
+  HostConfig: { ...hardenedHostConfig("none"), PidsLimit: 512, Memory: 2147483648 },
+  Mounts: [
+    { Type: "volume", Name: JOBS_VOLUME, Driver: "local", RW: false, Source: "/v", Destination: "/jobs" },
+    { Type: "volume", Name: RESULTS_VOLUME, Driver: "local", RW: true, Source: "/v", Destination: "/results" },
+  ],
+  NetworkSettings: { Networks: { none: {} } as Record<string, unknown> },
+});
+
+describe("assessSigner (D29)", () => {
+  it("passes for the hardened signer", () => {
+    expect(failures(assessSigner(signerC(), signerNet(), egressNet()))).toEqual([]);
+  });
+  type S = ReturnType<typeof signerC>;
+  const weakenings: [string, (c: S) => S, () => unknown, () => unknown, RegExp][] = [
+    ["it runs as another uid", (c) => ({ ...c, Config: { ...c.Config, User: "10002:10002" } }), signerNet, egressNet, /user is 10002/],
+    ["it is on a routed network", (c) => ({ ...c, NetworkSettings: { Networks: { ...c.NetworkSettings.Networks, [EGRESS_NETWORK]: {} } } }), signerNet, egressNet, /networks are \[/],
+    ["the fixer shares its network", (c) => c, () => ({ ...signerNet(), Containers: { ...signerNet().Containers, c: { Name: ROLES.fixer.container } } }), egressNet, /members/],
+    ["the runner shares its network", (c) => c, () => ({ ...signerNet(), Containers: { ...signerNet().Containers, c: { Name: RUNNER.container } } }), egressNet, /members/],
+    ["its network routes out", (c) => c, () => ({ ...signerNet(), Internal: false }), egressNet, /internal=false/],
+    ["its egress network is shared with the verifier", (c) => c, signerNet, () => ({ ...egressNet(), Containers: { ...egressNet().Containers, c: { Name: ROLES.verifier.container } } }), /members/],
+    ["it has a GitHub token", (c) => ({ ...c, Config: { ...c.Config, Env: [...c.Config.Env, "GH_TOKEN=x"] } }), signerNet, egressNet, /GH_TOKEN/],
+    ["its key volume is missing", (c) => ({ ...c, Mounts: [] }), signerNet, egressNet, /key volume missing/],
+    ["it is privileged", (c) => ({ ...c, HostConfig: { ...c.HostConfig, Privileged: true } }), signerNet, egressNet, /privileged/],
+  ];
+  it.each(weakenings)("fails when %s", (_n, weaken, sn, en, pattern) => {
+    expect(failures(assessSigner(weaken(signerC()), sn(), en())).join("\n")).toMatch(pattern);
+  });
+});
+
+describe("assessRunner (D29)", () => {
+  it("passes for the networkless, credential-free runner", () => {
+    expect(failures(assessRunner(runnerC()))).toEqual([]);
+  });
+  type R = ReturnType<typeof runnerC>;
+  const weakenings: [string, (c: R) => R, RegExp][] = [
+    ["it has a network", (c) => ({ ...c, HostConfig: { ...c.HostConfig, NetworkMode: "loopback-signer-net" }, NetworkSettings: { Networks: { "loopback-signer-net": {} } } }), /network mode/],
+    ["it can write the jobs volume", (c) => ({ ...c, Mounts: c.Mounts.map((m) => (m.Name === JOBS_VOLUME ? { ...m, RW: true } : m)) }), /unexpected volume/],
+    ["it mounts the signer's key volume", (c) => ({ ...c, Mounts: [...c.Mounts, { Type: "volume", Name: SIGNER.volume, Driver: "local", RW: false, Source: "/v", Destination: "/k" }] }), /unexpected volume/],
+    ["it mounts the verifier's home", (c) => ({ ...c, Mounts: [...c.Mounts, { Type: "volume", Name: ROLES.verifier.volume, Driver: "local", RW: false, Source: "/v", Destination: "/h" }] }), /unexpected volume/],
+    ["it has a GitHub token", (c) => ({ ...c, Config: { ...c.Config, Env: [...c.Config.Env, "GH_TOKEN=x"] } }), /credential variable/],
+    ["it has signer settings", (c) => ({ ...c, Config: { ...c.Config, Env: [...c.Config.Env, "SIGNER_GH_TOKEN=x"] } }), /credential variable/],
+    ["it has a model key", (c) => ({ ...c, Config: { ...c.Config, Env: [...c.Config.Env, "ANTHROPIC_API_KEY=x"] } }), /credential variable/],
+    ["it runs as the verifier", (c) => ({ ...c, Config: { ...c.Config, User: "10002:10002" } }), /user is 10002/],
+  ];
+  it.each(weakenings)("fails when %s", (_n, weaken, pattern) => {
+    expect(failures(assessRunner(weaken(runnerC()))).join("\n")).toMatch(pattern);
+  });
+});
+
+describe("assessVolumeOwnership (D29)", () => {
+  const named = (name: string, c: ReturnType<typeof hardened>) => ({ ...c, Name: `/${name}` });
+  it("passes when only the signer mounts its key volume and the fixer mounts no runner volume", () => {
+    expect(failures(assessVolumeOwnership([named(ROLES.fixer.container, hardened("fixer")), named(ROLES.verifier.container, hardened("verifier")), signerC(), runnerC()]))).toEqual([]);
+  });
+  it("fails when another container mounts the signer's key volume, or the fixer mounts a runner volume", () => {
+    const leaky = { ...runnerC(), Mounts: [...runnerC().Mounts, { Type: "volume", Name: SIGNER.volume, Driver: "local", RW: false, Source: "/v", Destination: "/k" }] };
+    const fixer = named(ROLES.fixer.container, { ...hardened("fixer"), Mounts: [...hardened("fixer").Mounts, { Type: "volume", Name: RESULTS_VOLUME, Driver: "local", RW: false, Source: "/v", Destination: "/r" }] });
+    const f = failures(assessVolumeOwnership([fixer, signerC(), leaky])).join("\n");
+    expect(f).toMatch(/mounted by \[loopback-signer, loopback-runner\]|mounted by \[loopback-runner, loopback-signer\]/);
+    expect(f).toMatch(/fixer mounts loopback-runner-results/);
+  });
+});
+
 describe("assessProxy", () => {
   it.each(["fixer", "verifier"] as const)("passes for the hardened %s proxy", (role) => {
     expect(failures(assessProxy(role, proxyOf(role)))).toEqual([]);
+  });
+  it("passes for the signer's proxy on the signer egress network, and fails it on the verifier's", () => {
+    const p = { ...proxyOf("verifier"), Config: { User: "proxy", Env: ["LOOPBACK_PROXY_ROLE=signer", "LOOPBACK_FIXER_REGISTRY=0"] }, NetworkSettings: { Networks: { [SIGNER_EGRESS_NETWORK]: {}, [EGRESS_NETWORK]: {} } as Record<string, unknown> } };
+    expect(failures(assessProxy("signer", p))).toEqual([]);
+    const wrong = { ...p, NetworkSettings: { Networks: { [ROLES.verifier.network]: {}, [EGRESS_NETWORK]: {} } as Record<string, unknown> } };
+    expect(failures(assessProxy("signer", wrong)).join("\n")).toMatch(/networks are/);
   });
   type P = ReturnType<typeof proxyOf>;
   const weakenings: [string, (p: P) => P, RegExp][] = [
@@ -172,6 +270,14 @@ describe("in-container parsers", () => {
     expect(parseProcStatus("CapEff:\t00000000a80425fb\nNoNewPrivs:\t0\n")).toEqual({ capEff: 0xa80425fbn, noNewPrivs: false });
     expect(parseProcStatus("")).toEqual({ capEff: null, noNewPrivs: false });
   });
+  it("reads a specific mount's read-only flag; the last (stacked) entry wins; absent is not read-only", () => {
+    const mi = "10 1 0:1 / /jobs ro,relatime - ext4 /dev/x rw\n11 1 0:2 / /results rw,relatime - ext4 /dev/y rw\n";
+    expect(mountIsReadOnly(mi, "/jobs")).toBe(true);
+    expect(mountIsReadOnly(mi, "/results")).toBe(false);
+    expect(mountIsReadOnly(mi, "/nope")).toBe(false);
+    expect(mountIsReadOnly(mi + "12 10 0:3 / /jobs rw,relatime - tmpfs t rw\n", "/jobs")).toBe(false);
+  });
+
   it("detects a read-only root from mountinfo", () => {
     const ro = "1288 1200 0:88 / / ro,relatime master:1 - overlay overlay rw,lowerdir=x\n1289 1288 0:90 / /proc rw,nosuid - proc proc rw\n";
     expect(rootIsReadOnly(ro)).toBe(true);
