@@ -1,5 +1,6 @@
+/* eslint-disable @typescript-eslint/require-await -- test mocked merge implementations throw inside async signatures */
 import { describe, expect, it } from "vitest";
-import { listRecent } from "../../apps/switch-gate/src/audit/index.js";
+import { append, listRecent } from "../../apps/switch-gate/src/audit/index.js";
 import { transition } from "../../apps/switch-gate/src/cases/service.js";
 import { HeadChanged, NotMergeable, Uncertain } from "../../apps/switch-gate/src/github/client.js";
 import { getCase, insertMergeOp, listMergeOps } from "../../apps/switch-gate/src/persistence/repos.js";
@@ -18,7 +19,8 @@ describe("happy path", () => {
     await h.say(MAINT, `${G} merge LB-001`);
     expect(h.merger).toHaveBeenCalledTimes(1);
     expect(h.merger).toHaveBeenCalledWith(42, A);
-    expect(h.gh.statuses).toEqual([{ sha: A, state: "success", description: expect.stringContaining("Approved") }]);
+    expect(h.gh.statuses.map((s) => [s.sha, s.state])).toEqual([[A, "success"]]);
+    expect(h.gh.statuses[0]!.description).toContain("Approved");
     expect(h.state()).toBe("Merged");
     expect(h.posts.at(-1)).toMatch(/^\[LB-001\] MERGED: GitHub confirmed PR #42 merged as d{12}/);
     expect(audit(h)).toEqual(expect.arrayContaining(["gate_status.posted", "merge.requested", "merge.confirmed"]));
@@ -269,7 +271,6 @@ describe("second review: crash and failure recovery", () => {
     // simulate: Revalidating, attempt started, success status posted (intent audited), then crash
     transition(h.db, { caseId: "LB-001", to: "Revalidating", actorId: MAINT, trigger: "maintainer_merge", reason: null });
     insertMergeOp(h.db, "LB-001", A, 1, new Date());
-    const { append } = await import("../../apps/switch-gate/src/audit/index.js");
     append(h.db, { caseId: "LB-001", actorId: "system", type: "gate_status.posted", targetSha: A });
     await h.exec.reconcileStartup();
     expect(getCase(h.db, "LB-001")).toMatchObject({ state: "Blocked", blockedReason: "AWAITING_MERGE_COMMAND" });

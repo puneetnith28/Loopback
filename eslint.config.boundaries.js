@@ -1,5 +1,7 @@
 // Module-boundary rules (implementation §6). Shared by eslint.config.js and the
 // boundary tests, so the tests prove the exact rules that CI enforces.
+// The filename matches ECC's config-protection pattern on purpose: weakening these
+// rules requires an explicit, deliberate override, like any other linter config.
 //
 // ESLint flat config does not merge one rule's options across configs: the last
 // matching config wins. Each source file therefore matches exactly ONE config

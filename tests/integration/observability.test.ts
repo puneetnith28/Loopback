@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/require-await -- test readiness-check stubs implement an async signature */
 import { Writable } from "node:stream";
 import type { AddressInfo } from "node:net";
 import { describe, expect, it } from "vitest";

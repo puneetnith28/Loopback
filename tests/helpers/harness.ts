@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/require-await -- test fakes implement async interfaces without awaiting anything */
 import type { InboundMessage } from "@loopback/contracts";
 import { vi } from "vitest";
 import { CaseLocks } from "../../apps/switch-gate/src/cases/lock.js";

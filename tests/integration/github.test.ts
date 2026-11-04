@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/require-await -- test fake fetch handlers and route stubs implement async signatures */
 import { createVerify, generateKeyPairSync } from "node:crypto";
 import { beforeEach, describe, expect, it } from "vitest";
 import { GitHubClient } from "../../apps/switch-gate/src/github/client.js";

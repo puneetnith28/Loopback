@@ -1,14 +1,14 @@
 import { ESLint, type Linter } from "eslint";
 import tseslint from "typescript-eslint";
 import { describe, expect, it } from "vitest";
-import { boundaryConfigs } from "../../eslint.boundaries.js";
+import { boundaryConfigs } from "../../eslint.config.boundaries.js";
 
 // Lints in-memory fixtures against exactly the boundary rules CI enforces.
 const eslint = new ESLint({
   overrideConfigFile: true,
   overrideConfig: [
-    { files: ["**/*.ts"], languageOptions: { parser: tseslint.parser as Linter.Parser } },
-    ...(boundaryConfigs as Linter.Config[]),
+    { files: ["**/*.ts"], languageOptions: { parser: tseslint.parser } },
+    ...boundaryConfigs,
   ],
 });
 

@@ -7,5 +7,5 @@
       "@loopback/contracts": ["./packages/contracts/src/index.ts"]
     }
   },
-  "include": ["tests", "apps/switch-gate/src", "packages/contracts/src", "vitest.config.ts", "eslint.boundaries.d.ts"]
+  "include": ["tests", "apps/switch-gate/src", "packages/contracts/src", "vitest.config.ts", "eslint.config.boundaries.d.ts"]
 }

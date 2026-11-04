@@ -46,7 +46,7 @@ describe("InboundMessage (D16)", () => {
     expect(m.onBehalfOf).toBe("@owner:x");
   });
   it("never defaults a missing sender kind", () => {
-    const { senderKind: _omit, ...withoutKind } = base;
+    const withoutKind = Object.fromEntries(Object.entries(base).filter(([k]) => k !== "senderKind"));
     expect(InboundMessage.safeParse(withoutKind).success).toBe(false);
     expect(InboundMessage.parse({ ...base, senderKind: null }).senderKind).toBeNull();
   });
@@ -68,7 +68,7 @@ describe("FixerReport (D5)", () => {
     expect(FixerReport.safeParse(fixed).success).toBe(true);
   });
   it("rejects fixed without prUrl or full headSha", () => {
-    const { prUrl: _p, ...noPr } = fixed;
+    const noPr = Object.fromEntries(Object.entries(fixed).filter(([k]) => k !== "prUrl"));
     expect(FixerReport.safeParse(noPr).success).toBe(false);
     expect(FixerReport.safeParse({ ...fixed, headSha: SHA.slice(0, 7) }).success).toBe(false);
   });

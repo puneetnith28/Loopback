@@ -58,7 +58,7 @@ describe("extractReport", () => {
   });
 
   it("D25: verifier reports must carry a run id", () => {
-    const { runId: _r, ...noRun } = verifier("pass");
+    const noRun = Object.fromEntries(Object.entries(verifier("pass")).filter(([k]) => k !== "runId"));
     expect(extractReport(block(noRun), VerifierReport)).toMatchObject({ ok: false, reason: "SCHEMA" });
   });
 
