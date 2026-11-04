@@ -9,6 +9,8 @@ exists, `npm run gate` validates configuration and then refuses to start (exit c
 
 ## Prerequisites
 
+Full live setup steps and verification checks: [setup.md](setup.md).
+
 Node.js 22 (`.nvmrc`), a GitHub App installed on the demo repository only (Contents R/W, Pull
 requests R/W, Commit statuses R/W, Checks R, Metadata R), its private key at
 `secrets/gate.pem` with mode `600`, and the values in `.env.example`.

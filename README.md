@@ -53,7 +53,8 @@ npm test               # unit, integration and security suites
 ```
 
 Configuration is described in [.env.example](.env.example) and
-[docs/operations.md](docs/operations.md).
+[docs/operations.md](docs/operations.md). Live GitHub and Switch setup (not yet performed) is in
+[docs/setup.md](docs/setup.md).
 
 ## 5. Demo walkthrough
 
