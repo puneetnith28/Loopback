@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { generateKeyPairSync } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { parseEnv } from "node:util";
 import { CONTAINERS, FLAGS, REQUIRED, assessReadiness, parseEnvText, spkiOf, type ReadinessFacts } from "../../scripts/live-readiness.mjs";
 
 // Live readiness is a read-only report: it must never call a missing prerequisite ready, and it
@@ -24,6 +25,11 @@ describe("parseEnvText", () => {
   it("never reads an inline comment as a value: a missing setting must not look set", () => {
     const env = parseEnvText("EMPTY=\nCOMMENTED=              # who to list here\nSET=abc  # note\nHASH=a#b\n# NOT_A_SETTING=x\nCRLF=y\r\n");
     expect(env).toEqual({ EMPTY: "", COMMENTED: "", SET: "abc", HASH: "a#b", CRLF: "y" });
+  });
+
+  it("gives node --env-file no comment as a value when .env is copied from .env.example", () => {
+    const parsed = parseEnv(readFileSync(join(process.cwd(), ".env.example"), "utf8"));
+    expect(Object.entries(parsed).filter(([, v]) => v?.includes("#")).map(([k]) => k)).toEqual([]);
   });
 
   it("makes the real .env.example report the required settings it leaves empty as missing", () => {
