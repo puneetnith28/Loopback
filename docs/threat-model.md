@@ -44,6 +44,13 @@ against live services.
 | Malicious repo content | Prompts mark content untrusted; tokens scoped to one repo; prompt review checklist below | Prompt review (this document) | Reviewed |
 | Audit tampering | SQLite triggers reject UPDATE/DELETE on audit and approvals | `integration/persistence.test.ts` | Tested; online backup script `scripts/backup-db.sh` and systemd units provided and validated locally (live scheduling requires systemd install) |
 
+**Demo base integrity (D12, D17, step 6.6).** The nine outcomes are mapped in
+`security/demo-base-integrity.test.ts`. A base branch found away from its expected commit halts the
+gate for the run, at startup and until a definite answer is possible: an unreachable GitHub or an
+unresolved merge only postpones the check. Before tasking the fixer the gate checks again. What GitHub
+itself enforces (outcomes 1 to 4, and the tag) is proved only by `npm run ruleset-proof -- --apply`,
+which has **not** been run.
+
 ## Prompt review checklist (§14 "Malicious repo content")
 
 - `prompts/fixer.md` and `prompts/verifier.md` name every untrusted input (issue text, logs,

@@ -122,6 +122,12 @@ and keeps a good one for 30 s.
 
 ## Backup
 
+`npm run smoke` reports whether the running gate is live and ready, and names any failing check
+(exit 0 ready, 1 not ready, 2 no gate answering). Run it after starting the gate and after
+`scripts/reset-demo.sh`. A gate that finds its base branch away from the expected commit halts, and
+its `not-halted` check then fails: see `BASE_COMMIT_MISMATCH` in the logs, and start a fresh run with
+`scripts/reset-demo.sh` instead of clearing the state.
+
 On Windows, see [windows.md](windows.md) for stopping the gate and scheduling backups
 (`npm run backup` with Task Scheduler).
 

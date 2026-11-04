@@ -22,6 +22,8 @@
     "migrate": "node --env-file=.env apps/switch-gate/dist/persistence/migrate-cli.js",
     "gate": "node --env-file=.env apps/switch-gate/dist/main.js",
     "readiness": "node scripts/live-readiness.mjs",
+    "smoke": "node scripts/smoke.mjs",
+    "ruleset-proof": "node scripts/ruleset-proof.mjs",
     "backup": "node --env-file=.env scripts/backup-db.mjs",
     "agents": "node scripts/sh.mjs deploy/isolation/agents.sh"
   },

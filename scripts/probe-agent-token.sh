@@ -17,7 +17,11 @@ role="${1:-}"; mode="${2:-}"
 case "$role" in fixer|verifier) ;; *) echo "usage: $0 fixer|verifier [--write-probes]" >&2; exit 2 ;; esac
 f="${LOOPBACK_AGENT_CRED_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/loopback-agents}/$role.env"
 [ -f "$f" ] && [ ! -L "$f" ] || { echo "missing $f (owner: create it with GH_TOKEN and GH_REPO, mode 600)" >&2; exit 1; }
-[ "$(stat -c '%a' -- "$f")" = 600 ] || { echo "$f must have mode 600" >&2; exit 1; }
+case "$(uname -s)" in
+  MINGW*|MSYS*|CYGWIN*) # Git Bash's stat invents modes on NTFS: judge the real ACL (needs npm run build)
+    node "$(cygpath -w "$(dirname "${BASH_SOURCE[0]}")/check-private-file.mjs")" "$(cygpath -w "$f")" || { echo "$f is not private to you (docs/windows.md)" >&2; exit 1; } ;;
+  *) [ "$(stat -c '%a' -- "$f")" = 600 ] || { echo "$f must have mode 600" >&2; exit 1; } ;;
+esac
 token="$(sed -n 's/^GH_TOKEN=//p' "$f" | head -1)"; repo="$(sed -n 's/^GH_REPO=//p' "$f" | head -1)"
 [ -n "$token" ] && [[ "$repo" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || { echo "$f must set GH_TOKEN and GH_REPO=owner/repo" >&2; exit 1; }
 fail=0

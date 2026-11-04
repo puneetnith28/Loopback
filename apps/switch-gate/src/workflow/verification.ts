@@ -77,7 +77,12 @@ export class VerificationWorkflow implements AgentInbox, FixerHandoff {
 
   // --- fixer hand-off (7.3) -----------------------------------------------------------
 
-  async check(_c: CaseRecord): Promise<ReasonCode | null> {
+  check(_c: CaseRecord): Promise<ReasonCode | null> {
+    return this.baseProblem();
+  }
+
+  /** D17: is the base branch at the commit the gate expects? Null when it is, or nothing is expected. */
+  async baseProblem(): Promise<ReasonCode | null> {
     const expected = this.d.expectedBaseSha();
     if (expected === null) return null;
     try {

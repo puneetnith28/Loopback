@@ -5,13 +5,14 @@ import { admissionPolicyOf } from "./startup.js";
 import { CaseLocks } from "./cases/lock.js";
 import { MergeExecutor } from "./cases/service.js";
 import type { ChatPort } from "./chat/port.js";
+import { formatReason } from "./chat/reasons.js";
 import { Router } from "./commands/router.js";
 import { assertIdentityConsistency, loadRunIssuerKey, type GitHubConfig, type IdentityConfig, type RuntimeConfig, type SwitchConfig } from "./config.js";
 import { GitHubClient } from "./github/client.js";
 import { createMerger } from "./github/merge.js";
 import { GitHubTransport } from "./github/transport.js";
 import { migrate, openDatabase, type Db } from "./persistence/db.js";
-import { kvGet, kvSet } from "./persistence/repos.js";
+import { kvGet, kvSet, listUnfinishedMergeOps } from "./persistence/repos.js";
 import { Poller } from "./workflow/poller.js";
 import { VerificationWorkflow, type WorkflowDeps } from "./workflow/verification.js";
 
@@ -39,6 +40,8 @@ export interface Gate {
    * startup and after Switch reports a delivery gap. Never merges (D15).
    */
   reconcileNow(): Promise<void>;
+  /** D17(d): compare the base branch with its expected commit until there is a definite answer. */
+  checkBaseIntegrity(): Promise<void>;
   /**
    * Stop scheduling background work and wait for any task already running (poll,
    * reconcile, sweep, triage notices) to finish. Call before stop(), so no task can run
@@ -110,6 +113,33 @@ export function createGate(cfg: GateConfig, chat: ChatPort, log: Logger, deps: {
     log: { error: (o, m) => log.error(o, m) },
   });
 
+  // D17(d): a base branch that is not at the expected commit keeps merges disabled for the whole
+  // run. Only a definite answer decides: GitHub being unreachable says nothing about the base, and
+  // a merge whose outcome is still unknown may have moved it legitimately, so both wait for a
+  // later check. The maintainers' notice may also have to wait, for the rooms to connect.
+  let baseVerdict: "pending" | "ok" | "mismatch" = cfg.github.demoResetSha === null ? "ok" : "pending";
+  let baseNoticeSent = false;
+  const checkBaseIntegrity = async () => {
+    if (baseVerdict === "pending" && listUnfinishedMergeOps(db).length === 0) {
+      const problem = await workflow.baseProblem();
+      if (problem === null) {
+        baseVerdict = "ok";
+      } else if (problem === "BASE_COMMIT_MISMATCH") {
+        baseVerdict = "mismatch";
+        halt.halt("BASE_COMMIT_MISMATCH: the base branch is not at its expected commit");
+        log.fatal({ op: "base.integrity", reasonCode: problem, baseBranch: cfg.github.baseBranch }, "BASE_COMMIT_MISMATCH: the base branch is not at its expected commit; merging is disabled for this run");
+      }
+    }
+    if (baseVerdict === "mismatch" && !baseNoticeSent) {
+      try {
+        await chat.post(cfg.switch.roomId, formatReason("BASE_COMMIT_MISMATCH", {}), null);
+        baseNoticeSent = true;
+      } catch (e) {
+        log.warn({ op: "base.integrity", err: e instanceof Error ? e.name : "unknown" }, "could not post the base mismatch notice yet; will retry");
+      }
+    }
+  };
+
   const timers: NodeJS.Timeout[] = [];
   const inFlight = new Set<Promise<void>>();
   let stopping = false;
@@ -125,7 +155,7 @@ export function createGate(cfg: GateConfig, chat: ChatPort, log: Logger, deps: {
   };
 
   return {
-    db, router, poller, workflow, executor, halt, github,
+    db, router, poller, workflow, executor, halt, github, checkBaseIntegrity,
     async reconcileNow() {
       await poller.tick();
       await executor.reconcileUnknown();
@@ -139,6 +169,7 @@ export function createGate(cfg: GateConfig, chat: ChatPort, log: Logger, deps: {
       } catch (e) {
         log.error({ op: "reconcile.startup", err: e instanceof Error ? e.name : "unknown" }, "startup reconciliation of open cases failed; will retry");
       }
+      await checkBaseIntegrity();
       try {
         await router.announcePendingTriage();
       } catch (e) {
@@ -147,6 +178,7 @@ export function createGate(cfg: GateConfig, chat: ChatPort, log: Logger, deps: {
       every(cfg.runtime.pollIntervalMs, "poll", () => poller.tick());
       every(cfg.runtime.pollIntervalMs, "triage", () => router.announcePendingTriage());
       every(cfg.runtime.pollIntervalMs, "reconcile", () => executor.reconcileUnknown());
+      every(cfg.runtime.pollIntervalMs, "base", checkBaseIntegrity);
       every(Math.max(10_000, Math.floor(cfg.runtime.verifyTimeoutMs / 10)), "sweep", () => workflow.sweep());
     },
     async drain() {

@@ -24,7 +24,7 @@ const tree = git("stash", "create") || "HEAD";
 const inner = `set -euo pipefail
 cat >/tmp/source.tar
 apt-get update -qq >/dev/null </dev/null
-DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends git openssl ca-certificates >/dev/null </dev/null
+DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends git jq openssl ca-certificates >/dev/null </dev/null
 install -d -o node -g node /work
 chmod 644 /tmp/source.tar
 runuser -u node -- bash -c '

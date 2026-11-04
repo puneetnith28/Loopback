@@ -172,9 +172,11 @@ credentials).
 ### Verify (record each outcome in `docs/threat-model.md`)
 - `scripts/verify-github-setup.sh` (read-only) passes.
 - `LOOPBACK_LIVE_GITHUB=1 npm test -- --project e2e` passes (read-only App checks).
-- Manual probes from the plan's ruleset proof: a PR with green `test` but no `loopback/gate`
-  cannot be merged; the fixer token gets 405 on merge and 403 on `POST /statuses`; a fixer push
-  changing `.github/workflows/` is rejected; the fixer cannot push to `demo/<run-id>`.
+- The ruleset proof, `npm run ruleset-proof` (dry run first; it needs the fixer's token and a run
+  branch): a PR with green `test` but no `loopback/gate` cannot be merged, even with a
+  `loopback/gate` success from another source; the fixer token cannot merge or post
+  `POST /statuses`; a fixer push changing `.github/workflows/` is rejected; the fixer cannot push
+  to `demo/<run-id>`; the `demo-reset` tag cannot be moved.
 
 ## 2. Switch
 
