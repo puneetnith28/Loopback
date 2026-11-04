@@ -49,7 +49,9 @@ jobs:
   # POSIX-only tests (bash scripts, file permissions, OS signals), which skip themselves here
   # with a stated reason. The gate itself is deployed on Linux only.
   windows-portable:
-    runs-on: windows-latest
+    # windows-2022: better-sqlite3 may need a native build there, and node-gyp does not yet
+    # recognise the Visual Studio version on windows-latest.
+    runs-on: windows-2022
     timeout-minutes: 20
     steps:
       - run: git config --global core.autocrlf false

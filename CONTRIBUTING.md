@@ -8,6 +8,9 @@
 | **Windows + WSL2 (Ubuntu)** | Everything, as on Linux | **Recommended** for Windows contributors |
 | **Native Windows** | Install, typecheck, lint and the portable tests | Quick edits; POSIX-only tests skip themselves with a stated reason |
 
+Native Windows note: `npm ci` may compile `better-sqlite3` from source, which needs Visual Studio
+2022 Build Tools ("Desktop development with C++") and Python. WSL2 avoids this.
+
 The gate depends on Linux by design: it runs under systemd with separate agent users,
 enforces POSIX permissions on its GitHub App key, and handles SIGTERM/SIGINT. Do not try to
 run the gate on native Windows.
