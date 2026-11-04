@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { generateKeyPairSync } from "node:crypto";
-import { CONTAINERS, FLAGS, REQUIRED, assessReadiness, spkiOf, type ReadinessFacts } from "../../scripts/live-readiness.mjs";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { CONTAINERS, FLAGS, REQUIRED, assessReadiness, parseEnvText, spkiOf, type ReadinessFacts } from "../../scripts/live-readiness.mjs";
 
 // Live readiness is a read-only report: it must never call a missing prerequisite ready, and it
 // must report any safety flag that is on as a problem (it never turns one on).
@@ -17,6 +19,19 @@ const full = (): ReadinessFacts => ({
   signerKeyMatch: true,
 });
 const missing = (f: ReadinessFacts) => assessReadiness(f).filter((i) => !i.ok).map((i) => i.text).join("\n");
+
+describe("parseEnvText", () => {
+  it("never reads an inline comment as a value: a missing setting must not look set", () => {
+    const env = parseEnvText("EMPTY=\nCOMMENTED=              # who to list here\nSET=abc  # note\nHASH=a#b\n# NOT_A_SETTING=x\nCRLF=y\r\n");
+    expect(env).toEqual({ EMPTY: "", COMMENTED: "", SET: "abc", HASH: "a#b", CRLF: "y" });
+  });
+
+  it("makes the real .env.example report the required settings it leaves empty as missing", () => {
+    const example = parseEnvText(readFileSync(join(process.cwd(), ".env.example"), "utf8"));
+    const text = assessReadiness({ ...full(), env: example }).filter((i) => !i.ok).map((i) => i.text).join("\n");
+    for (const name of ["LOOPBACK_MAINTAINERS", "SWITCH_POLICY_USER_IDS", "VERIFIER_PUBLIC_KEY"]) expect(text).toContain(name);
+  });
+});
 
 describe("assessReadiness", () => {
   it("is ready only when every prerequisite holds and every safety flag is off", () => {

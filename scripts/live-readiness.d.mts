@@ -13,3 +13,4 @@ export const CONTAINERS: readonly string[];
 export function assessReadiness(facts: ReadinessFacts): ReadinessItem[];
 export function isDesktopDaemon(infoLine: string): boolean;
 export function spkiOf(text: string): string | null;
+export function parseEnvText(text: string): Record<string, string>;

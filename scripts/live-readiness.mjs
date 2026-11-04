@@ -74,16 +74,22 @@ export function assessReadiness(f) {
   return out;
 }
 
-function envNames(path) {
+/**
+ * Parse .env text. An inline comment on an empty setting ("NAME=   # note") is not a value: it
+ * must read as empty, as node --env-file reads it, or a missing setting would be reported as set.
+ * Values are kept only for presence checks and the safety flags; nothing else is printed.
+ */
+export function parseEnvText(text) {
   const env = {};
-  if (!existsSync(path)) return env;
-  for (const line of readFileSync(path, "utf8").split(/\r?\n/)) {
-    const m = /^\s*([A-Z][A-Z0-9_]*)\s*=\s*(.*)$/.exec(line);
-    if (!m) continue;
-    // Values are kept only for presence checks and the safety flags; nothing else is printed.
-    env[m[1]] = m[2].replace(/\s+#.*$/, "").trim();
+  for (const line of text.split(/\r?\n/)) {
+    const m = /^\s*([A-Z][A-Z0-9_]*)\s*=(.*)$/.exec(line);
+    if (m) env[m[1]] = m[2].trim().replace(/^#.*$/, "").replace(/\s+#.*$/, "");
   }
   return env;
+}
+
+function envNames(path) {
+  return existsSync(path) ? parseEnvText(readFileSync(path, "utf8")) : {};
 }
 
 /** POSIX mode bits, or on Windows the gate's own ACL rules (which need `npm run build`). */
