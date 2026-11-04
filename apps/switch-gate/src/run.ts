@@ -16,8 +16,8 @@ import { StoredConnectionError } from "./switch/store.js";
 // -> start polling -> connect to both rooms (one connection each, D26) -> serve /healthz and
 // /readyz on 127.0.0.1.
 //
-// Exit codes: 0 clean shutdown (also when a signal arrives during startup), 1 configuration
-// or startup error, 3 a Switch connection stopped for good (taken over, refused, room lost,
+// Exit codes: 0 clean shutdown (also when a signal arrives during startup and startup then
+// stops cleanly), 1 configuration or startup error (even if a signal had arrived meanwhile), 3 a Switch connection stopped for good (taken over, refused, room lost,
 // retries exhausted), 4 the gate's Switch addressing policy is not the expected one, 5 a
 // required Switch operation is missing. Exit code 3 needs an operator: restarting
 // automatically after a takeover would be refused by the fenced reattach anyway, and must
@@ -72,6 +72,15 @@ export async function runGate(d: RunDeps): Promise<number> {
   let shuttingDown = false;
   let stopRooms: () => void = () => undefined;
   let timeout: NodeJS.Timeout | undefined;
+  /** The shutdown backstop, armed once by whichever begins first: a signal or a teardown. */
+  const armBackstop = () => {
+    if (timeout !== undefined) return;
+    timeout = setTimeout(() => {
+      log.fatal({ op: "shutdown", timeoutMs: d.shutdownTimeoutMs ?? SHUTDOWN_TIMEOUT_MS }, "shutdown did not finish in time");
+      d.onShutdownTimeout?.();
+    }, d.shutdownTimeoutMs ?? SHUTDOWN_TIMEOUT_MS);
+    timeout.unref(); // never the reason the process stays alive
+  };
   const onSignal = (signal: Signal) => {
     if (shuttingDown) {
       log.warn({ op: "shutdown", signal }, "already shutting down");
@@ -79,11 +88,7 @@ export async function runGate(d: RunDeps): Promise<number> {
     }
     shuttingDown = true;
     log.info({ op: "shutdown", signal }, "shutting down");
-    timeout = setTimeout(() => {
-      log.fatal({ op: "shutdown", timeoutMs: d.shutdownTimeoutMs ?? SHUTDOWN_TIMEOUT_MS }, "shutdown did not finish in time");
-      d.onShutdownTimeout?.();
-    }, d.shutdownTimeoutMs ?? SHUTDOWN_TIMEOUT_MS);
-    timeout.unref(); // never the reason the process stays alive
+    armBackstop();
     stopRooms();
   };
   const listeners = SIGNALS.map((s) => [s, () => onSignal(s)] as const);
@@ -149,6 +154,7 @@ export async function runGate(d: RunDeps): Promise<number> {
 
     /** Tear down whatever exists, in dependency order; every step runs even if one fails. */
     const teardown = async () => {
+      armBackstop(); // also after a stop for good or a failed startup, not only after a signal
       await attempt(log, "shutdown.policy", () => policyWatch?.stop());
       await attempt(log, "shutdown.health", () => health?.close());
       await attempt(log, "shutdown.rooms", () => rooms.stop());

@@ -103,6 +103,12 @@ describe("sign-verifier-report.mjs installed outside the repository", () => {
     const signed = JSON.parse(/```loopback-report\n(.*)\n```/s.exec(ok.stdout)![1]!) as Record<string, unknown>;
     expect(verifyReportSignature(signed, keys.publicKey)).toEqual({ ok: true });
 
+    chmodSync(lib, 0o775); // a group-writable install directory: the module could be swapped
+    const groupWritable = runAt();
+    expect(groupWritable.status).toBe(1);
+    expect(groupWritable.stderr).toMatch(/writable by others/);
+    chmodSync(lib, 0o755);
+
     chmodSync(join(lib, "signature.js"), 0o666);
     const writable = runAt();
     expect(writable.status).toBe(1);

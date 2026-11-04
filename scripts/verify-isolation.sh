@@ -45,6 +45,16 @@ readable() { if [ -d "$1" ]; then ls -A -- "$1" >/dev/null 2>&1; else cat -- "$1
 # /home hidden by ProtectHome=yes (inaccessible, or empty).
 home_hidden() { ! ls -A /home >/dev/null 2>&1 || [ -z "$(ls -A /home 2>/dev/null)" ]; }
 mode_of() { stat -c '%a' -- "$1"; }
+# Root-owned and not group/world-writable (a file or directory nobody but root can change or swap).
+root_locked() { [ -e "$1" ] && [ "$(stat -c '%u' -- "$1")" = 0 ] && [ $(( 0$(mode_of "$1") & 022 )) -eq 0 ]; }
+signer_ok() {
+  if root_locked "$SIGNER_DIR" && [ -d "$SIGNER_DIR" ]; then pass "the signer directory is root-owned and not writable by others"
+  else bad "$SIGNER_DIR is missing, not root-owned, or writable by others (its files could be swapped)"; fi
+  for f in "$SIGNER_DIR/sign-verifier-report.mjs" "$SIGNER_DIR/signature.js"; do
+    if [ -f "$f" ] && root_locked "$f"; then pass "$(basename -- "$f") is root-owned and not writable by others"
+    else bad "$f is missing, not root-owned, or writable by others"; fi
+  done
+}
 owner_of() { stat -c '%U' -- "$1"; }
 
 echo "== identity ($role)"
@@ -73,10 +83,7 @@ if [ "$role" = "gate" ]; then
   else
     bad "gate key not found at $key (set LOOPBACK_GATE_KEY)"
   fi
-  for f in "$SIGNER_DIR/sign-verifier-report.mjs" "$SIGNER_DIR/signature.js"; do
-    if [ -f "$f" ] && [ "$(stat -c '%u' -- "$f")" = 0 ] && [ $(( 0$(mode_of "$f") & 022 )) -eq 0 ]; then pass "$(basename -- "$f") is root-owned and not writable by others"
-    else bad "$f is missing, not root-owned, or writable by others"; fi
-  done
+  signer_ok
   info "residual (documented): the controller's user can read what its agents write, including the verifier's signing key"
 else
   # Fixer / verifier: these checks only mean something inside the agent unit's sandbox.
@@ -103,10 +110,7 @@ else
   if [ -n "${GH_TOKEN:-}${GITHUB_TOKEN:-}" ]; then info "a GitHub token is set in the environment (value not shown)"; else info "no GitHub token in the environment"; fi
   helpers="$(git config --get-all credential.helper 2>/dev/null || true)"
   [ -z "$helpers" ] && info "no git credential helper" || info "a git credential helper is configured (names not shown)"
-  for f in "$SIGNER_DIR/sign-verifier-report.mjs" "$SIGNER_DIR/signature.js"; do
-    if [ -f "$f" ] && [ "$(stat -c '%u' -- "$f")" = 0 ] && [ $(( 0$(mode_of "$f") & 022 )) -eq 0 ]; then pass "$(basename -- "$f") is root-owned and not writable by others"
-    else bad "$f is missing, not root-owned, or writable by others"; fi
-  done
+  signer_ok
 
   if [ "$role" = "verifier" ]; then
     [ -z "$helpers" ] && pass "verifier has no git credential helper (cannot push)" || bad "verifier has a git credential helper configured"

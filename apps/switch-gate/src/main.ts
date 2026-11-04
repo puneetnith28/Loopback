@@ -14,7 +14,7 @@ const openSocket: OpenSocket = (url, headers) => {
   return new WS(url, { headers: { ...headers } });
 };
 
-process.exitCode = await runGate({
+const code = await runGate({
   env: process.env,
   fetch: globalThis.fetch,
   openSocket,
@@ -23,8 +23,12 @@ process.exitCode = await runGate({
   onShutdownTimeout: () => process.exit(1),
 });
 
-// runGate has removed its handlers; a repeated signal arriving while the process winds down
-// must not replace the exit code with a signal death. Listeners do not keep the process alive.
-const ignoreLateSignal = () => undefined;
-process.on("SIGTERM", ignoreLateSignal);
-process.on("SIGINT", ignoreLateSignal);
+process.exitCode = code;
+
+// runGate has removed its handlers and finished its teardown. A repeated signal arriving while
+// the process winds down exits with the recorded code rather than a signal death, and if some
+// handle keeps the event loop alive, the process still exits after 5 s with that code.
+const exitNow = () => process.exit(code);
+process.on("SIGTERM", exitNow);
+process.on("SIGINT", exitNow);
+setTimeout(exitNow, 5_000).unref();

@@ -38,7 +38,8 @@ function fail(message) {
 async function loadSigner() {
   const here = dirname(fileURLToPath(import.meta.url));
   const candidates = [join(here, "signature.js"), join(here, "..", "apps", "switch-gate", "dist", "agents", "signature.js")];
-  for (const path of candidates) {
+  const uid = typeof process.getuid === "function" ? process.getuid() : null;
+  for (const [index, path] of candidates.entries()) {
     let st;
     let dir;
     try {
@@ -48,10 +49,13 @@ async function loadSigner() {
       continue;
     }
     if (!st.isFile()) fail(`the signature module at ${path} is not a regular file`);
-    // World-writable, or owned by someone other than root or the caller: anyone could change it.
-    if ((st.mode & 0o002) !== 0 || (dir.mode & 0o002) !== 0) fail(`the signature module at ${path} (or its directory) is writable by others`);
-    const uid = typeof process.getuid === "function" ? process.getuid() : null;
+    // Anyone who can change the module or swap it in its directory decides what gets signed.
+    // The system-wide install (beside this script) must be closed to group and others; the
+    // repository build may be group-writable (umask 002) but never world-writable.
+    const writableBits = index === 0 ? 0o022 : 0o002;
+    if ((st.mode & writableBits) !== 0 || (dir.mode & writableBits) !== 0) fail(`the signature module at ${path} (or its directory) is writable by others`);
     if (uid !== null && st.uid !== 0 && st.uid !== uid) fail(`the signature module at ${path} is owned by another user`);
+    if (uid !== null && dir.uid !== 0 && dir.uid !== uid) fail(`the directory of the signature module at ${path} is owned by another user`);
     try {
       return await import(pathToFileURL(path).href);
     } catch {

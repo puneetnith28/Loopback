@@ -55,6 +55,7 @@ describe("verify-isolation.sh fails closed", () => {
     expect(r.stdout).toMatch(new RegExp(`slot 01 directory is owned by .*, not sa${uid}-01`));
     expect(r.stdout).toMatch(/gives others access/);
     expect(r.stdout).toMatch(/not root-owned/);
+    expect(r.stdout).toMatch(/no-signer is missing, not root-owned, or writable by others \(its files could be swapped\)/);
     expect(r.stdout).toMatch(/verdict: NOT PROVEN/);
     expect(r.stdout).not.toMatch(/isolation (is )?proven(?! by this alone)/i);
     expect(r.stdout + r.stderr).not.toContain(TOKEN);

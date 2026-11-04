@@ -53,7 +53,11 @@ const INTAKE_REPLY_WINDOW_MS = 10 * 60_000;
 
 /** Defang links in untrusted text shown to maintainers, so a report cannot plant a clickable link. */
 export function defangLinks(text: string): string {
-  return text.replace(/\b(h)(ttps?)(:\/\/)/gi, (_m, h: string, rest: string) => `${h === "H" ? "H" : "h"}xx${rest.slice(2)}[://]`).replace(/\bwww\./gi, "www[.]");
+  return text
+    .replace(/\b(h)(ttps?)(:\/\/)/gi, (_m, h: string, rest: string) => `${h === "H" ? "H" : "h"}xx${rest.slice(2)}[://]`)
+    .replace(/:\/\//g, (m, at: number, all: string) => (all.slice(at - 1, at + 4) === "[://]" ? m : "[://]"))
+    .replace(/\bmailto:/gi, "mailto[:]")
+    .replace(/\bwww\./gi, "www[.]");
 }
 
 /** D26: duplicate reports from the same sender within this window are not filed twice. */
@@ -113,7 +117,7 @@ const triageNoticeKey = (caseId: string): string => `triage_notice:${caseId}`;
 
 function triageNotice(c: CaseRecord): string {
   return [
-    `[${c.id}] Public report awaiting triage (${c.reportText.length} chars, shown in full, links defanged; untrusted, from the intake room): «${safe(defangLinks(c.reportText), INTAKE_MAX_REPORT_CHARS + 200)}»`,
+    `[${c.id}] Public report awaiting triage (${c.reportText.length} chars, shown in full, links defanged; untrusted, from the intake room): «${safe(defangLinks(c.reportText), 3 * INTAKE_MAX_REPORT_CHARS)}»`,
     `accept ${c.id} — task the fixer · decline ${c.id} <reason>`,
   ].join("\n");
 }
@@ -456,7 +460,7 @@ export class Router {
     if (reply) await this.post(msg, { text, caseId: null });
   }
 
-  /** At most VISIBLE_REFUSALS_PER_WINDOW visible refusals per (room, sender); a full table stays silent. */
+  /** D27: at most INTAKE_REPLIES_PER_WINDOW help/status replies per public sender per window. */
   private allowIntakeReply(sender: string): boolean {
     const t = this.d.now().getTime();
     const entry = this.intakeReplies.get(sender);
@@ -473,6 +477,7 @@ export class Router {
     return true;
   }
 
+  /** At most VISIBLE_REFUSALS_PER_WINDOW visible refusals per (room, sender); a full table stays silent. */
   private allowVisibleRefusal(roomId: string, sender: string): boolean {
     const t = this.d.now().getTime();
     const key = `${roomId}\u0000${sender}`;

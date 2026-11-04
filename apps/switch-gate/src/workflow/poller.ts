@@ -2,7 +2,7 @@ import { displaySha, type CaseState } from "@loopback/contracts";
 import { append } from "../audit/index.js";
 import { transitionInTx } from "../cases/service.js";
 import { formatReason } from "../chat/reasons.js";
-import { GitHubError, RateLimited, type PullDetails } from "../github/client.js";
+import { GitHubError, RateLimited, Uncertain, type PullDetails } from "../github/client.js";
 import { kvGet, kvSet, listCasesInStates, recordCiEvidence, recordCommit, type CaseRecord, getCase } from "../persistence/repos.js";
 import type { VerificationWorkflow, WorkflowDeps } from "./verification.js";
 
@@ -16,6 +16,11 @@ const PR_CLOSED_SOURCES: ReadonlySet<CaseState> = new Set(["PRCreated", "Verifyi
 /** Step 9.6: back-off after a pass in which GitHub was unavailable for every case. */
 export const OUTAGE_BACKOFF_BASE_MS = 10_000;
 export const OUTAGE_BACKOFF_MAX_MS = 5 * 60_000;
+/** A rate-limit pause is never longer than this, whatever Retry-After or the reset header says. */
+export const RATE_LIMIT_PAUSE_MAX_MS = 60 * 60_000;
+
+/** An outage, as opposed to a permanent per-case error: network failure, timeout or 5xx. */
+const isOutage = (e: unknown): boolean => e instanceof Uncertain || (e instanceof GitHubError && e.status !== null && e.status >= 500);
 
 export interface PollerLog {
   warn(obj: Record<string, unknown>, msg: string): void;
@@ -62,11 +67,11 @@ export class Poller {
           await this.d.locks.with(c.id, () => this.pollCase(c.id));
         } catch (e) {
           if (e instanceof RateLimited) {
-            this.pausedUntil = this.d.now().getTime() + Math.max(1, e.retryAfterSeconds) * 1000;
+            this.pausedUntil = this.d.now().getTime() + Math.min(RATE_LIMIT_PAUSE_MAX_MS, Math.max(1, e.retryAfterSeconds) * 1000);
             this.log.warn({ caseId: c.id, op: "poll", retryAfterSeconds: e.retryAfterSeconds }, "GitHub rate limit; pausing polling until it resets");
             return;
           }
-          if (e instanceof GitHubError) unavailable += 1;
+          if (isOutage(e)) unavailable += 1;
           this.log.warn({ caseId: c.id, err: e instanceof Error ? e.name : "unknown" }, "poll failed; will retry next tick");
         }
       }
@@ -75,8 +80,8 @@ export class Poller {
         const delay = Math.min(OUTAGE_BACKOFF_MAX_MS, OUTAGE_BACKOFF_BASE_MS * 2 ** (this.outageStreak - 1));
         this.pausedUntil = this.d.now().getTime() + delay;
         this.log.warn({ op: "poll", consecutive: this.outageStreak, backoffMs: delay }, "GitHub unavailable for every case; backing off");
-      } else if (unavailable < attempted) {
-        this.outageStreak = 0;
+      } else {
+        this.outageStreak = 0; // some case was read, or there was nothing to poll
       }
     } finally {
       this.running = false;

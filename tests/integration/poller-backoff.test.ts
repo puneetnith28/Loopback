@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { OUTAGE_BACKOFF_BASE_MS, OUTAGE_BACKOFF_MAX_MS } from "../../apps/switch-gate/src/workflow/poller.js";
+import { GitHubError, RateLimited } from "../../apps/switch-gate/src/github/client.js";
+import { OUTAGE_BACKOFF_BASE_MS, OUTAGE_BACKOFF_MAX_MS, RATE_LIMIT_PAUSE_MAX_MS } from "../../apps/switch-gate/src/workflow/poller.js";
 import { A, G, REP, createHarness, type Harness } from "../helpers/harness.js";
 
 // Step 9.6: the poller backs off during GitHub rate limits and outages instead of
@@ -76,5 +77,20 @@ describe("poller back-off (step 9.6)", () => {
     h.gh.failGetPull = true; // LB-001 fails; LB-002's PR discovery still works
     await h.poller.tick();
     expect(h.poller.backoffUntil).toBe(0);
+  });
+
+  it("permanent per-case errors (e.g. 404) are not an outage and never back off", async () => {
+    const h = await verifying();
+    h.gh.getPull = () => Promise.reject(new GitHubError("not found", 404));
+    await h.poller.tick();
+    await h.poller.tick();
+    expect(h.poller.backoffUntil).toBe(0);
+  });
+
+  it("caps a rate-limit pause at one hour, whatever GitHub says", async () => {
+    const h = await verifying();
+    h.gh.getPull = () => Promise.reject(new RateLimited("rate limited", 429, 999_999));
+    await h.poller.tick();
+    expect(h.poller.backoffUntil - h.clock.now.getTime()).toBe(RATE_LIMIT_PAUSE_MAX_MS);
   });
 });

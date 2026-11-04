@@ -329,4 +329,22 @@ describe("review follow-ups (intake hardening)", () => {
     await h.say(MAINT, `${G} accept LB-001`);
     expect(getCase(h.db, "LB-001")).toMatchObject({ state: "Blocked", blockedReason: "BASE_COMMIT_MISMATCH" });
   });
+
+  it("defanging never pushes the end of a report out of the notice (review M1)", async () => {
+    const h = createHarness();
+    // Each "www." grows by two characters when defanged: a near-limit report must still show its tail.
+    const body = `${"www.x ".repeat(160)}TAIL-instructions-here`;
+    await intake(h, PUBLIC, `${G} report ${body}`);
+    expect(getCase(h.db, "LB-001")!.reportText.length).toBeLessThanOrEqual(INTAKE_MAX_REPORT_CHARS);
+    const notice = inRoom(h, MROOM)[0]!;
+    expect(notice).toContain("TAIL-instructions-here");
+    expect(notice).not.toContain("…");
+  });
+
+  it("defangs other link schemes too", async () => {
+    const h = createHarness();
+    await intake(h, PUBLIC, `${G} report see ftp://evil.example and mailto:x@evil.example please`);
+    const notice = inRoom(h, MROOM)[0]!;
+    expect(notice).not.toMatch(/ftp:\/\/|mailto:x/);
+  });
 });
