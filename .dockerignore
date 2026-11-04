@@ -1,0 +1,13 @@
+node_modules
+**/dist
+coverage
+data
+secrets
+.env
+.env.*
+*.pem
+*.db
+plan.md
+implementation.md
+.git
+tests

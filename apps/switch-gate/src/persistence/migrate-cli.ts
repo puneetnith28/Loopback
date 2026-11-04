@@ -12,6 +12,10 @@ try {
   db.close();
   process.stdout.write(applied.length > 0 ? `applied migrations: ${applied.join(", ")}\n` : "schema is up to date\n");
 } catch (err) {
-  process.stderr.write(`${err instanceof ConfigError ? err.message : "migration failed"}\n`);
+  // Config errors never contain values; other errors are named (and clipped) so failures are diagnosable.
+  const detail = err instanceof ConfigError
+    ? err.message
+    : `migration failed: ${err instanceof Error ? `${err.name}: ${err.message.slice(0, 200)}` : "unknown error"}`;
+  process.stderr.write(`${detail}\n`);
   process.exitCode = 1;
 }

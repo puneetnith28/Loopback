@@ -56,12 +56,38 @@ In chat: `@loopback-gate status LB-001` and `@loopback-gate audit LB-001`.
 
 ## Backup
 
+`scripts/backup-db.sh` takes an online, consistent SQLite backup (safe while the gate runs),
+verifies it with `PRAGMA integrity_check`, and keeps the newest `KEEP` (default 14) copies in
+`data/backups/` (mode 600 via `umask 077`):
+
 ```bash
-sqlite3 data/loopback.db ".backup data/backup-$(date +%F).db"
+DB_PATH=./data/loopback.db KEEP=14 scripts/backup-db.sh
 ```
 
-Schedule it daily (for example a user crontab entry). Restore by stopping the gate and copying
-the backup over `DB_PATH`; the audit log and approvals are append-only and survive restore.
+Daily schedule (systemd user timer; edit `WorkingDirectory` in the service first):
+
+```bash
+install -m 644 deploy/systemd/loopback-backup.service deploy/systemd/loopback-backup.timer ~/.config/systemd/user/
+systemctl --user daemon-reload && systemctl --user enable --now loopback-backup.timer
+systemctl --user list-timers loopback-backup.timer
+```
+
+Restore: stop the gate, copy a backup over `DB_PATH`, start the gate (it reconciles on start).
+The audit log and approvals are append-only and survive restore.
+
+## Container
+
+```bash
+docker build -t loopback-gate .
+docker run --rm -v loopback-data:/data loopback-gate node apps/switch-gate/dist/persistence/migrate-cli.js
+docker run -d --name loopback-gate --env-file .env -v loopback-data:/data \
+  -v "$PWD/secrets/gate.pem:/secrets/gate.pem:ro" -e GH_APP_PRIVATE_KEY_PATH=/secrets/gate.pem loopback-gate
+```
+
+The image is multi-stage (the native build toolchain exists only in the build stage), runs as the
+unprivileged `node` user, keeps state only in `/data`, and health-checks `/healthz` from inside
+the container (the endpoints bind to 127.0.0.1 and are never published). The private key must be
+mounted read-only and remain mode 600 on the host.
 
 ## Demo reset
 

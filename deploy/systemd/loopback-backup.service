@@ -1,0 +1,15 @@
+# Daily Loopback database backup (systemd user service). Install with the timer:
+#   install -m 644 deploy/systemd/loopback-backup.* ~/.config/systemd/user/
+#   systemctl --user daemon-reload && systemctl --user enable --now loopback-backup.timer
+# Edit WorkingDirectory to your checkout path first.
+[Unit]
+Description=Back up the Loopback SQLite database
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/Hacktoberfest/Loopback
+Environment=DB_PATH=./data/loopback.db
+Environment=KEEP=14
+ExecStart=/usr/bin/env bash scripts/backup-db.sh
+NoNewPrivileges=true
+PrivateTmp=true
