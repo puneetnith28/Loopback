@@ -24,7 +24,7 @@ Loopback is a merge gate: an AI fixer may propose a change, but only the
 gatekeeper can merge, and only when every piece of evidence (CI, independent
 verification, maintainer approval) is bound to the exact current commit SHA and
 re-checked against live GitHub state. Details are in
-[`docs/threat-model.md`](docs/threat-model.md) once published.
+[`docs/threat-model.md`](docs/threat-model.md).
 
 ## Known limits
 
