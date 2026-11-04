@@ -1,0 +1,14 @@
+{
+  "name": "@loopback/switch-gate",
+  "version": "0.1.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./dist/main.js",
+  "dependencies": {
+    "@loopback/contracts": "0.1.0",
+    "better-sqlite3": "13.0.3",
+    "pino": "10.4.0",
+    "zod": "3.25.76"
+  }
+}

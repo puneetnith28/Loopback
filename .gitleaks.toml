@@ -1,0 +1,12 @@
+title = "loopback"
+
+# Start from gitleaks' default rule set; add project-specific rules below.
+[extend]
+useDefault = true
+
+# GitHub App private keys and Switch agent API keys must never be committed.
+[[rules]]
+id = "loopback-switch-agent-key"
+description = "Switch agent API key assigned in an env file"
+regex = '''(?i)SWITCH_AGENT_API_KEY\s*=\s*['"]?[A-Za-z0-9._-]{16,}'''
+keywords = ["switch_agent_api_key"]

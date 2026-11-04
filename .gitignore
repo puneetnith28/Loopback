@@ -1,0 +1,22 @@
+implementation.md
+
+# Local-only planning documents 
+/implementation.md
+/plan.md
+
+# Dependencies and build output
+node_modules/
+dist/
+*.tsbuildinfo
+coverage/
+
+# Runtime data and secrets (never commit)
+.env
+.env.*
+!.env.example
+data/
+secrets/
+*.pem
+*.db
+*.db-wal
+*.db-shm
