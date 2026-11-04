@@ -29,6 +29,14 @@ const AUDIT = {
   message: "Import audit only through audit/index (append-only API).",
 };
 
+// D29: the verifier signer runs in its own container; it must not depend on the gate's state,
+// GitHub App credentials, merge path, chat or audit. Only contracts, zod, Node built-ins, the
+// pure agents/signature and agents/capability modules, and sibling signer modules.
+const SIGNER_PURITY = {
+  regex: "^(?!@loopback/contracts$|zod$|node:[a-z/_]+$|\\.\\./agents/(signature|capability)\\.js$|\\./[^/]+$).*",
+  message: "signer/** may import only @loopback/contracts, zod, node:*, ../agents/{signature,capability}.js and sibling signer modules.",
+};
+
 function restrict(files, patterns, ignores = []) {
   return {
     files,
@@ -41,8 +49,9 @@ export const boundaryConfigs = [
   restrict(
     [`${SRC}/**/*.ts`],
     [MERGE, AUDIT, TRANSPORT],
-    [`${SRC}/policy/**`, `${SRC}/cases/service.ts`, `${SRC}/github/**`, `${SRC}/audit/**`, `${SRC}/main.ts`, `${SRC}/app.ts`],
+    [`${SRC}/policy/**`, `${SRC}/cases/service.ts`, `${SRC}/github/**`, `${SRC}/audit/**`, `${SRC}/main.ts`, `${SRC}/app.ts`, `${SRC}/signer/**`],
   ),
+  restrict([`${SRC}/signer/**/*.ts`], [SIGNER_PURITY, MERGE, AUDIT, TRANSPORT]),
   restrict([`${SRC}/policy/**/*.ts`], [PURITY, MERGE, AUDIT, TRANSPORT]),
   restrict([`${SRC}/cases/service.ts`], [AUDIT, TRANSPORT]),
   restrict([`${SRC}/github/**/*.ts`], [AUDIT]),

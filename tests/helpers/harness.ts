@@ -18,6 +18,9 @@ import { signReport } from "../../apps/switch-gate/src/agents/signature.js";
 /** Test-only verifier signing key, generated per test process (D28). Never persisted. */
 export const TEST_VERIFIER_KEYS = generateKeyPairSync("ed25519");
 /** Sign a verifier report with the test verifier key (as scripts/sign-verifier-report.mjs would). */
+/** D29: the gate's run-issuer key in tests. */
+export const TEST_ISSUER_KEYS = generateKeyPairSync("ed25519");
+
 export const signTestReport = (r: Record<string, unknown>): Record<string, unknown> => ({ ...r, signature: signReport(r, TEST_VERIFIER_KEYS.privateKey) });
 
 export const A = "a".repeat(40);
@@ -141,13 +144,14 @@ export interface Harness {
   clock: { now: Date };
   say(sender: string, body: string, over?: Partial<InboundMessage>): Promise<void>;
   lastRunId(): string;
+  lastCapability(): string;
   verifierReply(verdict: "pass" | "fail", over?: Record<string, unknown>): Promise<void>;
   driveToAwaitingApproval(): Promise<void>;
   driveToReady(): Promise<void>;
   state(id?: string): string | undefined;
 }
 
-export function createHarness(opts: { verifierPublicKey?: KeyObject | null; verificationAdvisory?: boolean; intakeMaxReportsPerHour?: number; mergeEnabled?: boolean; expectedBase?: string | null; quorum?: number; retryLimit?: number; maxAttempts?: number; privilegedEnabled?: boolean } = {}): Harness {
+export function createHarness(opts: { runIssuerKey?: KeyObject | null; verifierPublicKey?: KeyObject | null; verificationAdvisory?: boolean; intakeMaxReportsPerHour?: number; mergeEnabled?: boolean; expectedBase?: string | null; quorum?: number; retryLimit?: number; maxAttempts?: number; privilegedEnabled?: boolean } = {}): Harness {
   const db = openDatabase(":memory:");
   migrate(db);
   const gh = new FakeGitHub();
@@ -174,6 +178,7 @@ export function createHarness(opts: { verifierPublicKey?: KeyObject | null; veri
     // Isolated mode (the default here) checks signatures against the test key.
     verifierPublicKey: opts.verifierPublicKey === undefined ? TEST_VERIFIER_KEYS.publicKey : opts.verifierPublicKey,
     expectedBaseSha: () => opts.expectedBase ?? null,
+    runIssuerKey: opts.runIssuerKey === undefined ? TEST_ISSUER_KEYS.privateKey : opts.runIssuerKey,
   };
   const wf = new VerificationWorkflow(wfDeps);
   const poller = new Poller(wfDeps, wf, { warn: () => undefined });
@@ -220,8 +225,13 @@ export function createHarness(opts: { verifierPublicKey?: KeyObject | null; veri
     if (!m) throw new Error("no verification request posted");
     return m[1]!;
   };
+  const lastCapability = () => {
+    const m = [...posts].reverse().map((p) => /Signing capability: (lbcap1\.[A-Za-z0-9_.-]+)/.exec(p)).find(Boolean);
+    if (!m) throw new Error("no capability posted");
+    return m[1]!;
+  };
   const h: Harness = {
-    db, gh, posts, roomPosts, failPostsTo, merger, router, wf, poller, exec, halt, clock, say, lastRunId,
+    db, gh, posts, roomPosts, failPostsTo, merger, router, wf, poller, exec, halt, clock, say, lastRunId, lastCapability,
     state: (id = "LB-001") => getCase(db, id)?.state,
     async verifierReply(verdict, over = {}) {
       const c = getCase(db, "LB-001")!;

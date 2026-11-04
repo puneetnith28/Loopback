@@ -8,6 +8,7 @@ import { formatReason, safe } from "../chat/reasons.js";
 import type { KeyObject } from "node:crypto";
 import { extractReport } from "../agents/report.js";
 import { verifyReportSignature } from "../agents/signature.js";
+import { CAPABILITY_MAX_TTL_MS, issueCapability } from "../agents/capability.js";
 import type { AgentInbox, CommandContext, FixerHandoff, Reply } from "../commands/router.js";
 import { RateLimited, type GitHubReader } from "../github/client.js";
 import type { Db } from "../persistence/db.js";
@@ -48,6 +49,12 @@ export interface WorkflowDeps {
    * does not verify is always rejected.
    */
   readonly verifierPublicKey?: KeyObject | null;
+  /**
+   * D29: the gate's run-issuer private key. When set, every verification request carries a
+   * capability for exactly that run (run id, case, repository, PR, head SHA), valid for the run's
+   * timeout; the verifier signer signs only reports bound to such a capability.
+   */
+  readonly runIssuerKey?: KeyObject | null;
   readonly log?: { error(obj: Record<string, unknown>, msg: string): void };
 }
 
@@ -117,9 +124,15 @@ export class VerificationWorkflow implements AgentInbox, FixerHandoff {
       return created;
     })();
     if (run === null) return;
+    const issuer = this.d.runIssuerKey ?? null;
+    const capability = issuer === null ? null : issueCapability(
+      { runId: run.id, caseId: c.id, repository: c.repo, pullRequest: c.prNumber, headSha: c.headSha },
+      issuer, now(), Math.min(this.d.verifyTimeoutMs, CAPABILITY_MAX_TTL_MS),
+    );
     await this.d.chat.post(c.roomId, [
       `${this.d.verifierAlias} verify ${c.id}: repository ${c.repo}, PR #${c.prNumber}, head ${c.headSha}.`,
       `Run id: ${run.id}. Inspect exactly that commit. Reply with one loopback-report block whose "runId" is "${run.id}".`,
+      ...(capability === null ? [] : [`Signing capability: ${capability}`]),
     ].join("\n"), c.threadId);
   }
 

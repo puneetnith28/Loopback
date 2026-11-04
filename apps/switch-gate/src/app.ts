@@ -6,7 +6,7 @@ import { CaseLocks } from "./cases/lock.js";
 import { MergeExecutor } from "./cases/service.js";
 import type { ChatPort } from "./chat/port.js";
 import { Router } from "./commands/router.js";
-import { assertIdentityConsistency, type GitHubConfig, type IdentityConfig, type RuntimeConfig, type SwitchConfig } from "./config.js";
+import { assertIdentityConsistency, loadRunIssuerKey, type GitHubConfig, type IdentityConfig, type RuntimeConfig, type SwitchConfig } from "./config.js";
 import { GitHubClient } from "./github/client.js";
 import { createMerger } from "./github/merge.js";
 import { GitHubTransport } from "./github/transport.js";
@@ -71,6 +71,7 @@ export function createGate(cfg: GateConfig, chat: ChatPort, log: Logger, deps: {
     verifyTimeoutMs: cfg.runtime.verifyTimeoutMs, fixTimeoutMs: cfg.runtime.fixTimeoutMs, expectedBaseSha, halt,
     verificationAdvisory: !cfg.identity.verifierIsolationProven,
     verifierPublicKey: cfg.identity.verifierPublicKey,
+    runIssuerKey: cfg.identity.runIssuerKeyPath === null ? null : loadRunIssuerKey(cfg.identity.runIssuerKeyPath),
     log: { error: (o, m) => log.error(o, m) },
   };
   const workflow = new VerificationWorkflow(wfDeps);

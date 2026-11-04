@@ -6,6 +6,7 @@ import {
   assertPrivateKeyFile,
   loadGitHubConfig,
   loadIdentityConfig,
+  loadRunIssuerKey,
   loadRuntimeConfig,
   loadSwitchConfig,
 } from "../../apps/switch-gate/src/config.js";
@@ -293,7 +294,7 @@ describe("D26/D28 configuration", () => {
     // Turning isolation on requires the full D28 configuration (see "D28 isolated verification configuration").
     const edRaw = generateKeyPairSync("ed25519").publicKey.export({ type: "spki", format: "der" }).subarray(12).toString("base64");
     expect(loadIdentityConfig({
-      ...identityEnv, VERIFIER_ISOLATION_PROVEN: "true", VERIFIER_PUBLIC_KEY: edRaw,
+      ...identityEnv, VERIFIER_ISOLATION_PROVEN: "true", VERIFIER_PUBLIC_KEY: edRaw, LOOPBACK_RUN_ISSUER_KEY_PATH: "/srv/loopback/secrets/run-issuer.pem",
       LOOPBACK_FIXER_AGENT_ID: "11111111-2222-4333-8444-555555555555", LOOPBACK_VERIFIER_AGENT_ID: "66666666-2222-4333-8444-555555555555",
     }).verifierIsolationProven).toBe(true);
     expect(issuesOf(() => loadIdentityConfig({ ...identityEnv, VERIFIER_ISOLATION_PROVEN: "true" })).map((i) => i.variable)).toContain("VERIFIER_PUBLIC_KEY");
@@ -371,7 +372,7 @@ describe("D28 isolated verification configuration", () => {
   const FIXER_AGENT = "11111111-2222-4333-8444-555555555555";
   const VERIFIER_AGENT = "66666666-2222-4333-8444-555555555555";
   const isolated = {
-    ...identityEnv, VERIFIER_ISOLATION_PROVEN: "true", VERIFIER_PUBLIC_KEY: raw,
+    ...identityEnv, VERIFIER_ISOLATION_PROVEN: "true", VERIFIER_PUBLIC_KEY: raw, LOOPBACK_RUN_ISSUER_KEY_PATH: "/srv/loopback/secrets/run-issuer.pem",
     LOOPBACK_FIXER_AGENT_ID: FIXER_AGENT, LOOPBACK_VERIFIER_AGENT_ID: VERIFIER_AGENT,
   };
   const sw = { selfId: "@switch-agent-gate:loopback", roomId: "room-1", intakeRoomId: "room-2", policyAgentIds: new Set([FIXER_AGENT, VERIFIER_AGENT]) };
@@ -434,5 +435,41 @@ describe("D28 isolated verification configuration", () => {
     }
     const withoutList = { selfId: sw.selfId, roomId: sw.roomId, intakeRoomId: sw.intakeRoomId };
     expect(issuesOf(() => assertIdentityConsistency(withoutList, c)).map((i) => i.variable)).toContain("LOOPBACK_FIXER_AGENT_ID");
+  });
+});
+
+describe("D29 run-issuer key", () => {
+  const { privateKey } = generateKeyPairSync("ed25519");
+  const pem = privateKey.export({ type: "pkcs8", format: "pem" }).toString();
+  const file = (mode: number, isFile = true) => () => ({ mode, isFile: () => isFile });
+
+  it("advisory mode needs no run-issuer key; isolated mode requires an absolute path", () => {
+    expect(loadIdentityConfig(identityEnv).runIssuerKeyPath).toBeNull();
+    const isolated = {
+      ...identityEnv, VERIFIER_ISOLATION_PROVEN: "true", VERIFIER_PUBLIC_KEY: generateKeyPairSync("ed25519").publicKey.export({ type: "spki", format: "pem" }).toString(),
+      LOOPBACK_FIXER_AGENT_ID: "11111111-2222-4333-8444-555555555555", LOOPBACK_VERIFIER_AGENT_ID: "66666666-2222-4333-8444-555555555555",
+    };
+    expect(issuesOf(() => loadIdentityConfig(isolated)).map((i) => i.variable)).toContain("LOOPBACK_RUN_ISSUER_KEY_PATH");
+    expect(issuesOf(() => loadIdentityConfig({ ...isolated, LOOPBACK_RUN_ISSUER_KEY_PATH: "secrets/run-issuer.pem" })).map((i) => i.variable)).toContain("LOOPBACK_RUN_ISSUER_KEY_PATH");
+    expect(loadIdentityConfig({ ...isolated, LOOPBACK_RUN_ISSUER_KEY_PATH: "/k/run-issuer.pem" }).runIssuerKeyPath).toBe("/k/run-issuer.pem");
+  });
+
+  it("loads an owner-only Ed25519 private key", () => {
+    const key = loadRunIssuerKey("/k/run-issuer.pem", () => pem, (p) => (p === "/k" ? { mode: 0o40700, isFile: () => false } : file(0o100600)()));
+    expect(key.type).toBe("private");
+    expect(key.asymmetricKeyType).toBe("ed25519");
+  });
+
+  it.each([
+    ["a group-readable file", () => pem, file(0o100640), /group- or world-accessible/],
+    ["a non-file", () => pem, file(0o100600, false), /not a regular file/],
+    ["an RSA key", () => generateKeyPairSync("rsa", { modulusLength: 1024 }).privateKey.export({ type: "pkcs8", format: "pem" }).toString(), file(0o100600), /Ed25519 private key/],
+    ["a public key", () => generateKeyPairSync("ed25519").publicKey.export({ type: "spki", format: "pem" }).toString(), file(0o100600), /Ed25519 private key/],
+    ["garbage", () => "not a key", file(0o100600), /Ed25519 private key/],
+  ])("refuses %s, naming the variable and never the key", (_n, read, stat, msg) => {
+    const issues = issuesOf(() => loadRunIssuerKey("/k/run-issuer.pem", read, (p) => (p === "/k" ? { mode: 0o40700, isFile: () => false } : stat())));
+    expect(issues.map((i) => i.variable)).toEqual(["LOOPBACK_RUN_ISSUER_KEY_PATH"]);
+    expect(issues[0]!.message).toMatch(msg);
+    expect(JSON.stringify(issues)).not.toMatch(/PRIVATE KEY/);
   });
 });

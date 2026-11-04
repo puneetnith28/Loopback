@@ -30,11 +30,10 @@ function deps(over: Partial<SignerPolicyDeps> & { pull?: LivePull | Error } = {}
   const d: SignerPolicyDeps = {
     issuerPublicKey: issuer.publicKey, signingKey: signing.privateKey, allowedRepository: "o/r",
     now: () => new Date(T0.getTime() + 1000),
-    livePull: async () => {
+    livePull: () => {
       calls.livePull += 1;
       const p = over.pull ?? { state: "open", headSha: SHA };
-      if (p instanceof Error) throw p;
-      return p;
+      return p instanceof Error ? Promise.reject(p) : Promise.resolve(p);
     },
     replay: { claim: (runId, digest) => (claimed.has(runId) ? false : (claimed.set(runId, digest), true)) },
     ...over,
@@ -63,7 +62,7 @@ describe("evaluateSignRequest: rejections (fail closed, nothing signed, run not 
   const cases: [string, () => unknown, Partial<SignerPolicyDeps> & { pull?: LivePull | Error }, string, number][] = [
     ["a non-object body", () => "sign this", {}, "MALFORMED", 400],
     ["an extra top-level field", () => ({ ...request(), approve: true }), {}, "MALFORMED", 400],
-    ["a missing capability", () => { const { capability: _c, ...rest } = request(); return rest; }, {}, "MALFORMED", 400],
+    ["a missing capability", () => ({ report: request().report, reportDigest: request().reportDigest }), {}, "MALFORMED", 400],
     ["a digest of the wrong form", () => request({ reportDigest: "md5:abc" }), {}, "MALFORMED", 400],
     ["a report failing the verifier schema", () => request({ report: report({ verdict: "maybe" }) }), {}, "REPORT_INVALID", 400],
     ["a report with an unknown field", () => request({ report: report({ approved: true }) }), {}, "REPORT_INVALID", 400],
@@ -104,7 +103,7 @@ describe("evaluateSignRequest: rejections (fail closed, nothing signed, run not 
 
   it("a transient GitHub failure does not consume the run: a retry can still be signed", async () => {
     let fail = true;
-    const { d } = deps({ livePull: async () => { if (fail) { fail = false; throw new Error("timeout"); } return { state: "open", headSha: SHA }; } });
+    const { d } = deps({ livePull: () => { if (fail) { fail = false; return Promise.reject(new Error("timeout")); } return Promise.resolve({ state: "open", headSha: SHA }); } });
     expect(await evaluateSignRequest(request(), d)).toMatchObject({ ok: false, code: "CONTEXT_UNAVAILABLE" });
     expect((await evaluateSignRequest(request(), d)).ok).toBe(true);
   });

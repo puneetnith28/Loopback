@@ -27,6 +27,20 @@ describe("module boundaries", () => {
     expect(await errors(`import { readFileSync } from "node:fs";`, `${SRC}/policy/evaluate.ts`)).toHaveLength(1);
   });
 
+  it("signer may import only contracts, zod, node built-ins, the agents crypto modules and its siblings (D29)", async () => {
+    const ok = [
+      `import { VerifierReport } from "@loopback/contracts";`, `import { z } from "zod";`, `import { createServer } from "node:http";`,
+      `import { signReport } from "../agents/signature.js";`, `import { verifyCapability } from "../agents/capability.js";`, `import { x } from "./policy.js";`,
+    ];
+    for (const code of ok) expect(await errors(code, `${SRC}/signer/server.ts`), code).toEqual([]);
+    const bad = [
+      `import { openDatabase } from "../persistence/db.js";`, `import { GitHubTransport } from "../github/transport.js";`,
+      `import { loadGitHubConfig } from "../config.js";`, `import { extractReport } from "../agents/report.js";`,
+      `import Database from "better-sqlite3";`, `import { append } from "../audit/index.js";`, `import { x } from "./sub/deep.js";`,
+    ];
+    for (const code of bad) expect((await errors(code, `${SRC}/signer/server.ts`)).length, code).toBeGreaterThan(0);
+  });
+
   it("only cases/service.ts may import the merge operation", async () => {
     const code = `import { mergePullRequest } from "../github/merge.js";`;
     expect(await errors(code, `${SRC}/cases/service.ts`)).toEqual([]);

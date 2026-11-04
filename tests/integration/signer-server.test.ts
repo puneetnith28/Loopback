@@ -36,7 +36,7 @@ async function start(opts: { maxPerMinute?: number } = {}): Promise<string> {
     clientToken: TOKEN,
     policy: {
       issuerPublicKey: issuer.publicKey, signingKey: signing.privateKey, allowedRepository: "o/r", now: () => new Date(),
-      livePull: async () => pull, replay: new FileReplayStore(dir),
+      livePull: () => Promise.resolve(pull), replay: new FileReplayStore(dir),
     },
     log: (line) => logs.push(JSON.stringify(line)),
     maxPerMinute: opts.maxPerMinute ?? 100,

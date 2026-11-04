@@ -18,7 +18,7 @@ const id: IdentityConfig = {
   maintainers: new Set(["@switch-mattermost-x-puneet:localhost"]), reporters: new Set(),
   fixerId: "@switch-agent-fixer:localhost", verifierId: "@switch-agent-verifier:localhost",
   fixerAlias: "@loopback-fixer", verifierAlias: "@loopback-verifier", privilegedEnabled: false,
-  verifierPublicKey: null, fixerAgentId: null, verifierAgentId: null,
+  verifierPublicKey: null, runIssuerKeyPath: null, fixerAgentId: null, verifierAgentId: null,
   verifierIsolationProven: false, intakeMaxReportsPerHour: 3,
 };
 const matching = { result: { id: AGENT, addressing_policy: { rules: [{

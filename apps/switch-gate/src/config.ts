@@ -1,6 +1,6 @@
-import type { KeyObject } from "node:crypto";
-import { statSync } from "node:fs";
-import { dirname } from "node:path";
+import { createPrivateKey, type KeyObject } from "node:crypto";
+import { readFileSync, statSync } from "node:fs";
+import { dirname, isAbsolute } from "node:path";
 import { z } from "zod";
 import { FullSha, ParticipantId, RepoSlug } from "@loopback/contracts";
 import { PublicKeyError, parsePublicKey } from "./agents/signature.js";
@@ -143,6 +143,9 @@ const IdentitySchema = z.object({
   // LOOPBACK_FIXER_ID / LOOPBACK_VERIFIER_ID are participant ids, a different identifier.
   LOOPBACK_FIXER_AGENT_ID: optionalUuid,
   LOOPBACK_VERIFIER_AGENT_ID: optionalUuid,
+  // D29: path to the gate's Ed25519 run-issuer PRIVATE key (owner-only file). It signs the
+  // per-run capability the verifier signer requires. Required in isolated mode.
+  LOOPBACK_RUN_ISSUER_KEY_PATH: z.string().trim().optional().transform((s) => (s === undefined || s === "" ? null : s)),
 });
 
 export interface IdentityConfig {
@@ -157,6 +160,8 @@ export interface IdentityConfig {
   readonly intakeMaxReportsPerHour: number;
   /** D28: verifier signing key; required (and enforced) when verifierIsolationProven. */
   readonly verifierPublicKey: KeyObject | null;
+  /** D29: absolute path of the run-issuer private key, or null (no capabilities issued). */
+  readonly runIssuerKeyPath: string | null;
   readonly fixerAgentId: string | null;
   readonly verifierAgentId: string | null;
 }
@@ -285,6 +290,10 @@ export function loadIdentityConfig(env: Env): IdentityConfig {
     if (v.VERIFIER_PUBLIC_KEY === null) issues.push({ variable: "VERIFIER_PUBLIC_KEY", message: "required when VERIFIER_ISOLATION_PROVEN=true" });
     if (v.LOOPBACK_FIXER_AGENT_ID === null) issues.push({ variable: "LOOPBACK_FIXER_AGENT_ID", message: "required when VERIFIER_ISOLATION_PROVEN=true" });
     if (v.LOOPBACK_VERIFIER_AGENT_ID === null) issues.push({ variable: "LOOPBACK_VERIFIER_AGENT_ID", message: "required when VERIFIER_ISOLATION_PROVEN=true" });
+    if (v.LOOPBACK_RUN_ISSUER_KEY_PATH === null) issues.push({ variable: "LOOPBACK_RUN_ISSUER_KEY_PATH", message: "required when VERIFIER_ISOLATION_PROVEN=true" });
+  }
+  if (v.LOOPBACK_RUN_ISSUER_KEY_PATH !== null && !isAbsolute(v.LOOPBACK_RUN_ISSUER_KEY_PATH)) {
+    issues.push({ variable: "LOOPBACK_RUN_ISSUER_KEY_PATH", message: "must be an absolute path" });
   }
   if (v.LOOPBACK_FIXER_AGENT_ID !== null && v.LOOPBACK_FIXER_AGENT_ID === v.LOOPBACK_VERIFIER_AGENT_ID) {
     issues.push({ variable: "LOOPBACK_VERIFIER_AGENT_ID", message: "must differ from LOOPBACK_FIXER_AGENT_ID" });
@@ -301,6 +310,7 @@ export function loadIdentityConfig(env: Env): IdentityConfig {
     verifierIsolationProven: v.VERIFIER_ISOLATION_PROVEN,
     intakeMaxReportsPerHour: v.INTAKE_MAX_REPORTS_PER_HOUR,
     verifierPublicKey,
+    runIssuerKeyPath: v.LOOPBACK_RUN_ISSUER_KEY_PATH,
     fixerAgentId: v.LOOPBACK_FIXER_AGENT_ID,
     verifierAgentId: v.LOOPBACK_VERIFIER_AGENT_ID,
   };
@@ -336,18 +346,18 @@ export function assertIdentityConsistency(
 }
 
 /** Throws unless the key file exists and is not group- or world-accessible (owner-only). */
-export function assertPrivateKeyFile(path: string, stat: (p: string) => { mode: number; isFile(): boolean } = statSync): void {
+export function assertPrivateKeyFile(path: string, stat: (p: string) => { mode: number; isFile(): boolean } = statSync, variable = "GH_APP_PRIVATE_KEY_PATH", group = "GitHub"): void {
   let st: { mode: number; isFile(): boolean };
   try {
     st = stat(path);
   } catch {
-    throw new ConfigError("GitHub", [{ variable: "GH_APP_PRIVATE_KEY_PATH", message: "file not found or unreadable" }]);
+    throw new ConfigError(group, [{ variable, message: "file not found or unreadable" }]);
   }
   if (!st.isFile()) {
-    throw new ConfigError("GitHub", [{ variable: "GH_APP_PRIVATE_KEY_PATH", message: "not a regular file" }]);
+    throw new ConfigError(group, [{ variable, message: "not a regular file" }]);
   }
   if ((st.mode & 0o077) !== 0) {
-    throw new ConfigError("GitHub", [{ variable: "GH_APP_PRIVATE_KEY_PATH", message: "file must not be group- or world-accessible (chmod 600)" }]);
+    throw new ConfigError(group, [{ variable, message: "file must not be group- or world-accessible (chmod 600)" }]);
   }
   // The directory holding the key must not let anyone else replace it. Read access is not
   // required to be closed: a container bind-mounting the single file gets a 0755 parent.
@@ -356,11 +366,32 @@ export function assertPrivateKeyFile(path: string, stat: (p: string) => { mode: 
   try {
     dir = stat(dirname(path));
   } catch {
-    throw new ConfigError("GitHub", [{ variable: "GH_APP_PRIVATE_KEY_PATH", message: "directory not found or unreadable" }]);
+    throw new ConfigError(group, [{ variable, message: "directory not found or unreadable" }]);
   }
   if ((dir.mode & 0o022) !== 0) {
-    throw new ConfigError("GitHub", [{ variable: "GH_APP_PRIVATE_KEY_PATH", message: "directory must not be group- or world-writable (chmod 700)" }]);
+    throw new ConfigError(group, [{ variable, message: "directory must not be group- or world-writable (chmod 700)" }]);
   }
+}
+
+/**
+ * D29: load the gate's run-issuer key. The file must be owner-only (as for the App key) and hold
+ * an Ed25519 PRIVATE key; errors name the variable and never include the file's contents.
+ */
+export function loadRunIssuerKey(
+  path: string,
+  read: (p: string) => string = (p) => readFileSync(p, "utf8"),
+  stat: (p: string) => { mode: number; isFile(): boolean } = statSync,
+): KeyObject {
+  const variable = "LOOPBACK_RUN_ISSUER_KEY_PATH";
+  assertPrivateKeyFile(path, stat, variable, "identity");
+  let key: KeyObject;
+  try {
+    key = createPrivateKey({ key: read(path), format: "pem" });
+  } catch {
+    throw new ConfigError("identity", [{ variable, message: "must hold an Ed25519 private key (PEM)" }]);
+  }
+  if (key.asymmetricKeyType !== "ed25519") throw new ConfigError("identity", [{ variable, message: "must hold an Ed25519 private key (PEM)" }]);
+  return key;
 }
 
 export function loadGitHubConfig(env: Env, opts: { checkKeyFile?: boolean } = {}): GitHubConfig {
