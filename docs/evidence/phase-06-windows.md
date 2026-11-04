@@ -39,6 +39,16 @@ signer.env: file must be accessible only to you (S-1-5-21-…-1004 has access); 
 agents: …/signer.env is not private to you (docs/windows.md; run npm run build first)
 ```
 
+### Later run with real role tokens and the gate key (2026-11-05)
+
+**353 PASS, 0 FAIL, 7 INFO**, including `verifier can read puneetnith28/loopback-demo-target through
+the proxy (GET 200)`. That check could not run before a verifier token existed, and it exposed a bug:
+the request sent `Host: api.github.com:80`, which GitHub answers with 400 whatever the token.
+
+This proves the containers. Console currently runs the fixer and verifier on the host, outside them,
+so verification stays advisory. The role tokens passed their write probes (no status post, no merge;
+the verifier cannot write refs), and a verifier dry-run push from its clone was refused with 403.
+
 ## Regression test in the runner (no network, no credentials)
 
 The demo repository was cloned by the verifier through its proxy, and the tests submitted with

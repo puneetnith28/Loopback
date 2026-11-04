@@ -354,14 +354,25 @@ function proxyPlainGet(proxy) {
   });
 }
 
+/**
+ * Options for a GET through a tunnel. The explicit host header matters: with createConnection Node
+ * has no agent to take a default port from, so it would send "Host: api.github.com:80", and GitHub
+ * answers that with 400 whatever the token.
+ */
+export function githubGetOptions(path, token) {
+  return {
+    host: "api.github.com", path, method: "GET", timeout: PROXY_TIMEOUT_MS,
+    headers: { host: "api.github.com", authorization: `Bearer ${token}`, accept: "application/vnd.github+json", "user-agent": "loopback-verify-isolation" },
+  };
+}
+
 /** One read-only GET through the proxy tunnel; returns the HTTP status only. */
 async function githubGet(proxy, path, token) {
   const tunnel = await proxyConnect(proxy, "api.github.com", 443);
   if (tunnel.status !== 200) { tunnel.socket?.destroy(); return `tunnel ${tunnel.status}`; }
   return new Promise((resolve) => {
     const req = https.request({
-      host: "api.github.com", path, method: "GET", timeout: PROXY_TIMEOUT_MS,
-      headers: { authorization: `Bearer ${token}`, accept: "application/vnd.github+json", "user-agent": "loopback-verify-isolation" },
+      ...githubGetOptions(path, token),
       createConnection: () => tls.connect({ socket: tunnel.socket, servername: "api.github.com" }),
     }, (res) => { res.resume(); resolve(res.statusCode); });
     req.once("timeout", () => { req.destroy(); resolve("timeout"); });

@@ -24,6 +24,7 @@ export const NOT_REACHABLE_BY_NAME: readonly string[];
 export const PROXY_DENIED: number;
 
 export const DESKTOP_HOST_NAMES: readonly string[];
+export function githubGetOptions(path: string, token: string): { host: string; path: string; method: string; timeout: number; headers: Record<string, string> };
 export function assessDaemon(dockerInfo: unknown, dockerHost: string | undefined, expectedSocket: string | undefined): CheckResult[];
 export function assessDesktopDaemon(dockerInfo: unknown, dockerHost: string | undefined): CheckResult[];
 export function assessContainer(roleName: Role, container: unknown, network: unknown): CheckResult[];

@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { assessReadiness, isDesktopDaemon, type ReadinessFacts } from "../../scripts/live-readiness.mjs";
 import { bashCandidates, findBash, isMainModule } from "../../scripts/sh.mjs";
 import { roleToken, testPlan } from "../../scripts/host-agent-tool.mjs";
-import { assessDesktopDaemon } from "../../scripts/verify-isolation.mjs";
+import { assessDesktopDaemon, githubGetOptions } from "../../scripts/verify-isolation.mjs";
 import { gracefulSignals } from "../../apps/switch-gate/src/run.js";
 
 // The cross-platform tooling: finding Git Bash (never the WSL launcher), the Node backup, and the
@@ -149,5 +149,18 @@ describe("host-agent-tool.mjs", () => {
     expect(testPlan(sha, [])).toEqual({ dir: `/home/verifier/runs/${sha}`, command: ["node", "--test", "test/index.test.js"] });
     expect(testPlan(sha, ["npm", "test"])?.command).toEqual(["npm", "test"]);
     for (const bad of [undefined, "abc", `${sha}; rm -rf /`, "../../etc/passwd", sha.toUpperCase()]) expect(testPlan(bad, [])).toBeNull();
+  });
+});
+
+describe("the verifier's GitHub read through its tunnel", () => {
+  it("sends a Host header with no port: GitHub answers api.github.com:80 with 400", async () => {
+    const { request } = await import("node:http");
+    const opts = githubGetOptions("/repos/o/r", "t");
+    expect(opts.headers.host).toBe("api.github.com");
+    const { Socket } = await import("node:net");
+    const req = request({ ...opts, createConnection: () => new Socket() });
+    req.on("error", () => undefined); // destroying it below reports a hang-up, which is expected
+    expect(req.getHeader("host")).toBe("api.github.com");
+    req.destroy();
   });
 });
