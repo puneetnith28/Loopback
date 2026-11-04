@@ -107,6 +107,23 @@ against live services.
 10. **In-flight GitHub merge.** A halt (policy failure) stops privileged work at its next write
    boundary, but cannot recall a merge request already sent to GitHub; that outcome is confirmed
    by reconciliation as usual.
+11. **Final pre-freeze review (2026-11-04, `ecc:code-reviewer`, 0 CRITICAL, 0 HIGH).** Fixed: a
+    failed "PR found" announcement no longer leaves a case in `PRCreated` without a verification
+    request. Accepted, all fail closed:
+    - *Success status after a halt.* By design a halt makes no further GitHub writes, so a halt
+      between posting `loopback/gate` success and the merge call leaves that status on an
+      approved, verified commit until the next start resets it. If the gate cannot restart (exit 4
+      persists), reset it by hand: `gh api repos/OWNER/REPO/statuses/SHA -f state=failure -f
+      context=loopback/gate`, and do not merge that commit outside Loopback.
+    - *Quorum.* `approve` is accepted only in `AwaitingApproval`, and the first approval moves the
+      case to `ReadyToMerge`, so `QUORUM>1` cannot be reached; use `QUORUM=1`.
+    - *Repository name case.* `GH_REPO` is compared exactly with GitHub's `full_name`; a different
+      case blocks every merge and verifier report (`IDENTITY_MISMATCH`). Copy it exactly.
+    - *Protected paths* are a denylist (`policy/evaluate.ts`); TypeScript, ESLint and other build
+      configuration outside it is not blocked by the gate and relies on the verifier and CI.
+    - *Merging on advisory verification.* `MERGE_ENABLED=true` is allowed while
+      `VERIFIER_ISOLATION_PROVEN=false`; the maintainer's exact-SHA approval is then the only
+      independent check, and chat says so on every approval prompt.
 
 ## Invariant traceability (M1–M15)
 

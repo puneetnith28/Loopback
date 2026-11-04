@@ -138,7 +138,13 @@ export class Poller {
         targetSha: pr.headSha, updates: { prNumber: pr.number, headSha: pr.headSha }, payload: { pr: pr.number },
       }, this.d.now());
     })();
-    await this.announce(c, `PR #${pr.number} found on GitHub at ${displaySha(pr.headSha)}. Requesting independent verification.`);
+    // The case is already recorded as PRCreated: a failed announcement must not prevent the
+    // verification request, or the case would wait in PRCreated with nothing asked.
+    try {
+      await this.announce(c, `PR #${pr.number} found on GitHub at ${displaySha(pr.headSha)}. Requesting independent verification.`);
+    } catch (e) {
+      this.log.warn({ caseId: c.id, op: "poll.announce", err: e instanceof Error ? e.name : "unknown" }, "could not announce the PR; requesting verification anyway");
+    }
     await this.wf.requestVerificationLocked(c.id, "system", false);
   }
 

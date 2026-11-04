@@ -4,7 +4,7 @@ import { append, listRecent } from "../../apps/switch-gate/src/audit/index.js";
 import { transition } from "../../apps/switch-gate/src/cases/service.js";
 import { HeadChanged, NotMergeable, Uncertain } from "../../apps/switch-gate/src/github/client.js";
 import { getCase, insertMergeOp, listMergeOps } from "../../apps/switch-gate/src/persistence/repos.js";
-import { A, B, FIXER, G, MAINT, OUT, createHarness } from "../helpers/harness.js";
+import { A, B, FIXER, G, MAINT, OUT, REP, createHarness } from "../helpers/harness.js";
 
 const audit = (h: ReturnType<typeof createHarness>) => listRecent(h.db, "LB-001", 200).map((r) => r.type);
 
@@ -488,5 +488,23 @@ describe("conflicting and repeated decisions by the same maintainer", () => {
     expect(getCase(h.db, "LB-001")).toMatchObject({ state: "AwaitingApproval", headSha: B });
     await h.say(MAINT, `${G} approve LB-001 ${B}`);
     expect(h.state()).toBe("ReadyToMerge");
+  });
+});
+
+describe("final review follow-ups", () => {
+  it("a failed 'PR found' announcement still requests verification", async () => {
+    const h = createHarness();
+    await h.say(REP, `${G} report slugify.extend({'%': null}) throws a TypeError`);
+    h.gh.setPull(42);
+    const origPush = h.posts.push.bind(h.posts);
+    let failed = 0;
+    h.posts.push = (...items: string[]) => {
+      if (failed === 0 && items.some((i) => i.includes("found on GitHub"))) { failed += 1; throw new Error("chat down"); }
+      return origPush(...items);
+    };
+    await h.poller.tick();
+    expect(failed).toBe(1);
+    expect(h.state()).toBe("Verifying");
+    expect(h.posts.some((p) => p.includes("@loopback-verifier verify LB-001"))).toBe(true);
   });
 });

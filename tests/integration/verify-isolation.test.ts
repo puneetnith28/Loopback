@@ -61,3 +61,69 @@ describe("verify-isolation.sh fails closed", () => {
     expect(r.stdout + r.stderr).not.toContain(TOKEN);
   });
 });
+
+/**
+ * The PASS path of the in-sandbox roles, which needs the separate-users runtime to run for real.
+ * Stub `id`, `stat` and `ls` come first on PATH to present an agent user inside its unit; the
+ * script itself is unchanged. Each check is then broken in turn to show it cannot pass falsely.
+ */
+describe("verify-isolation.sh inside a simulated agent unit", () => {
+  const uid = "1000";
+  const setupUnit = (opts: { homeVisible?: boolean; otherAgent?: boolean; signerOwner?: string; keyMode?: string; signerDirMode?: string } = {}) => {
+    const root = mkdtempSync(join(tmpdir(), "loopback-unit-"));
+    const agents = join(root, "agents");
+    const home = join(agents, uid, "agent", "home");
+    const signer = join(root, "signer");
+    const bin = join(root, "bin");
+    mkdirSync(join(home, ".config", "loopback-verifier"), { recursive: true });
+    if (opts.otherAgent) mkdirSync(join(agents, uid, "02"), { recursive: true });
+    mkdirSync(signer, { recursive: true });
+    writeFileSync(join(signer, "sign-verifier-report.mjs"), "");
+    writeFileSync(join(signer, "signature.js"), "");
+    writeFileSync(join(home, ".config", "loopback-verifier", "signing-key.pem"), "not a key");
+    mkdirSync(bin);
+    const me = "sa1000-01";
+    writeFileSync(join(bin, "id"), `#!/bin/sh\ncase "$1" in -un) echo ${me};; -u) echo 61001;; -Gn) echo switch-agents-1000;; *) echo ${me};; esac\n`, { mode: 0o755 });
+    // stat: owner names under the unit belong to the agent user; the signer is root's unless told otherwise.
+    writeFileSync(join(bin, "stat"), `#!/bin/sh
+fmt="$2"; path="$4"
+case "$fmt" in
+  %U) case "$path" in ${agents}*) echo ${me};; *) echo root;; esac;;
+  %u) case "$path" in ${signer}*) echo ${opts.signerOwner ?? "0"};; *) echo 61001;; esac;;
+  %a) case "$path" in *signing-key.pem) echo ${opts.keyMode ?? "600"};; ${signer}) echo ${opts.signerDirMode ?? "755"};; *) echo 644;; esac;;
+esac
+`, { mode: 0o755 });
+    writeFileSync(join(bin, "ls"), `#!/bin/sh\nfor a in "$@"; do [ "$a" = /home ] && { ${opts.homeVisible ? "echo someone; exit 0" : "exit 2"}; }; done\nexec /bin/ls "$@"\n`, { mode: 0o755 });
+    writeFileSync(join(bin, "gh"), "#!/bin/sh\necho o/r\n", { mode: 0o755 });
+    const r = spawnSync("bash", [SCRIPT, "verifier"], {
+      encoding: "utf8",
+      env: {
+        PATH: `${bin}:${process.env.PATH ?? ""}`, HOME: home, SWITCH_HOST_SHARED_GROUP: "1", GH_TOKEN: TOKEN, GH_REPO: "o/r",
+        LOOPBACK_AGENTS_PARENT: agents, LOOPBACK_SIGNER_DIR: signer, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1",
+      },
+    });
+    rmSync(root, { recursive: true, force: true });
+    return r;
+  };
+
+  it("passes only when every verifier check holds, and never prints a token or claims isolation", () => {
+    const r = setupUnit();
+    expect(r.stdout).not.toMatch(/FAIL/);
+    expect(r.status).toBe(0);
+    expect(r.stdout).toMatch(/isolation is not proven by this alone/);
+    expect(r.stdout + r.stderr).not.toContain(TOKEN);
+  });
+
+  it.each([
+    ["/home is visible", { homeVisible: true }, /\/home is visible/],
+    ["another agent's directory is visible", { otherAgent: true }, /other agents' directories are visible/],
+    ["the signer is not root-owned", { signerOwner: "61001" }, /not root-owned/],
+    ["the signer directory is writable by others", { signerDirMode: "775" }, /its files could be swapped/],
+    ["the signing key is not mode 600", { keyMode: "644" }, /no signing key owned by/],
+  ])("fails when %s", (_n, opts, why) => {
+    const r = setupUnit(opts);
+    expect(r.status).toBe(1);
+    expect(r.stdout).toMatch(why);
+    expect(r.stdout).toMatch(/verdict: NOT PROVEN/);
+  });
+});
