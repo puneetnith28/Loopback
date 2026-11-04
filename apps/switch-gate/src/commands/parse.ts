@@ -69,7 +69,8 @@ export function parseCommand(body: string, gateMention: string): ParseResult {
       break;
     case "approve":
       if (tokens.length !== 2) return fail("approve takes a case id and the full commit sha");
-      candidate = { kind: "approve", caseId: caseId(tokens[0]), sha: tokens[1]!.toLowerCase() };
+      // Canonical SHAs only: never normalise case; FullSha rejects anything else.
+      candidate = { kind: "approve", caseId: caseId(tokens[0]), sha: tokens[1]! };
       break;
     case "reject": {
       const [id, ...reason] = tokens;

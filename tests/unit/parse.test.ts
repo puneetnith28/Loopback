@@ -21,8 +21,12 @@ describe("parseCommand", () => {
     expect(ok(`${G} verify LB-002`)).toEqual({ kind: "verify", caseId: "LB-002" });
     expect(ok(`${G} merge LB-001`)).toEqual({ kind: "merge", caseId: "LB-001" });
     expect(ok(`${G} audit LB-001`)).toEqual({ kind: "audit", caseId: "LB-001" });
-    const FULL = "3F9C2AB4E1D0B4C9A8F7E6D5C4B3A2918F7E6D5C";
-    expect(ok(`${G} approve LB-001 ${FULL}`)).toEqual({ kind: "approve", caseId: "LB-001", sha: FULL.toLowerCase() });
+    const FULL = "3f9c2ab4e1d0b4c9a8f7e6d5c4b3a2918f7e6d5c";
+    expect(ok(`${G} approve LB-001 ${FULL}`)).toEqual({ kind: "approve", caseId: "LB-001", sha: FULL });
+    // canonical form only: an uppercase SHA is rejected, never normalised
+    expect(err(`${G} approve LB-001 ${FULL.toUpperCase()}`)).toMatch(/invalid approve/);
+    expect(err(`${G} approve LB-001 ${FULL.slice(0, 20) + FULL.slice(20).toUpperCase()}`)).toMatch(/invalid approve/);
+    expect(err(`${G} approve LB-001 ${FULL.slice(0, 39)}g`)).toMatch(/invalid approve/);
     expect(ok(`${G} reject LB-001 breaks the API`)).toEqual({ kind: "reject", caseId: "LB-001", reason: "breaks the API" });
     expect(ok(`${G} retask LB-001 add a test for null`)).toEqual({ kind: "retask", caseId: "LB-001", note: "add a test for null" });
   });
