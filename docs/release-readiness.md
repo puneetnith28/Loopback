@@ -5,7 +5,14 @@ Status of the release checks (plan steps 10.6 and 10.8) on the current `main`. E
 the real GitHub and Switch setup, not yet exercised; **Met** = satisfied as stated.
 Nothing here counts a simulated test as live evidence.
 
-## Release hygiene (step 10.6) — run 2026-11-04, before the code freeze
+## Code freeze and final review (step 10.7)
+
+- **Frozen commit:** `2326cc4c584519ba5cfce1dbb55d2a37895472d6` (2026-11-04). After this, only bug fixes and documentation.
+- **Final review:** `ecc:code-reviewer` over the full diff since the bootstrap commit (`31edd1f..35bd818`): 0 CRITICAL, 0 HIGH. One MEDIUM fixed in the frozen commit (a failed "PR found" announcement left the case without a verification request); the other findings fail closed and are recorded as accepted residual risks in `docs/threat-model.md` (item 11).
+- **CI on the frozen commit:** green (GitHub Actions run 41768902518): typecheck, lint, 744 tests with coverage thresholds, gitleaks over 42 commits with no leaks, no deprecation warnings.
+- **Fresh clone of the frozen commit:** `npm ci`, typecheck, lint and `npm run test:coverage` pass (744 passed, 4 skipped).
+
+## Release hygiene (step 10.6) — re-run on the frozen commit 2326cc4
 
 | Check | Result |
 |---|---|
@@ -13,10 +20,10 @@ Nothing here counts a simulated test as live evidence.
 | `SECURITY.md` | Private reporting via GitHub security advisories, supported versions, security model summary, known limits including advisory verification and token attribution. |
 | `.env.example` | Placeholders and non-secret defaults only; every secret setting is empty. |
 | Local-only files | `plan.md`, `implementation.md`, `ANTIGRAVITY_HANDOFF.md`, `.env` and `secrets/` are git-ignored and untracked. |
-| Secret scan | gitleaks runs in CI on every push (`.github/workflows/ci.yml`). |
+| Secret scan | gitleaks 8.24.3 (checksum-pinned) over the full history: 42 commits, no leaks — locally and in CI. |
 | Dependency audit | `npm audit --omit=dev`: 0 vulnerabilities. Development-only: one moderate advisory (GHSA-g3hv-75wg-m249, `minimatch` via ESLint), accepted and recorded in `docs/threat-model.md`. |
 
-Re-run all of these on the frozen release candidate (step 10.7).
+Commands: `npm run typecheck`, `npx eslint .`, `npm run build`, `npx vitest run` (twice: 744 passed, 4 skipped), `npm audit --omit=dev`, `npm audit`, `npm ls --omit=dev --all` (licences), `gitleaks git --config .gitleaks.toml --redact .`, `git ls-files` for the local-only files.
 
 ## Definition of done (step 10.8, `implementation.md` §19)
 
@@ -33,8 +40,8 @@ Re-run all of these on the frozen release candidate (step 10.7).
 | 9 | A successful merge is confirmed by GitHub and recorded | **Local** | `merge-gate.test.ts`, `e2e-simulated.test.ts` (fakes); no live merge yet (8.10). |
 | 10 | Unauthorized and stale approvals are visibly refused | **Local** | `intake.test.ts`, `router.test.ts`, `merge-gate.test.ts`, `composition.test.ts`. |
 | 11 | Duplicate events and uncertain API responses are handled safely | **Local** | Processed events, `MergeUnknown` reconciliation, no blind retries (`merge-gate.test.ts`, `reconcile.test.ts`, `poller-backoff.test.ts`). |
-| 12 | Tests cover state machine, policy, integration and security | **Met** | 733 tests across unit, integration and security suites; coverage thresholds enforced in CI. Live suites exist but are opt-in. |
-| 13 | Setup works from a clean clone | **Local** | A fresh clone passes `npm ci`, typecheck, lint and `test:coverage` (2026-11-04). A clone reaching `/readyz` OK against live services (10.3) is **Live**. |
+| 12 | Tests cover state machine, policy, integration and security | **Met** | 744 tests across unit, integration and security suites; coverage thresholds enforced in CI. Live suites exist but are opt-in. |
+| 13 | Setup works from a clean clone | **Local** | A fresh clone of the frozen commit passes `npm ci`, typecheck, lint and `test:coverage`; CI green on it. A clone reaching `/readyz` OK against live services (10.3) is **Live**. |
 | 14 | The README explains Switch's role | **Met** | `README.md` §2. |
 | 15 | The demo shows a successful run and a meaningful refusal | **Live** | `docs/demo-runbook.md` is ready; recording needs live runs (10.2, 10.9). |
 | 16 | No secrets are committed; licence and security-reporting instructions exist | **Met** | gitleaks in CI, the hygiene table above, `LICENSE`, `SECURITY.md`. |
