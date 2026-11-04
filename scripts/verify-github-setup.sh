@@ -21,6 +21,17 @@ for rule in pull_request non_fast_forward deletion; do
   check "branch rule $rule present"         "jq -e '[.rules[].type] | index(\"$rule\") != null' <<<\"\$rs\""
 done
 check "tag ruleset active, targets demo-reset" 'jq -e ".enforcement == \"active\" and (.conditions.ref_name.include | index(\"refs/tags/demo-reset\") != null)" <<<"$trs"'
-check "demo-reset tag points at DEMO_RESET_SHA" '[ "$(gh api "repos/$GH_REPO/git/ref/tags/demo-reset" --jq .object.sha)" = "$DEMO_RESET_SHA" ]'
+# The commit a tag names: a lightweight tag's ref points at the commit, an annotated tag's ref at a
+# tag object that must be peeled (one level; a tag of a tag is not peeled and so fails the check).
+tag_commit() {
+  local obj
+  obj="$(gh api "repos/$GH_REPO/git/ref/tags/$1" --jq '.object.type + " " + .object.sha')" || return 1
+  case "$obj" in
+    "commit "*) echo "${obj#commit }" ;;
+    "tag "*) gh api "repos/$GH_REPO/git/tags/${obj#tag }" --jq 'select(.object.type == "commit") | .object.sha' ;;
+    *) return 1 ;;
+  esac
+}
+check "demo-reset tag points at DEMO_RESET_SHA" '[ "$(tag_commit demo-reset)" = "$DEMO_RESET_SHA" ]'
 check "DEMO_RESET_SHA exists"              'gh api "repos/$GH_REPO/commits/$DEMO_RESET_SHA" --jq .sha'
 exit $fail

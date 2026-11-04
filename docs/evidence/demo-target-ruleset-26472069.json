@@ -1,0 +1,61 @@
+{
+  "id": 26472069,
+  "name": "Loopback Demo Protection",
+  "target": "branch",
+  "source_type": "Repository",
+  "source": "puneetnith28/loopback-demo-target",
+  "enforcement": "active",
+  "conditions": {
+    "ref_name": {
+      "exclude": [],
+      "include": [
+        "~DEFAULT_BRANCH",
+        "refs/heads/demo/*"
+      ]
+    }
+  },
+  "rules": [
+    {
+      "type": "deletion"
+    },
+    {
+      "type": "non_fast_forward"
+    },
+    {
+      "type": "pull_request",
+      "parameters": {
+        "required_approving_review_count": 0,
+        "dismiss_stale_reviews_on_push": false,
+        "required_reviewers": [],
+        "require_code_owner_review": false,
+        "require_last_push_approval": false,
+        "required_review_thread_resolution": false,
+        "require_extra_approval_for_unattributed_changes": false,
+        "allowed_merge_methods": [
+          "squash"
+        ]
+      }
+    },
+    {
+      "type": "required_status_checks",
+      "parameters": {
+        "strict_required_status_checks_policy": true,
+        "do_not_enforce_on_create": false,
+        "required_status_checks": [
+          {
+            "context": "test",
+            "integration_id": 15368
+          },
+          {
+            "context": "loopback/gate",
+            "integration_id": 5598944
+          }
+        ]
+      }
+    }
+  ],
+  "node_id": "RRS_lACqUmVwb3NpdG9yec5WGpv9zgGT7oU",
+  "created_at": "2026-11-03T23:23:33.204+05:30",
+  "updated_at": "2026-11-04T02:56:59.900+05:30",
+  "bypass_actors": []
+}
