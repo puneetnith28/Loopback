@@ -159,7 +159,7 @@ start_signer() {
   if ! signer_initialized; then echo "agents: signer not initialized; run '$0 signer-init' (signer not started)" >&2; return 0; fi
   safe_env_file "$CRED_DIR/signer.env" "SIGNER_REPOSITORY|SIGNER_ISSUER_PUBLIC_KEY|SIGNER_GH_TOKEN" \
     || { echo "agents: $CRED_DIR/signer.env is missing (SIGNER_REPOSITORY, SIGNER_ISSUER_PUBLIC_KEY); signer not started" >&2; return 0; }
-  docker create --name "$name" --hostname signer --network loopback-signer-net --network-alias signer \
+  docker create --name "$name" --hostname loopback-signer --network loopback-signer-net --network-alias signer \
     --user 10003:10003 "${HARDEN[@]}" --pids-limit 128 --memory 256m --cpus 1 \
     -v loopback-signer-home:/home/signer \
     -e SIGNER_HOME=/home/signer -e LOOPBACK_AGENT_ROLE=signer -e HTTPS_PROXY="http://proxy:3128" \
