@@ -59,5 +59,5 @@ export function extractReport<S extends z.ZodTypeAny>(body: string, schema: S): 
       detail: issue ? `${issue.path.join(".") || "report"}: ${issue.message}` : "schema validation failed",
     };
   }
-  return { ok: true, value: parsed.data as z.output<S> };
+  return { ok: true, value: parsed.data };
 }

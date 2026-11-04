@@ -34,7 +34,7 @@ export const CASE_STATES = [
   "Merging", "Merged", "Stale", "Blocked", "MergeUnknown",
 ] as const;
 export const CaseState = z.enum(CASE_STATES);
-export type CaseState = z.infer<typeof CaseState>;
+export type CaseState = (typeof CASE_STATES)[number];
 
 // ---------------------------------------------------------------------------
 // Inbound chat messages (§7, amended by D16: attribution is preserved, never defaulted)
@@ -158,7 +158,7 @@ export const AUDIT_EVENT_TYPES = [
   "policy.violation", "retry.attempted", "fixer.reported",
 ] as const;
 export const AuditEventType = z.enum(AUDIT_EVENT_TYPES);
-export type AuditEventType = z.infer<typeof AuditEventType>;
+export type AuditEventType = (typeof AUDIT_EVENT_TYPES)[number];
 
 // ---------------------------------------------------------------------------
 // Reason codes (one shared enum for policy, audit and chat)
@@ -184,7 +184,7 @@ export const REASON_CODES = [
   "RATE_LIMITED",
 ] as const;
 export const ReasonCode = z.enum(REASON_CODES);
-export type ReasonCode = z.infer<typeof ReasonCode>;
+export type ReasonCode = (typeof REASON_CODES)[number];
 
 /** The approved transient codes (D15). Every other code is terminal. */
 export const TRANSIENT_REASON_CODES: ReadonlySet<ReasonCode> = new Set<ReasonCode>([

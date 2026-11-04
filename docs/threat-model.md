@@ -88,3 +88,12 @@ against live services.
 
 Mutation check (performed during development): disabling the quorum check, the head-SHA
 comparison or the reconciliation guard each made the suite fail (7, 4 and 1 tests).
+
+## Dependency audit (`npm audit`, 2026-11-03)
+
+| Advisory | Package | Severity | Scope | Resolution |
+|---|---|---|---|---|
+| [GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5) — memory exhaustion validating oversized constrained collections | `zod` < 4.6.6 | High | Production (validates untrusted chat and agent input) | **Fixed**: upgraded to `zod@4.6.7`. Defence in depth was already present (16 KB report cap, `.max()` on every array). |
+| [GHSA-g3hv-75wg-m249](https://github.com/advisories/GHSA-g3hv-75wg-m249) — ReDoS via glob-parts amplification | `minimatch` < 11.0.1 (11 entries via `eslint` / `typescript-eslint`) | Moderate | Development only | **Accepted, open**: no compatible fix (npm suggests downgrading ESLint to 4). Only our own lint globs reach it; never untrusted input, never shipped. Re-check when `eslint` updates `minimatch`. |
+
+Production dependencies: 0 known vulnerabilities after the upgrade (`npm audit --omit=dev`).
