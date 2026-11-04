@@ -24,9 +24,14 @@ export interface LiveCheck {
   readonly headSha: string;
 }
 
+export interface BaseProtectionCheck {
+  readonly context: string;
+  readonly integrationId: number | null;
+}
+
 /** The branch-protection rules GitHub exposes at runtime for the base branch (D17). */
 export interface BaseProtection {
-  readonly requiredStatusContexts: readonly string[];
+  readonly requiredStatusChecks: readonly BaseProtectionCheck[];
   readonly requiresPullRequest: boolean;
   readonly requiresUpToDate: boolean;
   readonly blocksForcePush: boolean;
@@ -49,7 +54,7 @@ export interface VerificationRunEvidence {
   /** Monotonic insertion order; the highest seq for the live head is "latest". */
   readonly seq: number;
   readonly headSha: string;
-  readonly status: "requested" | "pass" | "fail" | "invalid" | "timeout";
+  readonly status: "requested" | "pass" | "fail" | "invalid" | "timeout" | "superseded";
   readonly repository: string | null;
   readonly prNumber: number | null;
 }
@@ -75,6 +80,7 @@ export interface MergePolicy {
   readonly baseBranch: string;
   readonly requiredChecks: readonly string[];
   readonly checkSources: ReadonlyMap<string, string>;
+  readonly requiredCheckIntegrations: ReadonlyMap<string, number>;
   readonly gateStatusContext: string;
   readonly maintainers: ReadonlySet<string>;
   readonly quorum: number;
@@ -109,10 +115,16 @@ const stale = (code: ReasonCode, message: string, headSha: string | null = null)
 
 export function evaluateMerge(ev: CaseEvidence, live: LiveSnapshot, p: MergePolicy): MergeDecision {
   // The policy itself is input too: a malformed policy must never relax a check.
+  const allRequiredContexts = [...p.requiredChecks, p.gateStatusContext];
   if (
     !Number.isInteger(p.quorum) || p.quorum < 1 ||
     p.requiredChecks.length === 0 || p.requiredChecks.some((c) => c.trim() === "") ||
-    p.gateStatusContext.trim() === "" || p.baseBranch.trim() === "" || p.maintainers.size === 0
+    p.gateStatusContext.trim() === "" || p.baseBranch.trim() === "" || p.maintainers.size === 0 ||
+    !p.requiredCheckIntegrations ||
+    allRequiredContexts.some((c) => {
+      const id = p.requiredCheckIntegrations.get(c);
+      return typeof id !== "number" || !Number.isSafeInteger(id) || id <= 0;
+    })
   ) {
     return block("CONFIG_INCOMPLETE", "Merge policy is incomplete; refusing to evaluate.");
   }
@@ -134,16 +146,30 @@ export function evaluateMerge(ev: CaseEvidence, live: LiveSnapshot, p: MergePoli
   if (pr.mergeable === null) return block("MERGEABILITY_UNKNOWN", "GitHub has not determined whether the PR is mergeable.");
   if (pr.baseRef !== p.baseBranch) return block("WRONG_BASE", `PR targets ${pr.baseRef}, not ${p.baseBranch}.`);
 
-  const contexts = new Set(baseProtection.requiredStatusContexts);
-  const missingContexts = [...p.requiredChecks, p.gateStatusContext].filter((c) => !contexts.has(c));
   if (
-    missingContexts.length > 0 ||
     !baseProtection.requiresPullRequest ||
     !baseProtection.requiresUpToDate ||
     !baseProtection.blocksForcePush ||
     !baseProtection.restrictsDeletion
   ) {
     return block("BASE_UNPROTECTED", `Required protection is not active on ${p.baseBranch}.`);
+  }
+
+  // Runtime validation of required status check sources (ruleset integration IDs)
+  const rulesChecks = baseProtection.requiredStatusChecks;
+  for (const expectedContext of allRequiredContexts) {
+    const expectedId = p.requiredCheckIntegrations.get(expectedContext)!;
+    const matches = rulesChecks.filter((c) => c.context === expectedContext);
+    if (matches.length === 0) {
+      return block("CHECK_SOURCE_MISMATCH", `Required check "${expectedContext}" is not configured in branch rules on ${p.baseBranch}.`);
+    }
+    const sourceIds = new Set(matches.map((m) => m.integrationId));
+    if (sourceIds.size > 1) {
+      return block("CHECK_SOURCE_MISMATCH", `Required check "${expectedContext}" has conflicting integration sources on ${p.baseBranch}.`);
+    }
+    if (matches.some((m) => m.integrationId === null || m.integrationId !== expectedId)) {
+      return block("CHECK_SOURCE_MISMATCH", `Required check "${expectedContext}" source integration ID does not match expected ID (${expectedId}) on ${p.baseBranch}.`);
+    }
   }
 
   if (live.changedFilesHeadSha !== pr.headSha) {
@@ -192,6 +218,8 @@ export function evaluateMerge(ev: CaseEvidence, live: LiveSnapshot, p: MergePoli
       return block("VERIFICATION_PENDING", `Verification of ${short(head)} has not completed.`, head);
     case "invalid":
       return block("VERIFICATION_INVALID", "The latest verifier output was invalid.", head);
+    case "superseded":
+      return block("VERIFICATION_STALE", "The latest verification run was superseded by a newer request.", head);
     case "timeout":
       return block("VERIFICATION_TIMEOUT", "The latest verification timed out.", head);
     case "fail":

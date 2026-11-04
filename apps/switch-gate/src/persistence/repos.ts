@@ -59,6 +59,19 @@ export function getCase(db: Db, id: string): CaseRecord | undefined {
   return raw === undefined ? undefined : toCase(raw);
 }
 
+/** D26 intake rate limit: reports this sender filed since `sinceIso` (persisted, survives restarts). */
+export function countReportsSince(db: Db, reporterId: string, sinceIso: string): number {
+  const row = db.prepare("SELECT count(*) AS n FROM cases WHERE reporter_id = ? AND created_at >= ?").get(reporterId, sinceIso) as { n: number };
+  return row.n;
+}
+
+/** D26 duplicate guard: the sender's own case with exactly this report text since `sinceIso`. */
+export function findRecentReport(db: Db, reporterId: string, reportText: string, sinceIso: string): CaseRecord | undefined {
+  const row = db.prepare("SELECT id FROM cases WHERE reporter_id = ? AND report_text = ? AND created_at >= ? ORDER BY created_at DESC LIMIT 1")
+    .get(reporterId, reportText, sinceIso) as { id: string } | undefined;
+  return row ? getCase(db, row.id) : undefined;
+}
+
 export function listCasesInStates(db: Db, states: readonly CaseState[]): CaseRecord[] {
   if (states.length === 0) return [];
   const rows = db.prepare(`SELECT * FROM cases WHERE state IN (${states.map(() => "?").join(",")}) ORDER BY id`).all(...states);
@@ -136,7 +149,8 @@ export function latestCi(db: Db, caseId: string, headSha: string, checkName: str
 
 // --- verification runs -----------------------------------------------------------
 
-export type RunStatus = "requested" | "pass" | "fail" | "invalid" | "timeout";
+/** D28: "superseded" = replaced by a newer request for the case; terminal, never completed. */
+export type RunStatus = "requested" | "pass" | "fail" | "invalid" | "timeout" | "superseded";
 
 export interface VerificationRun {
   readonly seq: number;
@@ -152,7 +166,7 @@ export interface VerificationRun {
 
 const RunRow = z.object({
   seq: z.number().int(), id: z.string(), case_id: z.string(), repo: z.string(), pr_number: z.number().int(),
-  head_sha: z.string().length(40), status: z.enum(["requested", "pass", "fail", "invalid", "timeout"]),
+  head_sha: z.string().length(40), status: z.enum(["requested", "pass", "fail", "invalid", "timeout", "superseded"]),
   requested_at: z.string(), completed_at: z.string().nullable(),
 });
 const toRun = (raw: unknown): VerificationRun => {
@@ -182,8 +196,19 @@ export function latestRunForHead(db: Db, caseId: string, headSha: string): Verif
   return raw === undefined ? undefined : toRun(raw);
 }
 
-/** Complete a run that is still 'requested'. Returns false if it was already completed. */
-export function completeRun(db: Db, id: string, status: Exclude<RunStatus, "requested">, reportJson: string | null, now: Date): boolean {
+/** Supersede every other still-open run of the case. Returns the ids superseded. */
+export function supersedeOpenRuns(db: Db, caseId: string, exceptId: string, now: Date): string[] {
+  const ids = (db.prepare("SELECT id FROM verification_runs WHERE case_id = ? AND status = 'requested' AND id <> ? ORDER BY seq").all(caseId, exceptId) as { id: string }[]).map((r) => r.id);
+  db.prepare("UPDATE verification_runs SET status = 'superseded', completed_at = ? WHERE case_id = ? AND status = 'requested' AND id <> ?")
+    .run(now.toISOString(), caseId, exceptId);
+  return ids;
+}
+
+/**
+ * Complete a run that is still 'requested'. Returns false if it was already completed or
+ * superseded: only an open run can ever become a pass.
+ */
+export function completeRun(db: Db, id: string, status: Exclude<RunStatus, "requested" | "superseded">, reportJson: string | null, now: Date): boolean {
   return db
     .prepare("UPDATE verification_runs SET status = ?, report_json = ?, completed_at = ? WHERE id = ? AND status = 'requested'")
     .run(status, reportJson, now.toISOString(), id).changes === 1;

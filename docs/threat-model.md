@@ -16,9 +16,14 @@ against live services.
 | Prompt injection (issue says "merge now") | Closed command grammar; policy in code; agents have no merge/status rights; report text fenced as untrusted in the hand-off | `security/merge-gate.test.ts` (prompt injection), `unit/parse.test.ts`, `integration/workflow.test.ts` (hand-off fencing) | Tested |
 | Identity spoofing (display name) | Opaque participant ids only; `sender_name` never read | `unit/authorize.test.ts`, `integration/router.test.ts` | Tested |
 | Spoofed, delegated or unaddressed commands (D16, revised) | One admission step before any parser or handler (`policy/admission.ts`): the gate's own id is dropped; `sender_kind` "platform", any `on_behalf_of`, any `sender_kind` other than null (the live value for people), and `addressed !== true` are refused, audited and never answered. Fixer/verifier reports must also be addressed and come from the exact configured id. Roles come only from exact sender ids. `sender_name` and `sender_role` never reach a decision | `unit/admission.test.ts`, `unit/authorize.test.ts`, `integration/router.test.ts`, `security/merge-gate.test.ts` | Tested; live attribution observed for people only (agents and platform not yet observed) |
-| Switch addressing policy widened or removed | Startup self-check reads the gate's own policy and refuses to start (exit 4) unless it is exactly one rule: this room, the configured ExternalUser and agent ids, owner/owner_agents/platform false | `integration/switch-policy-check.test.ts`, `integration/startup.test.ts` | Tested; checked at startup and every 60 s while running (a policy found wrong stops the gate at once; 3 consecutive unreadable checks stop it) |
+| Switch addressing policy widened or removed | Startup self-check reads the gate's own policy and refuses to start (exit 4) unless it is exactly two rules (D26): the maintainers' room with exactly the configured ExternalUser and agent ids, and the intake room with `users: "*"` and `agents: []`; `room_groups "*"` and owner/owner_agents/platform false in both | `integration/switch-policy-check.test.ts`, `integration/startup.test.ts` | Tested; checked at startup and every 60 s while running (a policy found wrong stops the gate at once; 3 consecutive unreadable checks stop it). **Live: the current live policy is the one-rule policy, so this build refuses to start until the intake rule and room exist** |
+| Public room used to reach maintainer authority (D26) | Admission resolves the room from the frame, never from content; a room the gate does not serve is refused (`WRONG_ROOM`). In the intake room only `help`, `report`, `status` exist, for every role; agent reports there are refused. Authority never crosses rooms | `unit/admission.test.ts` (full table), `unit/authorize.test.ts`, `integration/intake.test.ts` | Tested; intake room **Live: not created** |
+| Public report tasks the fixer, or injects into a hand-off (D26) | A public report is filed in `Reported` and only a maintainer's `accept` (maintainers' room) tasks the fixer; the state is re-read inside the transaction, so concurrent accepts/declines task at most once. Intake reports are limited to 1,000 characters and stripped of invisible format characters (`\p{Cf}`: zero-width, bidi, Unicode tags) before storage, and the triage notice shows the whole stored text (escaped) with its length, so maintainers triage exactly what the fixer receives. A declined case cannot be retasked. If the notice cannot be posted, it is re-sent periodically until it is | `integration/intake.test.ts`, `integration/reconcile.test.ts` (never tasked by reconciliation) | Tested | Intake spam and enumeration (D26/D27) | Duplicate reports from the same sender within 24 h are refused (through the same throttled refusal path); at most 50 public reports may await triage at once (`INTAKE_BUSY` beyond); `INTAKE_MAX_REPORTS_PER_HOUR` per sender; `status` shows only the sender's own cases, others read exactly like a missing case; visible refusals to non-maintainers are generic and limited to 3 per sender and room per 10 minutes (all are audited, subject to the audit throttle) | `integration/intake.test.ts` | Tested. Residual: a public sender can still create up to the hourly limit of cases; Switch-side rate limits are not configured by Loopback |
+| Messages lost in a Switch delivery gap (step 3.9) | The gap is detected per connection; recovery runs once at a time per room (gaps arriving meanwhile are coalesced into one more run) and is awaited before the database closes; the room's recent history is read with `read_context` through that room's connection; unprocessed messages aimed at the gate are audited (`delivery.gap`) and maintainers are told how many to resend (no content); every case is reconciled against GitHub. Recovered messages are never executed (no `addressed` flag) | `integration/switch-gap.test.ts`, `integration/switch-rooms.test.ts`, `integration/switch-connection.test.ts` | Tested; a live gap has not been observed |
+| Verifier shares the fixer's identity, or forged verifier evidence (D28) | Reports count only from the exact verifier id, bound to an open gate-issued run, its repository, PR and full SHA, re-checked against the PR's live head (unreadable ⇒ nothing recorded). Each new request supersedes older open runs, which can never complete. In isolated mode (`VERIFIER_ISOLATION_PROVEN=true`) every report must also carry a valid Ed25519 signature over the canonical report, checked before anything is recorded; startup requires the public key and distinct fixer/verifier agent ids listed in the Switch policy. Until then verification is labelled **advisory**. A signature proves key possession and report integrity, **not** test execution or runtime isolation | `unit/signature.test.ts`, `integration/verifier-signature.test.ts`, `integration/sign-helper.test.ts`, `integration/workflow.test.ts`, `unit/config.test.ts`, `integration/persistence.test.ts` (migration 3) | Tested locally; isolation **Live: not built**: no separate OS identities, keys or agents exist yet |
+| Fixer reads the gate's credentials | Target: the gate runs as its own OS identity (or container) holding `.env`, `secrets/gate.pem` and the database; `scripts/verify-isolation.sh fixer` must show the App key unreadable | `scripts/verify-isolation.sh` (to be run) | **Open, unresolved:** today the gate, the fixer session and the maintainer share one desktop user, so the fixer can read the gate's App key and Switch key; a compromised fixer could post `loopback/gate` and merge directly |
 | Privileged work in flight when the policy check fails | A one-way halt (`cases/halt.ts`) is set the moment the connection stops for a policy failure. Merge, approve/reject, retask and verify check it immediately before every write boundary (including their GitHub error branches) and stop by throwing, as a crash would; the command is audited `GATE_HALTED`, marked processed (never replayed) and not answered. Startup reconciliation then recovers the case (status reset, case blocked). A merge request already sent to GitHub cannot be cancelled | `security/halt.test.ts` | Tested (deterministic: parked GitHub calls); the halt is set in `main.ts`, which is not unit-tested |
-| Refusal audit flooding | Ordinary admission refusals (`NOT_ADDRESSED` from a person) are audited at most once per sender per 60 s per code, with a summary row counting the suppressed ones when the window closes; attribution refusals and refusals of the fixer/verifier are always audited; a full tracking table audits instead of suppressing | `integration/router.test.ts` (audit throttle) | Tested |
+| Refusal audit flooding | Ordinary refusals (`NOT_ADDRESSED` from a person) are audited at most once per sender per 60 s per code, with a summary row counting the suppressed ones when the window closes; attribution refusals and refusals of the fixer/verifier are always audited; a full tracking table audits instead of suppressing | `integration/router.test.ts` (audit throttle) | Tested |
 | Privileged commands enabled by accident | `LOOPBACK_PRIVILEGED_ENABLED` must be exactly `true`; merging also needs at least one maintainer (`CONFIG_INCOMPLETE`) | `unit/config.test.ts`, `unit/authorize.test.ts`, `security/merge-gate.test.ts` | Tested; off by default |
 | Stale approval (commit after approval) | Approvals store the full SHA; policy counts only approvals for the live head; poller marks Stale and re-verifies | `unit/policy.test.ts`, `security/merge-gate.test.ts` (commit binding), `integration/workflow.test.ts` | Tested |
 | Stale or foreign CI | Check runs filtered by name, source app slug and exact head; latest by id (D13) | `unit/policy.test.ts`, `integration/workflow.test.ts` | Tested |
@@ -31,10 +36,10 @@ against live services.
 | Token leakage | Separate per-agent tokens; gate key never in agent env; redacting logger and audit; no values in config errors | `integration/observability.test.ts`, `integration/persistence.test.ts` (redaction), `unit/config.test.ts` | Tested; agent env isolation **Live: unverified** |
 | Excessive access (fixer merges or forges `loopback/gate`) | Ruleset requires `loopback/gate` from the gate App plus CI, empty bypass list; fixer PAT without status or workflow permissions | Manual proof, plan Phase 6 step 6 (nine outcomes) | **Live: unverified** |
 | CI tampering by the fixer (D19) | Gate blocks PRs touching workflows, `package.json`, lockfiles, test config; verifier must fail them; fixer PAT lacks Workflows permission | `unit/policy.test.ts` (protected paths), `security/merge-gate.test.ts` | Tested; PAT permission **Live: unverified** |
-| Unprotected or wrong base branch (D12/D17) | Exact `BASE_BRANCH` comparison; runtime check of exposed rules; demo base commit checked before tasking the fixer | `unit/policy.test.ts`, `security/merge-gate.test.ts`, `integration/workflow.test.ts` (demo base) | Tested; ruleset **Live: unverified** |
+| Unprotected or wrong base branch (D12/D17) | Exact `BASE_BRANCH` comparison; runtime check of exposed rules and required check integration IDs (`CHECK_SOURCE_MISMATCH`); demo base commit checked before tasking the fixer | `unit/policy.test.ts`, `security/merge-gate.test.ts`, `integration/workflow.test.ts` (demo base) | Tested; ruleset **Live: unverified** |
 | GitHub outage | Undefined snapshot ⇒ block; nothing merges on cached evidence | `unit/policy.test.ts`, `security/merge-gate.test.ts` | Tested |
 | Malicious repo content | Prompts mark content untrusted; tokens scoped to one repo; prompt review checklist below | Prompt review (this document) | Reviewed |
-| Audit tampering | SQLite triggers reject UPDATE/DELETE on audit and approvals | `integration/persistence.test.ts` | Tested; daily backup **not yet scheduled** |
+| Audit tampering | SQLite triggers reject UPDATE/DELETE on audit and approvals | `integration/persistence.test.ts` | Tested; online backup script `scripts/backup-db.sh` and systemd units provided and validated locally (live scheduling requires systemd install) |
 
 ## Prompt review checklist (§14 "Malicious repo content")
 
@@ -75,7 +80,28 @@ against live services.
    background run that is already in progress; such a run can fail against the closed database
    (caught and logged) and could post a gate status during shutdown. These background paths never
    merge. Fix separately: track in-flight background tasks and await them before closing.
-7. **In-flight GitHub merge.** A halt (policy failure) stops privileged work at its next write
+7. **Token attribution.** The fixer's and verifier's fine-grained tokens are owned by the
+   maintainer's personal GitHub account, so their pushes, PRs and comments are attributed to that
+   account on GitHub. Loopback's audit log (actor ids, run ids) is the record of which agent did
+   what; GitHub's author field is not.
+8. **Public intake volume.** Anyone Switch admits to the intake room can file up to
+   `INTAKE_MAX_REPORTS_PER_HOUR` reports per hour; maintainers triage each one. Switch's own rate
+   limits are outside Loopback's control.
+9. **Open review items (independent review of the two-room change, not fixed here).**
+   - The refusal-audit table, when full of live entries, audits every further refusal (by design,
+     fail toward evidence), so rotating sender ids can still grow the audit log.
+   - The policy is re-read every 60 s and three unreadable reads are tolerated, so a widened policy
+     can be live for up to about a minute (about three while unreadable) before the gate stops.
+     Authority in the maintainers' room still needs the exact Loopback id lists.
+   - URLs in a public report are shown as text in the triage notice (not defanged).
+   - `accept`/`decline` are maintainer-only but not privileged: triage works while
+     `LOOPBACK_PRIVILEGED_ENABLED=false`, like a direct `report` in the maintainers' room.
+   - Intake `help`/`status` replies are not rate-limited (one reply per addressed message).
+   - The key check does not verify file ownership or resolve symlinks before checking modes.
+   - A transient base/GitHub problem at `accept` blocks the case; a maintainer `retask` resumes it.
+   - Signal handlers are installed only after startup reconciliation, and `/healthz` starts last;
+     the `switch-operations` readiness check reflects startup discovery only.
+10. **In-flight GitHub merge.** A halt (policy failure) stops privileged work at its next write
    boundary, but cannot recall a merge request already sent to GitHub; that outcome is confirmed
    by reconciliation as usual.
 
@@ -100,7 +126,19 @@ against live services.
 | M15 idempotent, serialized, recoverable merges | lock, attempts, startup recovery | `security/merge-gate.test.ts` | Tested |
 
 Mutation check (performed during development): disabling the quorum check, the head-SHA
-comparison or the reconciliation guard each made the suite fail (7, 4 and 1 tests).
+comparison or the reconciliation guard each made the suite fail (7, 4 and 1 tests). For the
+two-room, intake, gap, readiness and verifier-evidence changes and the review fixes, 34 targeted mutations (policy
+rules, admission by room, intake command set, triage re-checks, duplicate and hourly limits,
+generic refusals, live-head check, advisory label, stop propagation, gap room binding, readiness
+heartbeat and halt, key-directory check, distinct rooms, invisible-character stripping, report
+length and pending caps, notice retry, retask after decline, gap single-flight) were each killed
+by the suite.
+
+Concurrency (step 8.3): `security/interleaving.test.ts` runs 100 seeded interleavings of a PR
+head change against an approval, a poll and a merge. In every run the merge call was bound to an
+approved, verified head, no approval was recorded for the new head, and a merge landed only on
+the approved head; when the head moved after the gate's last read, GitHub's `sha` precondition
+(modelled as a 409) refused the call.
 
 ## Dependency audit (`npm audit`, 2026-11-03)
 

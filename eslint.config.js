@@ -23,8 +23,13 @@ export default tseslint.config(
     },
   },
   {
-    files: ["**/*.js"],
+    files: ["**/*.js", "**/*.mjs"],
     ...tseslint.configs.disableTypeChecked,
+  },
+  {
+    // Stand-alone Node scripts (no TypeScript project): Node globals only.
+    files: ["scripts/**/*.mjs"],
+    languageOptions: { globals: { process: "readonly" } },
   },
   ...boundaryConfigs,
 );

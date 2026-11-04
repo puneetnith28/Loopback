@@ -38,7 +38,7 @@ function message(id: string, body: string, over: Record<string, unknown> = {}, r
   };
 }
 
-function setup(opts: { stored?: ConnectionRecord | null; fetchImpl?: typeof fetch; handler?: (m: InboundMessage) => Promise<void> } = {}) {
+function setup(opts: { stored?: ConnectionRecord | null; fetchImpl?: typeof fetch; handler?: (m: InboundMessage) => Promise<void>; onGap?: (roomId: string, reason: string) => void } = {}) {
   const sockets: FakeSocket[] = [];
   const saved: ConnectionRecord[] = [];
   const stops: StopReason[] = [];
@@ -51,6 +51,7 @@ function setup(opts: { stored?: ConnectionRecord | null; fetchImpl?: typeof fetc
     store: { load: () => opts.stored ?? null, save: (r) => { saved.push(r); } },
     onMessage: opts.handler ?? ((m) => { received.push(m); return Promise.resolve(); }),
     onStop: (r) => { stops.push(r); },
+    ...(opts.onGap ? { onGap: opts.onGap } : {}),
     log,
     reconnect: { baseMs: 100, maxMs: 1000, maxAttempts: 3 },
     beatIntervalMs: 0,
@@ -391,5 +392,41 @@ describe("messages", () => {
     t.last().state();
     t.last().frame("gap", { reason: "expired" });
     expect(t.log.error).toHaveBeenCalledWith(expect.objectContaining({ op: "switch.gap" }), expect.any(String));
+  });
+});
+
+describe("readiness inputs (step 9.5)", () => {
+  it("reports the last heartbeat only while open, refreshed by each ping", () => {
+    const t = setup();
+    expect(t.conn.lastHeartbeatAt).toBeNull();
+    t.conn.start();
+    expect(t.conn.lastHeartbeatAt).toBeNull();
+    t.last().state();
+    const opened = t.conn.lastHeartbeatAt;
+    expect(opened).toBe(Date.now());
+    vi.advanceTimersByTime(1500);
+    t.last().frame("ping", {});
+    expect(t.conn.lastHeartbeatAt).toBe(opened! + 1500);
+    expect(t.conn.roomId).toBe(ROOM);
+    t.last().state({}); // a second connection_state is a protocol error: the connection stops
+    expect(t.conn.lastHeartbeatAt).toBeNull();
+  });
+});
+
+describe("gap recovery hook (step 3.9)", () => {
+  it.each([
+    ["names this room", { rooms: [ROOM], reason: "buffer_overflow" }, true],
+    ["covers all rooms", { all_rooms: true, rooms: [] }, true],
+    ["names no room", {}, true],
+    ["names only another room", { rooms: ["other-room"], all_rooms: false }, false],
+  ])("calls onGap when the gap frame %s", (_n, data, expected) => {
+    const onGap = vi.fn();
+    const t = setup({ onGap });
+    t.conn.start();
+    t.last().state();
+    t.last().frame("gap", data);
+    if (expected) expect(onGap).toHaveBeenCalledWith(ROOM, (data as { reason?: string }).reason ?? "");
+    else expect(onGap).not.toHaveBeenCalled();
+    expect(t.stops).toEqual([]);
   });
 });

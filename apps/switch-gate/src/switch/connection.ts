@@ -69,6 +69,11 @@ export interface ConnectionOptions {
   readonly onMessage: (msg: InboundMessage) => Promise<void>;
   /** Called exactly once, when the connection stops for good. */
   readonly onStop: (reason: StopReason) => void;
+  /**
+   * Switch reported events it could not deliver to this connection (step 3.9). Called with
+   * this connection's room; recovery must never execute what it finds (no `addressed`).
+   */
+  readonly onGap?: (roomId: string, reason: string) => void;
   readonly log: ConnectionLog;
   readonly reconnect?: { readonly baseMs: number; readonly maxMs: number; readonly maxAttempts: number };
   /** Interval of the generation-fenced HTTP beat; 0 disables it. */
@@ -97,6 +102,7 @@ export class SwitchConnection {
   private watchdog: NodeJS.Timeout | null = null;
   private beat: NodeJS.Timeout | null = null;
   private queue: Promise<void> = Promise.resolve();
+  private lastBeat: number | null = null;
   private readonly reconnect: { baseMs: number; maxMs: number; maxAttempts: number };
 
   constructor(private readonly o: ConnectionOptions) {
@@ -109,6 +115,16 @@ export class SwitchConnection {
     return this.state === "open" && this.current !== null
       ? { connectionId: this.current.connection_id, generation: this.current.generation, rooms: this.current.rooms }
       : null;
+  }
+
+  /** Epoch ms of the last sign of life (connection_state or ping) on the open connection, or null. */
+  get lastHeartbeatAt(): number | null {
+    return this.state === "open" ? this.lastBeat : null;
+  }
+
+  /** The room this connection serves. */
+  get roomId(): string {
+    return this.o.roomId;
   }
 
   get stopped(): boolean {
@@ -203,6 +219,7 @@ export class SwitchConnection {
         return;
       case "gap":
         this.o.log.error({ op: "switch.gap" }, "Switch reported a gap: some events were not delivered and cannot be replayed");
+        if (frame.allRooms || frame.rooms.length === 0 || frame.rooms.includes(this.o.roomId)) this.o.onGap?.(this.o.roomId, frame.reason);
         return;
       case "ignored": return;
       case "invalid":
@@ -227,6 +244,7 @@ export class SwitchConnection {
     this.record = { connectionId: s.connection_id, generation: s.generation, position: this.record.position ?? s.position };
     this.o.store.save(this.record);
     this.state = "open";
+    this.lastBeat = Date.now();
     // The attempt count resets only once the connection has stayed up, so a server
     // that accepts and then drops every open still runs out of attempts.
     const generation = s.generation;
@@ -241,6 +259,7 @@ export class SwitchConnection {
   private onPing(): void {
     if (this.state !== "open" || this.socket === null || this.current === null) return;
     this.socket.send(JSON.stringify({ type: "pong", cursor: this.current.cursor ?? 0 }));
+    this.lastBeat = Date.now();
     this.armWatchdog(this.current.heartbeat_interval_seconds);
   }
 

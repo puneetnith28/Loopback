@@ -34,6 +34,8 @@ const Evicted = z.object({ code: z.string().min(1), reason: z.string().optional(
 const Refused = z.object({ status: z.number().int(), detail: z.unknown() });
 const SubscriptionChanged = z.object({ rooms: z.array(z.string().min(1)) });
 const RoomReleased = z.object({ room_id: z.string().min(1) });
+/** `gap`: events the server could not deliver (stream.py `_gap`); rooms may be empty when `all_rooms`. */
+const Gap = z.object({ rooms: z.array(z.string().min(1)).optional(), all_rooms: z.boolean().optional(), reason: z.string().optional() });
 
 /** `MessagePayload` as the server builds it; optional fields may be absent on old rows. */
 const MessagePayload = z.object({
@@ -67,7 +69,7 @@ export type Frame =
   | { readonly kind: "evicted"; readonly code: string }
   | { readonly kind: "refused"; readonly status: number; readonly code: string | null }
   | { readonly kind: "message"; readonly event: MessageEvent }
-  | { readonly kind: "gap" }
+  | { readonly kind: "gap"; readonly rooms: readonly string[]; readonly allRooms: boolean; readonly reason: string }
   | { readonly kind: "subscription_changed"; readonly rooms: readonly string[] }
   | { readonly kind: "room_released"; readonly roomId: string }
   /** A frame this client does not act on (e.g. room_join, session_command). */
@@ -106,7 +108,7 @@ export function parseFrame(raw: unknown): Frame {
     case "evicted": return parse(Evicted, (d) => ({ kind: "evicted", code: d.code }));
     case "refused": return parse(Refused, (d) => ({ kind: "refused", status: d.status, code: refusalCode(d.detail) }));
     case "message": return parse(MessageEvent, (e) => ({ kind: "message", event: e }));
-    case "gap": return { kind: "gap" };
+    case "gap": return parse(Gap, (d) => ({ kind: "gap", rooms: d.rooms ?? [], allRooms: d.all_rooms ?? false, reason: (d.reason ?? "").slice(0, 200) }));
     case "subscription_changed": return parse(SubscriptionChanged, (d) => ({ kind: "subscription_changed", rooms: d.rooms }));
     case "room_released": return parse(RoomReleased, (d) => ({ kind: "room_released", roomId: d.room_id }));
     default: return { kind: "ignored", event };

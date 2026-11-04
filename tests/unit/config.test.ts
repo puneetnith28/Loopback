@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { generateKeyPairSync } from "node:crypto";
 import {
   ConfigError,
   assertIdentityConsistency,
@@ -18,6 +19,7 @@ const switchEnv = {
   SWITCH_AGENT_ID: "agent-1",
   SWITCH_AGENT_API_KEY: SECRET,
   SWITCH_ROOM_ID: "room-1",
+  SWITCH_INTAKE_ROOM_ID: "room-2",
   SWITCH_SELF_ID: "@switch-agent-gate:loopback",
   SWITCH_POLICY_USER_IDS: POLICY_USER,
   SWITCH_POLICY_AGENT_IDS: POLICY_AGENT,
@@ -36,6 +38,7 @@ const githubEnv = {
   BASE_BRANCH: "main",
   REQUIRED_CHECKS: "test",
   CHECK_SOURCES: "test:github-actions",
+  REQUIRED_CHECK_INTEGRATIONS: "test:15368",
 };
 
 function issuesOf(fn: () => unknown): { variable: string; message: string }[] {
@@ -120,14 +123,14 @@ describe("identity group", () => {
 
   it("refuses a gate id that is also a maintainer, reporter, fixer or verifier", () => {
     const id = loadIdentityConfig(identityEnv);
-    expect(() => assertIdentityConsistency({ selfId: "@switch-agent-gate:loopback" }, id)).not.toThrow();
+    expect(() => assertIdentityConsistency({ selfId: "@switch-agent-gate:loopback", roomId: "room-1", intakeRoomId: "room-2" }, id)).not.toThrow();
     for (const [selfId, variable] of [
       ["@switch-user-a1:loopback", "LOOPBACK_MAINTAINERS"],
       ["@switch-user-r2:loopback", "LOOPBACK_REPORTERS"],
       ["@switch-agent-fixer:loopback", "SWITCH_SELF_ID"],
       ["@switch-agent-verifier:loopback", "SWITCH_SELF_ID"],
     ] as const) {
-      const issues = issuesOf(() => assertIdentityConsistency({ selfId }, id));
+      const issues = issuesOf(() => assertIdentityConsistency({ selfId, roomId: "room-1", intakeRoomId: "room-2" }, id));
       expect(issues.map((i) => i.variable), selfId).toContain(variable);
     }
   });
@@ -141,18 +144,76 @@ describe("identity group", () => {
 });
 
 describe("GitHub group", () => {
-  it("parses checks and sources", () => {
+  it("parses checks, sources and ruleset integration IDs", () => {
     const c = loadGitHubConfig(githubEnv, { checkKeyFile: false });
     expect(c.owner).toBe("acme");
     expect(c.checkSources.get("test")).toBe("github-actions");
+    expect(c.requiredCheckIntegrations.get("test")).toBe(15368);
+    // Requirement 4: loopback/gate expected integration ID is bound to GH_APP_ID
+    expect(c.requiredCheckIntegrations.get("loopback/gate")).toBe(123);
     expect(c.gateStatusContext).toBe("loopback/gate");
   });
 
   it("requires a source for every required check", () => {
     const issues = issuesOf(() =>
-      loadGitHubConfig({ ...githubEnv, REQUIRED_CHECKS: "test,lint" }, { checkKeyFile: false }),
+      loadGitHubConfig({ ...githubEnv, REQUIRED_CHECKS: "test,lint", REQUIRED_CHECK_INTEGRATIONS: "test:15368,lint:15369" }, { checkKeyFile: false }),
     );
     expect(issues.map((i) => i.variable)).toContain("CHECK_SOURCES");
+  });
+
+  it("requires an integration ID for every required check and positive IDs", () => {
+    const missing = issuesOf(() =>
+      loadGitHubConfig({ ...githubEnv, REQUIRED_CHECKS: "test,lint", CHECK_SOURCES: "test:github-actions,lint:linter" }, { checkKeyFile: false }),
+    );
+    expect(missing.map((i) => i.variable)).toContain("REQUIRED_CHECK_INTEGRATIONS");
+
+    const zero = issuesOf(() =>
+      loadGitHubConfig({ ...githubEnv, REQUIRED_CHECK_INTEGRATIONS: "test:0" }, { checkKeyFile: false }),
+    );
+    expect(zero.map((i) => i.variable)).toContain("REQUIRED_CHECK_INTEGRATIONS");
+
+    const nonInt = issuesOf(() =>
+      loadGitHubConfig({ ...githubEnv, REQUIRED_CHECK_INTEGRATIONS: "test:abc" }, { checkKeyFile: false }),
+    );
+    expect(nonInt.map((i) => i.variable)).toContain("REQUIRED_CHECK_INTEGRATIONS");
+
+    const conflicting = issuesOf(() =>
+      loadGitHubConfig({ ...githubEnv, REQUIRED_CHECK_INTEGRATIONS: "test:15368,test:99999" }, { checkKeyFile: false }),
+    );
+    expect(conflicting.map((i) => i.variable)).toContain("REQUIRED_CHECK_INTEGRATIONS");
+
+    // D.1: trims whitespace around context and id
+    const trimmed = loadGitHubConfig({ ...githubEnv, REQUIRED_CHECK_INTEGRATIONS: "  test  :  15368  " }, { checkKeyFile: false });
+    expect(trimmed.requiredCheckIntegrations.get("test")).toBe(15368);
+
+    // D.2: rejects empty context names and malformed IDs
+    expect(issuesOf(() => loadGitHubConfig({ ...githubEnv, REQUIRED_CHECK_INTEGRATIONS: ":15368" }, { checkKeyFile: false })).map((i) => i.variable)).toContain("REQUIRED_CHECK_INTEGRATIONS");
+    expect(issuesOf(() => loadGitHubConfig({ ...githubEnv, REQUIRED_CHECK_INTEGRATIONS: "test:" }, { checkKeyFile: false })).map((i) => i.variable)).toContain("REQUIRED_CHECK_INTEGRATIONS");
+
+    // D.3: rejects GATE_STATUS_CONTEXT in REQUIRED_CHECKS
+    const gateInReq = issuesOf(() =>
+      loadGitHubConfig({ ...githubEnv, REQUIRED_CHECKS: "test,loopback/gate" }, { checkKeyFile: false }),
+    );
+    expect(gateInReq.map((i) => i.variable)).toContain("REQUIRED_CHECKS");
+
+    // D.4: explicitly supplied gate mapping equal to GH_APP_ID is accepted
+    const explicitGate = loadGitHubConfig(
+      { ...githubEnv, REQUIRED_CHECK_INTEGRATIONS: "test:15368, loopback/gate:123" },
+      { checkKeyFile: false },
+    );
+    expect(explicitGate.requiredCheckIntegrations.get("loopback/gate")).toBe(123);
+
+    // D.5: conflicting gate mapping is rejected
+    const gateConflict = issuesOf(() =>
+      loadGitHubConfig({ ...githubEnv, REQUIRED_CHECK_INTEGRATIONS: "test:15368,loopback/gate:99999" }, { checkKeyFile: false }),
+    );
+    expect(gateConflict.map((i) => i.variable)).toContain("REQUIRED_CHECK_INTEGRATIONS");
+
+    // D.6: unsafe integer IDs are rejected
+    const unsafeInt = issuesOf(() =>
+      loadGitHubConfig({ ...githubEnv, REQUIRED_CHECK_INTEGRATIONS: "test:99999999999999999999" }, { checkKeyFile: false }),
+    );
+    expect(unsafeInt.map((i) => i.variable)).toContain("REQUIRED_CHECK_INTEGRATIONS");
   });
 
   it("enforces BASE_BRANCH = demo/<DEMO_RUN_ID> and a full DEMO_RESET_SHA during demo runs (D17)", () => {
@@ -199,6 +260,55 @@ describe("private key permissions", () => {
   it("rejects directories", () => {
     expect(() => assertPrivateKeyFile("k", () => ({ mode: 0o40700, isFile: () => false }))).toThrow(ConfigError);
   });
+  const withDir = (dirMode: number) => (p: string) =>
+    p === "secrets/gate.pem" ? { mode: 0o100600, isFile: () => true } : { mode: dirMode, isFile: () => false };
+  it("accepts a private or read-only-shared key directory", () => {
+    expect(() => assertPrivateKeyFile("secrets/gate.pem", withDir(0o40700))).not.toThrow();
+    expect(() => assertPrivateKeyFile("secrets/gate.pem", withDir(0o40755))).not.toThrow();
+  });
+  it("rejects a key directory others can write to (the key could be swapped)", () => {
+    for (const mode of [0o40770, 0o40707, 0o40777, 0o41777]) {
+      expect(() => assertPrivateKeyFile("secrets/gate.pem", withDir(mode)), mode.toString(8)).toThrow(/directory must not be group- or world-writable/);
+    }
+  });
+  it("rejects a key directory it cannot stat", () => {
+    expect(() => assertPrivateKeyFile("secrets/gate.pem", (p) => {
+      if (p === "secrets/gate.pem") return { mode: 0o100600, isFile: () => true };
+      throw new Error("ENOENT");
+    })).toThrow(/directory not found/);
+  });
+});
+
+describe("D26/D28 configuration", () => {
+  it("requires a distinct intake room", () => {
+    expect(loadSwitchConfig(switchEnv).intakeRoomId).toBe("room-2");
+    expect(issuesOf(() => loadSwitchConfig({ ...switchEnv, SWITCH_INTAKE_ROOM_ID: undefined })).map((i) => i.variable)).toContain("SWITCH_INTAKE_ROOM_ID");
+    const id = loadIdentityConfig(identityEnv);
+    const issues = issuesOf(() => assertIdentityConsistency({ selfId: "@switch-agent-gate:loopback", roomId: "room-1", intakeRoomId: "room-1" }, id));
+    expect(issues.map((i) => i.variable)).toContain("SWITCH_INTAKE_ROOM_ID");
+  });
+
+  it("treats the verifier as advisory unless isolation is explicitly proven", () => {
+    expect(loadIdentityConfig(identityEnv).verifierIsolationProven).toBe(false);
+    // Turning isolation on requires the full D28 configuration (see "D28 isolated verification configuration").
+    const edRaw = generateKeyPairSync("ed25519").publicKey.export({ type: "spki", format: "der" }).subarray(12).toString("base64");
+    expect(loadIdentityConfig({
+      ...identityEnv, VERIFIER_ISOLATION_PROVEN: "true", VERIFIER_PUBLIC_KEY: edRaw,
+      LOOPBACK_FIXER_AGENT_ID: "11111111-2222-4333-8444-555555555555", LOOPBACK_VERIFIER_AGENT_ID: "66666666-2222-4333-8444-555555555555",
+    }).verifierIsolationProven).toBe(true);
+    expect(issuesOf(() => loadIdentityConfig({ ...identityEnv, VERIFIER_ISOLATION_PROVEN: "true" })).map((i) => i.variable)).toContain("VERIFIER_PUBLIC_KEY");
+    for (const bad of ["yes", "1", "TRUE"]) {
+      expect(issuesOf(() => loadIdentityConfig({ ...identityEnv, VERIFIER_ISOLATION_PROVEN: bad })).map((i) => i.variable), bad).toContain("VERIFIER_ISOLATION_PROVEN");
+    }
+  });
+
+  it("limits public reports per reporter per hour (default 3, positive integer)", () => {
+    expect(loadIdentityConfig(identityEnv).intakeMaxReportsPerHour).toBe(3);
+    expect(loadIdentityConfig({ ...identityEnv, INTAKE_MAX_REPORTS_PER_HOUR: "5" }).intakeMaxReportsPerHour).toBe(5);
+    for (const bad of ["0", "-1", "x", "1.5"]) {
+      expect(issuesOf(() => loadIdentityConfig({ ...identityEnv, INTAKE_MAX_REPORTS_PER_HOUR: bad })).map((i) => i.variable), bad).toContain("INTAKE_MAX_REPORTS_PER_HOUR");
+    }
+  });
 });
 
 describe("runtime group", () => {
@@ -222,5 +332,103 @@ describe("Switch URL transport security", () => {
     for (const bad of ["http://switch.example.com", "javascript:alert(1)", "ftp://x", "file:///etc/passwd", "not a url"]) {
       expect(() => loadSwitchConfig({ ...switchEnv, SWITCH_BRIDGE_URL: bad }), bad).toThrow(ConfigError);
     }
+  });
+});
+
+describe("step 2.5 and 2.8: secret hygiene and ignore rules", () => {
+  it(".gitignore ignores runtime secrets, data, and planning documents", async () => {
+    const { execFileSync } = await import("node:child_process");
+    const toCheck = [".env", ".env.local", "secrets/gate.pem", "data/loopback.db", "plan.md", "implementation.md"];
+    const out = execFileSync("git", ["check-ignore", ...toCheck], { encoding: "utf8" });
+    const ignored = out.trim().split("\n");
+    for (const file of toCheck) {
+      expect(ignored).toContain(file);
+    }
+  });
+
+  it(".gitignore does not ignore .env.example", async () => {
+    const { execFileSync } = await import("node:child_process");
+    expect(() => execFileSync("git", ["check-ignore", "-q", ".env.example"])).toThrow();
+  });
+
+  it("secrets/ directory exists and has restrictive mode 0700", async () => {
+    const { statSync } = await import("node:fs");
+    const stat = statSync("secrets");
+    expect(stat.isDirectory()).toBe(true);
+    expect(stat.mode & 0o077).toBe(0);
+  });
+});
+
+
+describe("D28 isolated verification configuration", () => {
+  const { publicKey: edPub, privateKey: edPriv } = generateKeyPairSync("ed25519");
+  const pem = edPub.export({ type: "spki", format: "pem" }).toString();
+  const raw = edPub.export({ type: "spki", format: "der" }).subarray(12).toString("base64");
+  const FIXER_AGENT = "11111111-2222-4333-8444-555555555555";
+  const VERIFIER_AGENT = "66666666-2222-4333-8444-555555555555";
+  const isolated = {
+    ...identityEnv, VERIFIER_ISOLATION_PROVEN: "true", VERIFIER_PUBLIC_KEY: raw,
+    LOOPBACK_FIXER_AGENT_ID: FIXER_AGENT, LOOPBACK_VERIFIER_AGENT_ID: VERIFIER_AGENT,
+  };
+  const sw = { selfId: "@switch-agent-gate:loopback", roomId: "room-1", intakeRoomId: "room-2", policyAgentIds: new Set([FIXER_AGENT, VERIFIER_AGENT]) };
+
+  it("advisory mode needs no key or agent ids, and stays advisory", () => {
+    const c = loadIdentityConfig(identityEnv);
+    expect(c.verifierIsolationProven).toBe(false);
+    expect(c.verifierPublicKey).toBeNull();
+  });
+
+  it("accepts a valid isolated configuration, with a raw or a PEM key", () => {
+    for (const key of [raw, pem]) {
+      const c = loadIdentityConfig({ ...isolated, VERIFIER_PUBLIC_KEY: key });
+      expect(c.verifierIsolationProven).toBe(true);
+      expect(c.verifierPublicKey?.asymmetricKeyType).toBe("ed25519");
+      expect(() => assertIdentityConsistency(sw, c)).not.toThrow();
+    }
+  });
+
+  it("refuses isolated mode without a public key", () => {
+    expect(issuesOf(() => loadIdentityConfig({ ...isolated, VERIFIER_PUBLIC_KEY: undefined })).map((i) => i.variable)).toContain("VERIFIER_PUBLIC_KEY");
+    expect(issuesOf(() => loadIdentityConfig({ ...isolated, VERIFIER_PUBLIC_KEY: "  " })).map((i) => i.variable)).toContain("VERIFIER_PUBLIC_KEY");
+  });
+
+  it.each([
+    ["garbage", "not-a-key"],
+    ["an RSA key", generateKeyPairSync("rsa", { modulusLength: 2048 }).publicKey.export({ type: "spki", format: "pem" }).toString()],
+    ["an X25519 key", generateKeyPairSync("x25519").publicKey.export({ type: "spki", format: "pem" }).toString()],
+    ["a private key", edPriv.export({ type: "pkcs8", format: "pem" }).toString()],
+  ])("refuses %s as VERIFIER_PUBLIC_KEY, in either mode, without echoing it", (_n, key) => {
+    for (const env of [{ ...isolated, VERIFIER_PUBLIC_KEY: key }, { ...identityEnv, VERIFIER_PUBLIC_KEY: key }]) {
+      try {
+        loadIdentityConfig(env);
+        throw new Error("expected ConfigError");
+      } catch (e) {
+        expect(e).toBeInstanceOf(ConfigError);
+        const err = e as ConfigError;
+        expect(err.issues.map((i) => i.variable)).toContain("VERIFIER_PUBLIC_KEY");
+        const probe = key.trim().length > 60 ? key.trim().slice(30, 60) : key.trim();
+        expect(JSON.stringify(err.issues) + err.message).not.toContain(probe);
+      }
+    }
+  });
+
+  it("refuses isolated mode without both agent ids, or with identical ones", () => {
+    expect(issuesOf(() => loadIdentityConfig({ ...isolated, LOOPBACK_FIXER_AGENT_ID: undefined })).map((i) => i.variable)).toContain("LOOPBACK_FIXER_AGENT_ID");
+    expect(issuesOf(() => loadIdentityConfig({ ...isolated, LOOPBACK_VERIFIER_AGENT_ID: "" })).map((i) => i.variable)).toContain("LOOPBACK_VERIFIER_AGENT_ID");
+    expect(issuesOf(() => loadIdentityConfig({ ...isolated, LOOPBACK_VERIFIER_AGENT_ID: FIXER_AGENT })).map((i) => i.variable)).toContain("LOOPBACK_VERIFIER_AGENT_ID");
+    expect(issuesOf(() => loadIdentityConfig({ ...isolated, LOOPBACK_FIXER_AGENT_ID: "not-a-uuid" })).map((i) => i.variable)).toContain("LOOPBACK_FIXER_AGENT_ID");
+  });
+
+  it("refuses identical fixer and verifier participant ids in isolated mode too", () => {
+    expect(issuesOf(() => loadIdentityConfig({ ...isolated, LOOPBACK_VERIFIER_ID: identityEnv.LOOPBACK_FIXER_ID })).map((i) => i.variable)).toContain("LOOPBACK_VERIFIER_ID");
+  });
+
+  it("refuses isolated mode when an agent id is missing from SWITCH_POLICY_AGENT_IDS", () => {
+    const c = loadIdentityConfig(isolated);
+    for (const listed of [new Set([FIXER_AGENT]), new Set([VERIFIER_AGENT]), new Set<string>()]) {
+      expect(issuesOf(() => assertIdentityConsistency({ ...sw, policyAgentIds: listed }, c)).map((i) => i.variable).length).toBeGreaterThan(0);
+    }
+    const withoutList = { selfId: sw.selfId, roomId: sw.roomId, intakeRoomId: sw.intakeRoomId };
+    expect(issuesOf(() => assertIdentityConsistency(withoutList, c)).map((i) => i.variable)).toContain("LOOPBACK_FIXER_AGENT_ID");
   });
 });

@@ -12,6 +12,13 @@ import type { BaseProtection, LiveSnapshot } from "../../apps/switch-gate/src/po
 import { Poller } from "../../apps/switch-gate/src/workflow/poller.js";
 import { VerificationWorkflow, type WorkflowDeps } from "../../apps/switch-gate/src/workflow/verification.js";
 import { HaltSwitch } from "../../apps/switch-gate/src/cases/halt.js";
+import { generateKeyPairSync, type KeyObject } from "node:crypto";
+import { signReport } from "../../apps/switch-gate/src/agents/signature.js";
+
+/** Test-only verifier signing key, generated per test process (D28). Never persisted. */
+export const TEST_VERIFIER_KEYS = generateKeyPairSync("ed25519");
+/** Sign a verifier report with the test verifier key (as scripts/sign-verifier-report.mjs would). */
+export const signTestReport = (r: Record<string, unknown>): Record<string, unknown> => ({ ...r, signature: signReport(r, TEST_VERIFIER_KEYS.privateKey) });
 
 export const A = "a".repeat(40);
 export const B = "b".repeat(40);
@@ -25,6 +32,10 @@ export const VERIFIER = "@switch-agent-verifier:x";
 export const SELF = "@switch-agent-gate:x";
 export const G = "@loopback-gate";
 export const REPO = "o/r";
+/** The maintainers' room (D26); harness messages default to it. */
+export const MROOM = "room";
+/** The public intake room (D26). */
+export const IROOM = "intake-room";
 
 /** A scriptable GitHub for tests. Mutate its fields to simulate GitHub state and failures. */
 export class FakeGitHub implements GitHubReader {
@@ -32,8 +43,14 @@ export class FakeGitHub implements GitHubReader {
   checks = new Map<string, CheckRunDetails[]>();
   files = new Map<number, string[]>();
   rules: BaseProtection = {
-    requiredStatusContexts: ["test", "loopback/gate"], requiresPullRequest: true, requiresUpToDate: true,
-    blocksForcePush: true, restrictsDeletion: true,
+    requiredStatusChecks: [
+      { context: "test", integrationId: 1 },
+      { context: "loopback/gate", integrationId: 100 },
+    ],
+    requiresPullRequest: true,
+    requiresUpToDate: true,
+    blocksForcePush: true,
+    restrictsDeletion: true,
   };
   branchHead = BASE;
   statuses: { sha: string; state: string; description: string }[] = [];
@@ -111,6 +128,10 @@ export interface Harness {
   db: Db;
   gh: FakeGitHub;
   posts: string[];
+  /** Every post with its room, in order. */
+  roomPosts: { room: string; content: string }[];
+  /** Set to make posts to a room fail (simulates a stopped connection or a Switch 5xx). */
+  failPostsTo: { room: string | null };
   merger: ReturnType<typeof vi.fn<Merger>>;
   router: Router;
   wf: VerificationWorkflow;
@@ -126,14 +147,22 @@ export interface Harness {
   state(id?: string): string | undefined;
 }
 
-export function createHarness(opts: { mergeEnabled?: boolean; expectedBase?: string | null; quorum?: number; retryLimit?: number; maxAttempts?: number; privilegedEnabled?: boolean } = {}): Harness {
+export function createHarness(opts: { verifierPublicKey?: KeyObject | null; verificationAdvisory?: boolean; intakeMaxReportsPerHour?: number; mergeEnabled?: boolean; expectedBase?: string | null; quorum?: number; retryLimit?: number; maxAttempts?: number; privilegedEnabled?: boolean } = {}): Harness {
   const db = openDatabase(":memory:");
   migrate(db);
   const gh = new FakeGitHub();
   const posts: string[] = [];
+  const roomPosts: { room: string; content: string }[] = [];
+  const failPostsTo: { room: string | null } = { room: null };
   const clock = { now: new Date("2026-11-05T10:00:00Z") };
   const now = () => new Date(clock.now);
-  const chat = { post: async (_room: string, content: string) => { posts.push(content); } };
+  const chat = {
+    post: async (room: string, content: string) => {
+      if (failPostsTo.room === room) throw new Error("post failed");
+      posts.push(content);
+      roomPosts.push({ room, content });
+    },
+  };
   const locks = new CaseLocks();
   const halt = new HaltSwitch();
   const maintainers = new Set([MAINT, MAINT2]);
@@ -141,6 +170,9 @@ export function createHarness(opts: { mergeEnabled?: boolean; expectedBase?: str
     db, chat, github: gh, locks, now, repo: REPO, baseBranch: "main", requiredChecks: ["test"],
     checkSources: new Map([["test", "github-actions"]]), gateMention: G, fixerAlias: "@loopback-fixer",
     verifierAlias: "@loopback-verifier", verifyTimeoutMs: 600_000, fixTimeoutMs: 2_700_000, halt,
+    verificationAdvisory: opts.verificationAdvisory ?? false,
+    // Isolated mode (the default here) checks signatures against the test key.
+    verifierPublicKey: opts.verifierPublicKey === undefined ? TEST_VERIFIER_KEYS.publicKey : opts.verifierPublicKey,
     expectedBaseSha: () => opts.expectedBase ?? null,
   };
   const wf = new VerificationWorkflow(wfDeps);
@@ -152,13 +184,22 @@ export function createHarness(opts: { mergeEnabled?: boolean; expectedBase?: str
   const exec = new MergeExecutor({
     db, chat, github: gh, merger, locks, now, mergeEnabled: opts.mergeEnabled ?? true, configComplete: true, halt,
     transientRetryLimit: opts.retryLimit ?? 3, mergeMaxAttempts: opts.maxAttempts ?? 2,
-    policy: { baseBranch: "main", requiredChecks: ["test"], checkSources: new Map([["test", "github-actions"]]), gateStatusContext: "loopback/gate", maintainers, quorum: opts.quorum ?? 1 },
+    policy: {
+      baseBranch: "main",
+      requiredChecks: ["test"],
+      checkSources: new Map([["test", "github-actions"]]),
+      requiredCheckIntegrations: new Map([["test", 1], ["loopback/gate", 100]]),
+      gateStatusContext: "loopback/gate",
+      maintainers,
+      quorum: opts.quorum ?? 1,
+    },
     requestVerification: (id) => wf.requestVerificationLocked(id, "system", false),
     onMergeConfirmed: (sha) => kvSet(db, "expected_base_sha", sha),
   });
   const router = new Router({
     db, chat, repo: REPO, quorum: opts.quorum ?? 1, requiredChecks: ["test"],
-    admission: { selfId: SELF, fixerId: FIXER, verifierId: VERIFIER, gateMention: G },
+    admission: { selfId: SELF, fixerId: FIXER, verifierId: VERIFIER, gateMention: G, maintainerRoomId: MROOM, intakeRoomId: IROOM },
+    intakeMaxReportsPerHour: opts.intakeMaxReportsPerHour ?? 3,
     identity: { maintainers, reporters: new Set([REP]), privilegedEnabled: opts.privilegedEnabled ?? true },
     privileged: {
       verify: (ctx, id) => wf.verifyCommand(ctx, id),
@@ -172,7 +213,7 @@ export function createHarness(opts: { mergeEnabled?: boolean; expectedBase?: str
   let seq = 0;
   const say = async (sender: string, body: string, over: Partial<InboundMessage> = {}) => {
     seq += 1;
-    await router.handle({ eventId: `e${seq}`, roomId: "room", sequence: seq, messageId: `e${seq}`, sender, senderKind: null, onBehalfOf: null, senderRole: null, addressed: true, body, threadId: null, timestamp: seq, ...over });
+    await router.handle({ eventId: `e${seq}`, roomId: MROOM, sequence: seq, messageId: `e${seq}`, sender, senderKind: null, onBehalfOf: null, senderRole: null, addressed: true, body, threadId: null, timestamp: seq, ...over });
   };
   const lastRunId = () => {
     const m = [...posts].reverse().map((p) => /Run id: ([0-9a-f-]{36})/.exec(p)).find(Boolean);
@@ -180,11 +221,16 @@ export function createHarness(opts: { mergeEnabled?: boolean; expectedBase?: str
     return m[1]!;
   };
   const h: Harness = {
-    db, gh, posts, merger, router, wf, poller, exec, halt, clock, say, lastRunId,
+    db, gh, posts, roomPosts, failPostsTo, merger, router, wf, poller, exec, halt, clock, say, lastRunId,
     state: (id = "LB-001") => getCase(db, id)?.state,
     async verifierReply(verdict, over = {}) {
       const c = getCase(db, "LB-001")!;
-      const report = { type: "verifier", runId: lastRunId(), caseId: "LB-001", repository: REPO, pullRequest: c.prNumber, headSha: c.headSha, verdict, regressionTestFailsBeforeFix: true, findings: [], summary: "checked", ...over };
+      const base: Record<string, unknown> = { type: "verifier", runId: lastRunId(), caseId: "LB-001", repository: REPO, pullRequest: c.prNumber, headSha: c.headSha, verdict, regressionTestFailsBeforeFix: true, findings: [], summary: "checked", ...over };
+      // Signed with the test verifier key unless the test sets `signature` itself
+      // (`signature: undefined` sends an unsigned report).
+      const report = "signature" in over
+        ? Object.fromEntries(Object.entries(base).filter(([, v]) => v !== undefined))
+        : signTestReport(base);
       await say(VERIFIER, "Summary.\n```loopback-report\n" + JSON.stringify(report) + "\n```");
     },
     async driveToAwaitingApproval() {

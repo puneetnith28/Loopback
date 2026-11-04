@@ -51,7 +51,11 @@ describe("parseFrame", () => {
     expect(parseFrame('{"event":"refused","data":{"status":400,"detail":"connection_id is required"}}')).toEqual({ kind: "refused", status: 400, code: null });
     expect(parseFrame('{"event":"subscription_changed","data":{"rooms":["a"],"reason":"r"}}')).toEqual({ kind: "subscription_changed", rooms: ["a"] });
     expect(parseFrame('{"event":"room_released","data":{"room_id":"a","session_id":null}}')).toEqual({ kind: "room_released", roomId: "a" });
-    expect(parseFrame('{"event":"gap","data":{}}')).toEqual({ kind: "gap" });
+    expect(parseFrame('{"event":"gap","data":{}}')).toEqual({ kind: "gap", rooms: [], allRooms: false, reason: "" });
+    expect(parseFrame('{"event":"gap","data":{"from_sequence":4,"resumed_at":"t","resumed_position":{"s":9},"rooms":["a"],"all_rooms":false,"reason":"buffer_overflow"}}'))
+      .toEqual({ kind: "gap", rooms: ["a"], allRooms: false, reason: "buffer_overflow" });
+    expect(parseFrame('{"event":"gap","data":{"rooms":null,"all_rooms":true}}').kind).toBe("invalid");
+    expect(parseFrame('{"event":"gap","data":{"rooms":[""]}}').kind).toBe("invalid");
   });
 
   it("ignores frames it does not act on and rejects garbage", () => {

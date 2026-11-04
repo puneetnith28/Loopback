@@ -140,21 +140,39 @@ export class GitHubClient implements GitHubReader {
       rules.push(...body);
       if (body.length < 100) break;
     }
-    const contexts: string[] = [];
+    const statusChecks: Array<{ context: string; integrationId: number | null }> = [];
     let strict = false;
     for (const r of rules.filter((x) => x.type === "required_status_checks")) {
       const p = r.parameters ?? {};
       const checks = Array.isArray(p.required_status_checks) ? p.required_status_checks : [];
-      for (const c of checks) if (c && typeof (c as { context?: unknown }).context === "string") contexts.push((c as { context: string }).context);
+      for (const c of checks) {
+        if (c && typeof (c as { context?: unknown }).context === "string") {
+          const ctx = (c as { context: string }).context;
+          const rawId = (c as { integration_id?: unknown }).integration_id;
+          const integrationId =
+            typeof rawId === "number" && Number.isSafeInteger(rawId) && rawId > 0
+              ? rawId
+              : null;
+          statusChecks.push({ context: ctx, integrationId });
+        }
+      }
       if (p.strict_required_status_checks_policy === true) strict = true;
     }
     return {
-      requiredStatusContexts: contexts,
+      requiredStatusChecks: statusChecks,
       requiresUpToDate: strict,
       requiresPullRequest: rules.some((r) => r.type === "pull_request"),
       blocksForcePush: rules.some((r) => r.type === "non_fast_forward"),
       restrictsDeletion: rules.some((r) => r.type === "deletion"),
     };
+  }
+
+  /** Core API requests left for this installation (readiness, step 9.5). `/rate_limit` itself is free. */
+  async rateLimitRemaining(): Promise<number> {
+    const r = await this.t.getJson<{ resources?: { core?: { remaining?: unknown } } }>("/rate_limit");
+    const n = r.body.resources?.core?.remaining;
+    if (typeof n !== "number" || !Number.isFinite(n) || n < 0) throw new GitHubError("unexpected rate_limit response", r.status);
+    return n;
   }
 
   async getBranchHead(branch: string): Promise<string> {

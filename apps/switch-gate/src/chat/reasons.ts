@@ -15,6 +15,12 @@ export interface ReasonContext {
 
 type Prefix = "BLOCKED" | "REFUSED" | "UNKNOWN" | "STOPPED";
 
+/**
+ * D27: the only refusal an ordinary (non-maintainer) sender ever sees. It names no
+ * command, role, participant id, policy or configuration, so it discloses nothing.
+ */
+export const GENERIC_REFUSAL = "REFUSED: That request is not available to you here.";
+
 /** Neutralise Markdown/mention syntax in untrusted values before they reach chat. */
 export function safe(value: string | undefined, max = 200): string {
   if (value === undefined) return "?";
@@ -41,6 +47,7 @@ const REASONS: Readonly<Record<ReasonCode, readonly [Prefix, (c: ReasonContext) 
   MERGEABILITY_UNKNOWN: ["BLOCKED", () => "GitHub has not determined whether the PR is mergeable yet. Try merge again shortly."],
   WRONG_BASE: ["BLOCKED", (c) => `The PR does not target the configured base branch. ${safe(c.detail)}`],
   BASE_UNPROTECTED: ["BLOCKED", () => "Required branch protection is not active on the base branch. No merge was attempted."],
+  CHECK_SOURCE_MISMATCH: ["BLOCKED", (c) => `Required status check "${safe(c.check)}" does not have a verified source in branch protection. ${safe(c.detail)}`],
   PROTECTED_PATH_CHANGED: ["BLOCKED", (c) => `The PR changes protected files (CI, dependencies or test configuration). ${safe(c.detail)}`],
   HEAD_MOVED: ["BLOCKED", (c) => `The PR now points to ${s12(c.headSha)}. Evidence for the previous commit does not apply.`],
   CI_MISSING: ["BLOCKED", (c) => `Required check "${safe(c.check)}" has no run for ${s12(c.headSha)}.`],
@@ -72,6 +79,15 @@ const REASONS: Readonly<Record<ReasonCode, readonly [Prefix, (c: ReasonContext) 
   PLATFORM_SENDER: ["REFUSED", () => "Messages from the Switch platform itself are never commands."],
   UNRECOGNISED_SENDER_KIND: ["REFUSED", () => "This message's sender kind is not one Loopback accepts."],
   GATE_HALTED: ["STOPPED", () => "Loopback halted before this command could finish; nothing further was written. Send it again once the gate is back."],
+  WRONG_ROOM: ["REFUSED", () => "That request is not available in this room."],
+  TRIAGE_DECLINED: ["REFUSED", (c) => `${safe(c.caseId)} was declined during triage.${c.detail !== undefined ? ` Reason: ${safe(c.detail)}` : ""}`],
+  DUPLICATE_REPORT: ["REFUSED", (c) => `This report was already received${c.caseId !== undefined ? ` as ${safe(c.caseId)}` : ""}.`],
+  INTAKE_RATE_LIMITED: ["REFUSED", () => "Too many reports from you recently. Please try again later."],
+  REPORT_TOO_LONG: ["REFUSED", (c) => `Please keep a report under ${c.detail ?? "the limit"} characters.`],
+  VERIFIER_SIGNATURE_INVALID: ["REFUSED", (c) => `Verifier report not accepted: ${c.detail ?? "its signature could not be verified"}. The verification run is still open.`],
+  INTAKE_BUSY: ["REFUSED", () => "Too many reports are waiting for review. Please try again later."],
+  VERIFICATION_ADVISORY: ["STOPPED", () =>
+    "Verification is advisory: the verifier's isolation has not been proven yet. Review the diff yourself before approving."],
   MERGE_DISABLED: ["BLOCKED", () => "Merging is disabled (read-only mode)."],
   CONFIG_INCOMPLETE: ["BLOCKED", () => "Loopback is not fully configured; merging is disabled."],
   MERGE_OUTCOME_UNKNOWN: ["UNKNOWN", () => "The merge request did not return a clear result. Checking GitHub before doing anything else."],

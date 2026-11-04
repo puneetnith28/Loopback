@@ -5,7 +5,7 @@
 #   GH_REPO=owner/repo DEMO_RESET_SHA=<40-hex> RULESET_ID=<id> scripts/reset-demo.sh
 #
 # It never changes any ruleset. It:
-#   1. checks the target is not the upstream project and asks you to type the repo name;
+#   1. checks the target is not the main Loopback project and asks you to type the repo name;
 #   2. verifies DEMO_RESET_SHA exists and re-checks the ruleset (active, empty bypass list,
 #      targets demo/*, requires `test` and `loopback/gate`) — aborting on any difference;
 #   3. closes open loopback/* PRs and deletes loopback/* branches (case branches only);
@@ -16,16 +16,16 @@ set -euo pipefail
 
 die() { printf 'reset-demo: %s\n' "$*" >&2; exit 1; }
 
-: "${GH_REPO:?set GH_REPO=owner/repo (your fork)}"
+: "${GH_REPO:?set GH_REPO=owner/repo (e.g. puneetnith28/loopback-demo-target)}"
 : "${DEMO_RESET_SHA:?set DEMO_RESET_SHA to the recorded full commit SHA}"
 : "${RULESET_ID:?set RULESET_ID to the ruleset protecting demo/*}"
-UPSTREAM_REPO="${UPSTREAM_REPO:-simov/slugify}"
+MAIN_REPO="${MAIN_REPO:-puneetnith28/Loopback}"
 DB_PATH="${DB_PATH:-./data/loopback.db}"
 
 [[ "$GH_REPO" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || die "GH_REPO must be owner/repo"
 [[ "$DEMO_RESET_SHA" =~ ^[0-9a-f]{40}$ ]] || die "DEMO_RESET_SHA must be a full lower-case SHA"
 [[ "$RULESET_ID" =~ ^[0-9]+$ ]] || die "RULESET_ID must be numeric"
-[[ "${GH_REPO,,}" != "${UPSTREAM_REPO,,}" ]] || die "refusing to touch the upstream repository $UPSTREAM_REPO"
+[[ "${GH_REPO,,}" != "${MAIN_REPO,,}" ]] || die "refusing to run demo reset against main Loopback repository $MAIN_REPO"
 command -v gh >/dev/null || die "gh CLI is required"
 command -v jq >/dev/null || die "jq is required"
 

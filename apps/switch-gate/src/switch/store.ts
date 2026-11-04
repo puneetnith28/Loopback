@@ -4,7 +4,10 @@ import { kvGet, kvSet } from "../persistence/repos.js";
 import type { ConnectionRecord, ConnectionStore } from "./connection.js";
 import { Position, SafeCount } from "./frames.js";
 
-const KEY = "switch_connection";
+/** One record per room (D26): each room's connection has its own id, generation and position. */
+export const connectionKey = (roomId: string): string => `switch_connection:${roomId}`;
+/** The single-room key used before D26; adopted by the maintainers' room so an upgrade reattaches fenced. */
+export const LEGACY_CONNECTION_KEY = "switch_connection";
 
 const Stored = z.object({
   connectionId: z.string().min(1).max(256),
@@ -24,11 +27,14 @@ export class StoredConnectionError extends Error {
  * gate's database, so a restarted gate reattaches fenced on that generation and
  * resumes where it stopped. A corrupt record fails closed: it is never replaced
  * by a fresh connection, which would silently take over from a live holder.
+ * With `adoptLegacy`, a record saved under the pre-D26 single key is used until this
+ * room saves its own (the maintainers' room is the room the single connection held).
  */
-export function sqliteConnectionStore(db: Db): ConnectionStore {
+export function sqliteConnectionStore(db: Db, roomId: string, opts: { readonly adoptLegacy?: boolean } = {}): ConnectionStore {
+  const KEY = connectionKey(roomId);
   return {
     load(): ConnectionRecord | null {
-      const raw = kvGet(db, KEY);
+      const raw = kvGet(db, KEY) ?? (opts.adoptLegacy === true ? kvGet(db, LEGACY_CONNECTION_KEY) : undefined);
       if (raw === undefined) return null;
       let json: unknown;
       try {

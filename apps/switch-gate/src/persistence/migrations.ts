@@ -158,7 +158,31 @@ CREATE TRIGGER approvals_no_delete BEFORE DELETE ON approvals
 BEGIN SELECT RAISE(ABORT, 'approvals are immutable'); END;
 `;
 
+// D28: a run can be explicitly superseded by a newer request for the same case, so it can
+// never complete later. SQLite cannot alter a CHECK constraint, so the table is rebuilt; rows,
+// sequence numbers (latest-run order) and the index are preserved. Nothing references this table.
+const SUPERSEDED_RUNS = /* sql */ `
+CREATE TABLE verification_runs_v3 (
+  seq          INTEGER PRIMARY KEY AUTOINCREMENT,
+  id           TEXT NOT NULL UNIQUE,
+  case_id      TEXT NOT NULL REFERENCES cases(id),
+  repo         TEXT NOT NULL,
+  pr_number    INTEGER NOT NULL,
+  head_sha     TEXT NOT NULL CHECK (length(head_sha) = 40),
+  status       TEXT NOT NULL CHECK (status IN ('requested','pass','fail','invalid','timeout','superseded')),
+  report_json  TEXT,
+  requested_at TEXT NOT NULL,
+  completed_at TEXT
+);
+INSERT INTO verification_runs_v3 (seq, id, case_id, repo, pr_number, head_sha, status, report_json, requested_at, completed_at)
+  SELECT seq, id, case_id, repo, pr_number, head_sha, status, report_json, requested_at, completed_at FROM verification_runs;
+DROP TABLE verification_runs;
+ALTER TABLE verification_runs_v3 RENAME TO verification_runs;
+CREATE INDEX verification_runs_case_head ON verification_runs(case_id, head_sha);
+`;
+
 export const MIGRATIONS: readonly Migration[] = [
   { version: 1, name: "init", sql: INIT },
   { version: 2, name: "approval_decisions", sql: APPROVAL_DECISIONS },
+  { version: 3, name: "superseded_runs", sql: SUPERSEDED_RUNS },
 ];

@@ -13,9 +13,16 @@ import { z } from "zod";
  * admits only its members, and no rules at all means open to anyone.
  */
 
+/**
+ * The expected policy (D26): exactly two rules.
+ * 1. Maintainers' room: exactly these ExternalUser ids and these agent ids.
+ * 2. Intake room: any person (`users: "*"`), no agents (`agents: []`).
+ * `owner`, `owner_agents` and `platform` are false in both; `room_groups` is `"*"`.
+ */
 export interface PolicyExpectation {
-  readonly roomId: string;
-  /** ExternalUser ids of the people who may address the gate. */
+  readonly maintainerRoomId: string;
+  readonly intakeRoomId: string;
+  /** ExternalUser ids of the maintainers who may address the gate in their room. */
   readonly userIds: ReadonlySet<string>;
   /** Switch agent ids of the fixer and verifier. */
   readonly agentIds: ReadonlySet<string>;
@@ -47,22 +54,46 @@ function sameSet(actual: readonly string[], expected: ReadonlySet<string>): bool
   return actual.length === expected.size && new Set(actual).size === actual.length && actual.every((x) => expected.has(x));
 }
 
+type RuleShape = z.infer<typeof Rule>;
+
+function flagsOff(r: RuleShape, which: string): PolicyCheck | null {
+  if (r.room_groups !== "*") return fail(`${which}: room_groups must be "*" (rooms already restrict it)`);
+  if (r.owner) return fail(`${which}: owner must be false`);
+  if (r.owner_agents) return fail(`${which}: owner_agents must be false (it admits every agent of the gate's owner)`);
+  if (r.platform) return fail(`${which}: platform must be false`);
+  return null;
+}
+
+/** The rule whose rooms are exactly [roomId], if exactly one such rule exists. */
+function ruleFor(rules: readonly RuleShape[], roomId: string): RuleShape | null {
+  const matches = rules.filter((r) => r.rooms !== "*" && r.rooms.length === 1 && r.rooms[0] === roomId);
+  return matches.length === 1 ? matches[0]! : null;
+}
+
 /** Compare a policy (as Switch returns it) with the expectation. Pure. */
 export function checkPolicy(policy: unknown, expected: PolicyExpectation): PolicyCheck {
   if (policy === null || policy === undefined) return fail("the policy is open to anyone (no policy set)");
+  if (expected.maintainerRoomId === expected.intakeRoomId) return fail("the maintainers' room and the intake room must differ");
   const parsed = z.strictObject({ rules: z.array(Rule) }).safeParse(policy);
   if (!parsed.success) return fail("the policy has an unexpected shape");
   const rules = parsed.data.rules;
   if (rules.length === 0) return fail("the policy has no rules, which Switch treats as open to anyone");
-  if (rules.length !== 1) return fail(`the policy has ${rules.length} rules; exactly one is expected`);
-  const r = rules[0]!;
-  if (r.rooms === "*" || !sameSet(r.rooms, new Set([expected.roomId]))) return fail("rooms must be exactly the gate's room");
-  if (r.room_groups !== "*") return fail('room_groups must be "*" (rooms already restrict it)');
-  if (r.users === "*" || !sameSet(r.users, expected.userIds)) return fail("users must be exactly SWITCH_POLICY_USER_IDS");
-  if (r.agents === "*" || !sameSet(r.agents, expected.agentIds)) return fail("agents must be exactly SWITCH_POLICY_AGENT_IDS");
-  if (r.owner) return fail("owner must be false");
-  if (r.owner_agents) return fail("owner_agents must be false (it admits every agent of the gate's owner)");
-  if (r.platform) return fail("platform must be false");
+  if (rules.length !== 2) return fail(`the policy has ${rules.length} rules; exactly two are expected (maintainers' room, intake room)`);
+
+  const maint = ruleFor(rules, expected.maintainerRoomId);
+  if (maint === null) return fail("maintainers' room: no rule with rooms exactly [SWITCH_ROOM_ID]");
+  const intake = ruleFor(rules, expected.intakeRoomId);
+  if (intake === null) return fail("intake room: no rule with rooms exactly [SWITCH_INTAKE_ROOM_ID]");
+
+  const m = flagsOff(maint, "maintainers' room");
+  if (m) return m;
+  if (maint.users === "*" || !sameSet(maint.users, expected.userIds)) return fail("maintainers' room: users must be exactly SWITCH_POLICY_USER_IDS");
+  if (maint.agents === "*" || !sameSet(maint.agents, expected.agentIds)) return fail("maintainers' room: agents must be exactly SWITCH_POLICY_AGENT_IDS");
+
+  const i = flagsOff(intake, "intake room");
+  if (i) return i;
+  if (intake.users !== "*") return fail('intake room: users must be "*" (public intake)');
+  if (intake.agents === "*" || intake.agents.length !== 0) return fail("intake room: agents must be [] (no agents in the public room)");
   return { ok: true };
 }
 

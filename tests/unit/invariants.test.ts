@@ -5,13 +5,23 @@ import { InvariantViolation, assertEvidenceIdentity, assertFullSha } from "../..
 const A = "a".repeat(40);
 const policy: MergePolicy = {
   baseBranch: "main", requiredChecks: ["test"], checkSources: new Map([["test", "github-actions"]]),
+  requiredCheckIntegrations: new Map([["test", 1], ["loopback/gate", 100]]),
   gateStatusContext: "loopback/gate", maintainers: new Set(["@m:x"]), quorum: 1,
 };
 const goodLive: LiveSnapshot = {
   repo: "o/r", prNumber: 42,
   pr: { state: "open", draft: false, merged: false, mergeable: true, headSha: A, baseRef: "main", headRef: "loopback/LB-001", headRepo: "o/r" },
   checks: [{ id: 1, name: "test", appSlug: "github-actions", status: "completed", conclusion: "success", headSha: A }],
-  baseProtection: { requiredStatusContexts: ["test", "loopback/gate"], requiresPullRequest: true, requiresUpToDate: true, blocksForcePush: true, restrictsDeletion: true },
+  baseProtection: {
+    requiredStatusChecks: [
+      { context: "test", integrationId: 1 },
+      { context: "loopback/gate", integrationId: 100 },
+    ],
+    requiresPullRequest: true,
+    requiresUpToDate: true,
+    blocksForcePush: true,
+    restrictsDeletion: true,
+  },
   changedFiles: ["slugify.js"],
   changedFilesHeadSha: A,
 };

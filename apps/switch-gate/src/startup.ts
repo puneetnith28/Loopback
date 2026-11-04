@@ -1,6 +1,19 @@
 import { assertIdentityConsistency, type IdentityConfig, type SwitchConfig } from "./config.js";
-import { assertAdmissionPolicy } from "./policy/admission.js";
-import { verifyAddressingPolicy, type PolicyCheck } from "./switch/policy-check.js";
+import { assertAdmissionPolicy, type AdmissionPolicy } from "./policy/admission.js";
+import { verifyAddressingPolicy, type PolicyCheck, type PolicyExpectation } from "./switch/policy-check.js";
+
+/** Admission inputs derived from validated configuration (one place, so every caller agrees). */
+export function admissionPolicyOf(cfg: { readonly switch: SwitchConfig; readonly identity: IdentityConfig }): AdmissionPolicy {
+  return {
+    selfId: cfg.switch.selfId, fixerId: cfg.identity.fixerId, verifierId: cfg.identity.verifierId,
+    gateMention: cfg.switch.gateMention, maintainerRoomId: cfg.switch.roomId, intakeRoomId: cfg.switch.intakeRoomId,
+  };
+}
+
+/** The two-rule addressing policy the gate requires (D26). */
+export function policyExpectationOf(sw: SwitchConfig): PolicyExpectation {
+  return { maintainerRoomId: sw.roomId, intakeRoomId: sw.intakeRoomId, userIds: sw.policyUserIds, agentIds: sw.policyAgentIds };
+}
 
 /**
  * Startup preflight, run before the gate opens its database, polls GitHub or connects
@@ -13,12 +26,10 @@ export async function preflight(
   fetchImpl: typeof fetch,
 ): Promise<PolicyCheck> {
   assertIdentityConsistency(cfg.switch, cfg.identity);
-  assertAdmissionPolicy({
-    selfId: cfg.switch.selfId, fixerId: cfg.identity.fixerId, verifierId: cfg.identity.verifierId, gateMention: cfg.switch.gateMention,
-  });
+  assertAdmissionPolicy(admissionPolicyOf(cfg));
   return verifyAddressingPolicy(
     { bridgeUrl: cfg.switch.bridgeUrl, agentId: cfg.switch.agentId, apiKey: cfg.switch.apiKey, fetch: fetchImpl },
-    { roomId: cfg.switch.roomId, userIds: cfg.switch.policyUserIds, agentIds: cfg.switch.policyAgentIds },
+    policyExpectationOf(cfg.switch),
   );
 }
 
@@ -70,4 +81,64 @@ export function watchPolicy(o: PolicyWatchOptions): { stop(): void } {
       clearInterval(timer);
     },
   };
+}
+
+/** What readiness needs to know about one room's connection. */
+export interface ConnectionView {
+  /** A label for the readiness report ("maintainers", "intake"); never an id. */
+  readonly name: string;
+  readonly connection: unknown;
+  readonly lastHeartbeatAt: number | null;
+  readonly stopped: boolean;
+}
+
+export interface ReadinessInputs {
+  readonly connections: readonly ConnectionView[];
+  /** The startup operation discovery succeeded (step 3.6). */
+  readonly operationsReady: () => boolean;
+  /** Core GitHub requests left for the installation. */
+  readonly githubRemaining: () => Promise<number>;
+  readonly halted: () => boolean;
+  readonly now?: () => number;
+  /** Switch pings every 2 s and lapses a connection after 6 s without a beat. */
+  readonly heartbeatMaxAgeMs?: number;
+  /** How long a GitHub answer is reused, so /readyz polling does not hammer the API. */
+  readonly githubCacheMs?: number;
+}
+
+/** A readiness check: a name (no details) and a boolean. */
+export interface ReadyCheck {
+  readonly name: string;
+  readonly check: () => Promise<boolean>;
+}
+
+/** Readiness for /readyz (step 9.5). Names only; failure details stay in the logs. */
+export function readinessChecks(i: ReadinessInputs): ReadyCheck[] {
+  const now = i.now ?? (() => Date.now());
+  const maxAge = i.heartbeatMaxAgeMs ?? 6000;
+  const cacheMs = i.githubCacheMs ?? 30_000;
+  let cached: { at: number; ok: boolean } | null = null;
+  const checks: ReadyCheck[] = i.connections.map((c) => ({
+    name: `switch-${c.name}`,
+    check: () => Promise.resolve(!c.stopped && c.connection !== null && c.lastHeartbeatAt !== null && now() - c.lastHeartbeatAt <= maxAge),
+  }));
+  checks.push(
+    { name: "switch-operations", check: () => Promise.resolve(i.operationsReady()) },
+    {
+      name: "github",
+      check: async () => {
+        if (cached !== null && now() - cached.at < cacheMs) return cached.ok;
+        let ok: boolean;
+        try {
+          ok = (await i.githubRemaining()) > 0;
+        } catch {
+          ok = false;
+        }
+        cached = { at: now(), ok };
+        return ok;
+      },
+    },
+    { name: "not-halted", check: () => Promise.resolve(!i.halted()) },
+  );
+  return checks;
 }

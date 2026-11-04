@@ -23,7 +23,7 @@ afterEach(() => db.close());
 describe("migrations", () => {
   it("are idempotent and recorded", () => {
     expect(migrate(db)).toEqual([]);
-    expect(db.prepare("SELECT version FROM schema_version ORDER BY version").all()).toEqual([{ version: 1 }, { version: 2 }]);
+    expect(db.prepare("SELECT version FROM schema_version ORDER BY version").all()).toEqual([{ version: 1 }, { version: 2 }, { version: 3 }]);
   });
   it("enable foreign keys on every connection", () => {
     expect(db.pragma("foreign_keys", { simple: true })).toBe(1);
@@ -42,7 +42,9 @@ describe("schema constraints", () => {
     expect(() => seedCase("CASE-1")).toThrow(/CHECK/);
   });
   it("status and decision enums are enforced", () => {
-    expect(() => db.prepare("INSERT INTO verification_runs (id, case_id, repo, pr_number, head_sha, status, requested_at) VALUES ('v', 'LB-001', 'o/r', 42, ?, 'superseded', 't')").run(A)).toThrow(/CHECK/);
+    expect(() => db.prepare("INSERT INTO verification_runs (id, case_id, repo, pr_number, head_sha, status, requested_at) VALUES ('v', 'LB-001', 'o/r', 42, ?, 'bogus', 't')").run(A)).toThrow(/CHECK/);
+    // D28: "superseded" is a valid run status since migration 3.
+    expect(() => db.prepare("INSERT INTO verification_runs (id, case_id, repo, pr_number, head_sha, status, requested_at) VALUES ('w', 'LB-001', 'o/r', 42, ?, 'superseded', 't')").run(A)).not.toThrow();
     expect(() => insertApproval(db, { caseId: "LB-001", repo: "o/r", prNumber: 42, approverId: "m", headSha: A, decision: "maybe" as "approve", sourceEventId: "e", reason: null }, NOW)).toThrow(/CHECK/);
   });
   it("one decision of each kind per approver per SHA; source events unique", () => {
@@ -123,13 +125,36 @@ describe("migration to per-decision approvals", () => {
     old.prepare(`INSERT INTO cases (id, state, reporter_id, room_id, repo, report_text, pr_number, head_sha, state_entered_at, created_at, updated_at)
       VALUES ('LB-001','ReadyToMerge','r','room','o/r','t',42,?, 't','t','t')`).run(A);
     insertApproval(old, { caseId: "LB-001", repo: "o/r", prNumber: 42, approverId: "m", headSha: A, decision: "approve", sourceEventId: "e1", reason: null }, NOW);
-    expect(migrate(old)).toEqual([2]);
+    expect(migrate(old)).toEqual([2, 3]);
     expect(old.prepare("SELECT approver_id, decision FROM approvals").all()).toEqual([{ approver_id: "m", decision: "approve" }]);
     const triggers = (old.prepare("SELECT name FROM sqlite_master WHERE type = 'trigger' AND tbl_name = 'approvals' ORDER BY name").all() as { name: string }[]).map((r) => r.name);
     expect(triggers).toEqual(["approvals_bind_case", "approvals_no_delete", "approvals_no_update"]);
     expect(insertApproval(old, { caseId: "LB-001", repo: "o/r", prNumber: 42, approverId: "m", headSha: A, decision: "reject", sourceEventId: "e2", reason: "x" }, NOW)).toBe("inserted");
     expect(() => old.prepare("DELETE FROM approvals").run()).toThrow(/immutable/);
     expect(() => insertApproval(old, { caseId: "LB-001", repo: "o/r", prNumber: 41, approverId: "z", headSha: A, decision: "approve", sourceEventId: "e3", reason: null }, NOW)).toThrow(/does not match/);
+    old.close();
+  });
+});
+
+describe("migration 3: superseded verification runs (D28)", () => {
+  it("upgrades a populated v2 database, keeping rows, sequence order and the index", async () => {
+    const { MIGRATIONS } = await import("../../apps/switch-gate/src/persistence/migrations.js");
+    const old = openDatabase(":memory:");
+    migrate(old, MIGRATIONS.filter((m) => m.version <= 2));
+    old.prepare(`INSERT INTO cases (id, state, reporter_id, room_id, repo, report_text, pr_number, head_sha, state_entered_at, created_at, updated_at)
+      VALUES ('LB-001','Verifying','r','room','o/r','t',42,?, 't','t','t')`).run(A);
+    const insert = old.prepare("INSERT INTO verification_runs (id, case_id, repo, pr_number, head_sha, status, requested_at) VALUES (?, 'LB-001', 'o/r', 42, ?, ?, 't')");
+    insert.run("r1", A, "pass");
+    insert.run("r2", A, "requested");
+    expect(() => insert.run("r3", A, "superseded")).toThrow(/CHECK/);
+    expect(migrate(old)).toEqual([3]);
+    expect(old.prepare("SELECT seq, id, status FROM verification_runs ORDER BY seq").all()).toEqual([
+      { seq: 1, id: "r1", status: "pass" }, { seq: 2, id: "r2", status: "requested" },
+    ]);
+    insert.run("r3", A, "superseded");
+    expect((old.prepare("SELECT seq FROM verification_runs WHERE id = 'r3'").get() as { seq: number }).seq).toBe(3);
+    expect(old.prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'verification_runs' AND name = 'verification_runs_case_head'").get()).toBeDefined();
+    expect(() => insert.run("r4", A, "bogus")).toThrow(/CHECK/);
     old.close();
   });
 });

@@ -11,15 +11,18 @@ const VERIFIER = "@switch-agent-verif0001:localhost";
 const PERSON = "@switch-mattermost-a8ed6700-fe65-4f22-8931-26fd3f197762-puneet:localhost";
 const G = "@loopback-gate";
 
-const policy: AdmissionPolicy = { selfId: SELF, fixerId: FIXER, verifierId: VERIFIER, gateMention: G };
+const MROOM = "8aeb4229-d129-47c8-93d6-ec4f37d623e3";
+const IROOM = "99999999-2222-4333-8444-555555555555";
+
+const policy: AdmissionPolicy = { selfId: SELF, fixerId: FIXER, verifierId: VERIFIER, gateMention: G, maintainerRoomId: MROOM, intakeRoomId: IROOM };
 
 const msg = (over: Partial<AdmissionMessage> = {}): AdmissionMessage => ({
-  sender: PERSON, senderKind: null, onBehalfOf: null, addressed: true, body: `${G} help`, ...over,
+  roomId: MROOM, sender: PERSON, senderKind: null, onBehalfOf: null, addressed: true, body: `${G} help`, ...over,
 });
 
 describe("admit: who may reach a command or agent handler", () => {
   it("an addressed message from a person is a command candidate", () => {
-    expect(admit(msg(), policy)).toEqual({ kind: "command" });
+    expect(admit(msg(), policy)).toEqual({ kind: "command", room: "maintainers" });
   });
 
   it("the gate's own messages are dropped first, whatever they contain", () => {
@@ -81,7 +84,7 @@ describe("admit: fixer and verifier reports", () => {
 
   it("agent ids are matched exactly: case, prefix and suffix variants are not agents", () => {
     for (const sender of [FIXER.toUpperCase(), `${FIXER}x`, FIXER.slice(0, -1), ` ${FIXER}`]) {
-      expect(admit(msg({ sender }), policy), sender).toEqual({ kind: "command" });
+      expect(admit(msg({ sender }), policy), sender).toEqual({ kind: "command", room: "maintainers" });
     }
   });
 });
@@ -126,7 +129,66 @@ describe("admit: configuration it refuses to run with", () => {
     ["fixer equal to verifier", { ...policy, verifierId: FIXER }],
     ["self equal to an agent", { ...policy, selfId: FIXER }],
     ["a mention without @", { ...policy, gateMention: "loopback-gate" }],
+    ["the same room twice", { ...policy, intakeRoomId: MROOM }],
+    ["an empty intake room", { ...policy, intakeRoomId: "" }],
+    ["a blank maintainers' room", { ...policy, maintainerRoomId: " " }],
   ])("throws on %s", (_name, bad) => {
     expect(() => admit(msg(), bad)).toThrow(/admission policy/);
+  });
+});
+
+describe("admit: rooms (D26)", () => {
+  it("a person in the intake room is a command candidate for that room", () => {
+    expect(admit(msg({ roomId: IROOM }), policy)).toEqual({ kind: "command", room: "intake" });
+  });
+
+  it("a room the gate does not serve is refused when aimed at the gate, ignored otherwise", () => {
+    expect(admit(msg({ roomId: "elsewhere" }), policy)).toEqual({ kind: "refused", code: "WRONG_ROOM" });
+    expect(admit(msg({ roomId: "elsewhere", addressed: false, body: "chatter" }), policy)).toEqual({ kind: "ignore" });
+  });
+
+  it("fixer and verifier reports are accepted only in the maintainers' room", () => {
+    expect(admit(msg({ roomId: IROOM, sender: FIXER }), policy)).toEqual({ kind: "refused", code: "WRONG_ROOM" });
+    expect(admit(msg({ roomId: IROOM, sender: VERIFIER }), policy)).toEqual({ kind: "refused", code: "WRONG_ROOM" });
+  });
+});
+
+/**
+ * The admission table (D26/D27): every kind of sender in every room. "command" means
+ * the message may be parsed; what it may then do is decided by authorize() per room.
+ */
+describe("admit: the full table", () => {
+  const MAINTAINER = PERSON;
+  const CONTRIBUTOR = "@switch-mattermost-a8ed6700-fe65-4f22-8931-26fd3f197762-stranger:localhost";
+  type Row = [string, Partial<AdmissionMessage>, string, unknown];
+  const rows: Row[] = [];
+  for (const [room, roomId] of [["maintainers", MROOM], ["intake", IROOM]] as const) {
+    rows.push(
+      [`maintainer, addressed`, { sender: MAINTAINER }, room, { kind: "command", room }],
+      [`public contributor, addressed`, { sender: CONTRIBUTOR }, room, { kind: "command", room }],
+      [`fixer, addressed`, { sender: FIXER }, room, room === "maintainers" ? { kind: "agent_report", agent: "fixer" } : { kind: "refused", code: "WRONG_ROOM" }],
+      [`verifier, addressed`, { sender: VERIFIER }, room, room === "maintainers" ? { kind: "agent_report", agent: "verifier" } : { kind: "refused", code: "WRONG_ROOM" }],
+      [`the gate itself`, { sender: SELF }, room, { kind: "self" }],
+      [`platform message`, { senderKind: "platform" }, room, { kind: "refused", code: "PLATFORM_SENDER" }],
+      [`delegated message`, { onBehalfOf: "someone" }, room, { kind: "refused", code: "DELEGATED_SENDER" }],
+      [`unknown sender kind`, { senderKind: "bot" }, room, { kind: "refused", code: "UNRECOGNISED_SENDER_KIND" }],
+      [`maintainer, not addressed but naming the gate`, { addressed: false }, room, { kind: "refused", code: "NOT_ADDRESSED" }],
+      [`contributor, not addressed, chatter`, { sender: CONTRIBUTOR, addressed: false, body: "hello" }, room, { kind: "ignore" }],
+      [`fixer, not addressed`, { sender: FIXER, addressed: false, body: "x" }, room, { kind: "refused", code: "NOT_ADDRESSED" }],
+      [`empty body, addressed`, { body: "" }, room, { kind: "command", room }],
+    );
+    void roomId;
+  }
+  it.each(rows)("%s in the %s room", (_who, over, room, expected) => {
+    const roomId = room === "maintainers" ? MROOM : IROOM;
+    expect(admit(msg({ roomId, ...over }), policy)).toEqual(expected);
+  });
+
+  it.each([
+    ["a missing room id", { roomId: "" }],
+    ["a missing sender", { sender: "" }],
+  ])("fails closed on %s", (_n, over) => {
+    const r = admit(msg(over), policy);
+    expect(r.kind === "command" || r.kind === "agent_report").toBe(false);
   });
 });

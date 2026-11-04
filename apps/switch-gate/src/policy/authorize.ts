@@ -7,6 +7,13 @@ import type { CommandKind, ReasonCode } from "@loopback/contracts";
  */
 export type Role = "maintainer" | "reporter" | "outsider";
 
+/**
+ * Which room a command arrived in (D26). The maintainers' room is private (Switch admits
+ * only the listed maintainers and agents); the intake room is public (Switch admits any
+ * person, no agents). Authority never crosses rooms: nothing privileged exists in intake.
+ */
+export type RoomKind = "maintainers" | "intake";
+
 export interface IdentityPolicy {
   /** Exact Switch participant ids (the message `sender`). Never names or roles. */
   readonly maintainers: ReadonlySet<string>;
@@ -26,7 +33,8 @@ export function roleOf(sender: string, policy: Pick<IdentityPolicy, "maintainers
   return "outsider";
 }
 
-const ALLOWED: Readonly<Record<CommandKind, readonly Role[]>> = {
+/** Maintainers' room: who may run each command. */
+const MAINTAINER_ROOM: Readonly<Record<CommandKind, readonly Role[]>> = {
   help: ["maintainer", "reporter", "outsider"],
   whoami: ["maintainer", "reporter", "outsider"],
   report: ["maintainer", "reporter"],
@@ -37,7 +45,15 @@ const ALLOWED: Readonly<Record<CommandKind, readonly Role[]>> = {
   reject: ["maintainer"],
   merge: ["maintainer"],
   retask: ["maintainer"],
+  accept: ["maintainer"],
+  decline: ["maintainer"],
 };
+
+/**
+ * Intake room: the only commands that exist there, for anyone Switch admits (D26).
+ * `status` is limited to the sender's own reports by the router.
+ */
+export const INTAKE_COMMANDS: ReadonlySet<CommandKind> = new Set<CommandKind>(["help", "report", "status"]);
 
 /** Commands that change authorization or repository state. Off unless explicitly enabled. */
 export const PRIVILEGED: ReadonlySet<CommandKind> = new Set<CommandKind>(["verify", "approve", "reject", "merge", "retask"]);
@@ -46,8 +62,11 @@ export type Decision =
   | { readonly ok: true }
   | { readonly ok: false; readonly code: ReasonCode; readonly message: string };
 
-export function authorize(kind: CommandKind, role: Role, policy: Pick<IdentityPolicy, "privilegedEnabled">): Decision {
-  const allowed = ALLOWED[kind];
+export function authorize(kind: CommandKind, role: Role, room: RoomKind, policy: Pick<IdentityPolicy, "privilegedEnabled">): Decision {
+  if (room === "intake") {
+    return INTAKE_COMMANDS.has(kind) ? { ok: true } : { ok: false, code: "WRONG_ROOM", message: `${kind} is not available in the intake room` };
+  }
+  const allowed = MAINTAINER_ROOM[kind];
   if (!allowed.includes(role)) {
     return { ok: false, code: "NOT_AUTHORIZED", message: `${kind} requires: ${allowed.join(", ")}` };
   }
@@ -58,5 +77,11 @@ export function authorize(kind: CommandKind, role: Role, policy: Pick<IdentityPo
 }
 
 export function allowedRoles(kind: CommandKind): readonly Role[] {
-  return ALLOWED[kind];
+  return MAINTAINER_ROOM[kind];
+}
+
+/** The commands this sender can actually run here (D27 role-filtered help). */
+export function availableCommands(room: RoomKind, role: Role, policy: Pick<IdentityPolicy, "privilegedEnabled">): readonly CommandKind[] {
+  const all = Object.keys(MAINTAINER_ROOM) as CommandKind[];
+  return all.filter((k) => authorize(k, role, room, policy).ok);
 }

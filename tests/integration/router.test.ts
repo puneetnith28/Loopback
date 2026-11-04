@@ -15,6 +15,8 @@ const FIXER = "@switch-agent-fixer:x";
 const VERIFIER = "@switch-agent-verifier:x";
 const SELF = "@switch-agent-gate:x";
 const G = "@loopback-gate";
+const MROOM = "room";
+const IROOM = "intake-room";
 
 let db: Db;
 let posts: { roomId: string; content: string; threadId: string | null }[];
@@ -44,7 +46,8 @@ beforeEach(() => {
   };
   deps = {
     db, chat, repo: "o/r", quorum: 1, requiredChecks: ["test"],
-    admission: { selfId: SELF, fixerId: FIXER, verifierId: VERIFIER, gateMention: G },
+    admission: { selfId: SELF, fixerId: FIXER, verifierId: VERIFIER, gateMention: G, maintainerRoomId: MROOM, intakeRoomId: IROOM },
+    intakeMaxReportsPerHour: 3,
     identity: { maintainers: new Set([MAINT]), reporters: new Set([REP]), privilegedEnabled: true },
     privileged,
     handoff: { check: async () => baseProblem, message: (c) => `@loopback-fixer fix ${c.id}` },
@@ -86,10 +89,11 @@ describe("report flow", () => {
 });
 
 describe("refusals are visible and audited", () => {
-  it("an outsider approve is refused and audited (Day-1 exit)", async () => {
+  it("an outsider approve is refused with the generic text and audited with its reason (Day-1 exit, D27)", async () => {
     await router.handle(msg(REP, `${G} report slugify crashes on null charmap`));
     await router.handle(msg(OUT, `${G} approve LB-001 ${"3f9c2ab4e1d0b4c9a8f7e6d5c4b3a2918f7e6d5c"}`));
-    expect(posts.at(-1)!.content).toMatch(/^\[LB-001\] REFUSED \(NOT_AUTHORIZED\): approve requires the maintainer role/);
+    expect(posts.at(-1)!.content).toMatch(/^REFUSED: That request is not available to you here\./);
+    expect(posts.at(-1)!.content).not.toMatch(/NOT_AUTHORIZED|maintainer|LB-001/);
     expect(listRecent(db, "LB-001")[0]).toMatchObject({ type: "command.refused", reasonCode: "NOT_AUTHORIZED", actorId: OUT });
     expect(deps.privileged.approve).not.toHaveBeenCalled();
   });
@@ -97,7 +101,8 @@ describe("refusals are visible and audited", () => {
   it("an outsider report is refused (D20)", async () => {
     await router.handle(msg(OUT, `${G} report this should not create a case`));
     expect(getCase(db, "LB-001")).toBeUndefined();
-    expect(posts[0]!.content).toMatch(/NOT_AUTHORIZED/);
+    expect(posts[0]!.content).toMatch(/^REFUSED: That request is not available to you here\./);
+    expect(refusals()).toEqual([{ actor: OUT, reason: "NOT_AUTHORIZED" }]);
   });
 
   it("owner-attributed agent messages cannot approve or merge (D16)", async () => {
@@ -181,7 +186,8 @@ describe("admission before any handler", () => {
   it("a spoofed sender_role grants nothing", async () => {
     await router.handle(msg(OUT, `${G} merge LB-001`, { senderRole: "admin" }));
     expect(deps.privileged.merge).not.toHaveBeenCalled();
-    expect(posts[0]!.content).toMatch(/NOT_AUTHORIZED/);
+    expect(posts[0]!.content).toMatch(/^REFUSED: That request is not available to you here\./);
+    expect(refusals()).toEqual([{ actor: OUT, reason: "NOT_AUTHORIZED" }]);
   });
 
   it("privileged commands are refused while LOOPBACK_PRIVILEGED_ENABLED is off, even for a maintainer", async () => {

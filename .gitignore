@@ -3,6 +3,7 @@ implementation.md
 # Local-only planning documents 
 /implementation.md
 /plan.md
+/ANTIGRAVITY_HANDOFF.md
 
 # Dependencies and build output
 node_modules/

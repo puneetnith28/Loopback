@@ -1,4 +1,5 @@
 import type { ReasonCode } from "@loopback/contracts";
+import type { RoomKind } from "./authorize.js";
 
 /**
  * Message admission: the single step every inbound message passes before any
@@ -17,6 +18,8 @@ import type { ReasonCode } from "@loopback/contracts";
  */
 
 export interface AdmissionMessage {
+  /** The Switch room the message arrived in (from the frame, never from its content). */
+  readonly roomId: string;
   /** Opaque Switch participant id, matched exactly (no case folding, no trimming). */
   readonly sender: string;
   readonly senderKind: string | null;
@@ -33,9 +36,12 @@ export interface AdmissionPolicy {
   readonly verifierId: string;
   /** How the gate is mentioned at the start of a command, e.g. "@loopback-gate". */
   readonly gateMention: string;
+  /** D26: the private maintainers' room and the public intake room (distinct). */
+  readonly maintainerRoomId: string;
+  readonly intakeRoomId: string;
 }
 
-export type AdmissionCode = Extract<ReasonCode, "NOT_ADDRESSED" | "DELEGATED_SENDER" | "PLATFORM_SENDER" | "UNRECOGNISED_SENDER_KIND">;
+export type AdmissionCode = Extract<ReasonCode, "NOT_ADDRESSED" | "DELEGATED_SENDER" | "PLATFORM_SENDER" | "UNRECOGNISED_SENDER_KIND" | "WRONG_ROOM">;
 
 export type Admission =
   /** The gate's own message: dropped silently. */
@@ -44,10 +50,10 @@ export type Admission =
   | { readonly kind: "ignore" }
   /** Aimed at the gate but not admissible: audited, never answered, never parsed. */
   | { readonly kind: "refused"; readonly code: AdmissionCode }
-  /** An addressed report from the exact fixer or verifier id; never treated as a command. */
+  /** An addressed report from the exact fixer or verifier id, in the maintainers' room; never a command. */
   | { readonly kind: "agent_report"; readonly agent: "fixer" | "verifier" }
-  /** An addressed message from a person: may be parsed as a command; roles are decided later. */
-  | { readonly kind: "command" };
+  /** An addressed message from a person: may be parsed as a command in this room; roles are decided later. */
+  | { readonly kind: "command"; readonly room: RoomKind };
 
 /** The only sender kind a person carries on the verified install. Anything else fails closed. */
 const ACCEPTED_SENDER_KIND = null;
@@ -55,8 +61,13 @@ const ACCEPTED_SENDER_KIND = null;
 /** Throws on a policy admission cannot run with. Call at startup, not only per message. */
 export function assertAdmissionPolicy(p: AdmissionPolicy): void {
   const ids = [p.selfId, p.fixerId, p.verifierId];
-  if (ids.some((id) => id.trim() === "") || new Set(ids).size !== ids.length || !/^@[a-z0-9][a-z0-9._-]*$/.test(p.gateMention)) {
-    throw new Error("invalid admission policy: self, fixer and verifier ids must be distinct and non-empty, and the mention must be @name");
+  const rooms = [p.maintainerRoomId, p.intakeRoomId];
+  if (
+    ids.some((id) => id.trim() === "") || new Set(ids).size !== ids.length ||
+    rooms.some((r) => r.trim() === "") || p.maintainerRoomId === p.intakeRoomId ||
+    !/^@[a-z0-9][a-z0-9._-]*$/.test(p.gateMention)
+  ) {
+    throw new Error("invalid admission policy: self, fixer and verifier ids must be distinct and non-empty, the two rooms distinct and non-empty, and the mention must be @name");
   }
 }
 
@@ -73,17 +84,28 @@ export function namesGate(body: string, gateMention: string): boolean {
 export function admit(msg: AdmissionMessage, policy: AdmissionPolicy): Admission {
   assertAdmissionPolicy(policy);
   if (msg.sender === policy.selfId) return { kind: "self" };
+  // The transport rejects frames without a sender; this keeps admission closed on its own.
+  if (msg.sender.trim() === "") return { kind: "refused", code: "UNRECOGNISED_SENDER_KIND" };
 
   const agent = msg.sender === policy.fixerId ? "fixer" : msg.sender === policy.verifierId ? "verifier" : null;
   // Only messages aimed at the gate are audited; ordinary room chatter is not.
   const aimed = msg.addressed || agent !== null || namesGate(msg.body, policy.gateMention);
   if (!aimed) return { kind: "ignore" };
 
+  const room: RoomKind | null =
+    msg.roomId === policy.maintainerRoomId ? "maintainers" : msg.roomId === policy.intakeRoomId ? "intake" : null;
+  // A room the gate does not serve never yields authority (the transport drops these too).
+  if (room === null) return { kind: "refused", code: "WRONG_ROOM" };
+
   if (msg.senderKind === "platform") return { kind: "refused", code: "PLATFORM_SENDER" };
   if (msg.onBehalfOf !== null) return { kind: "refused", code: "DELEGATED_SENDER" };
   if (msg.senderKind !== ACCEPTED_SENDER_KIND) return { kind: "refused", code: "UNRECOGNISED_SENDER_KIND" };
   if (msg.addressed !== true) return { kind: "refused", code: "NOT_ADDRESSED" };
 
-  if (agent !== null) return { kind: "agent_report", agent };
-  return { kind: "command" };
+  if (agent !== null) {
+    // Agents report only in the maintainers' room. The intake rule admits no agents, so an
+    // addressed agent message there means the policy is not what Loopback expects.
+    return room === "maintainers" ? { kind: "agent_report", agent } : { kind: "refused", code: "WRONG_ROOM" };
+  }
+  return { kind: "command", room };
 }

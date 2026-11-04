@@ -16,6 +16,7 @@ const policy: MergePolicy = {
   baseBranch: "main",
   requiredChecks: ["test"],
   checkSources: new Map([["test", "github-actions"]]),
+  requiredCheckIntegrations: new Map([["test", 15368], ["loopback/gate", 5598944]]),
   gateStatusContext: "loopback/gate",
   maintainers: new Set([MAINT, MAINT2]),
   quorum: 1,
@@ -30,8 +31,14 @@ function live(over: Partial<LiveSnapshot> = {}, pr: Partial<NonNullable<LiveSnap
     pr: { state: "open", draft: false, merged: false, mergeable: true, headSha: A, baseRef: "main", headRef: "loopback/LB-001", headRepo: "o/r", ...pr },
     checks: [{ id: 10, name: "test", appSlug: "github-actions", status: "completed", conclusion: "success", headSha: A }],
     baseProtection: {
-      requiredStatusContexts: ["test", "loopback/gate"], requiresPullRequest: true, requiresUpToDate: true,
-      blocksForcePush: true, restrictsDeletion: true,
+      requiredStatusChecks: [
+        { context: "test", integrationId: 15368 },
+        { context: "loopback/gate", integrationId: 5598944 },
+      ],
+      requiresPullRequest: true,
+      requiresUpToDate: true,
+      blocksForcePush: true,
+      restrictsDeletion: true,
     },
     changedFiles: ["slugify.js", "test/slugify.js"],
     ...over,
@@ -121,8 +128,6 @@ describe("evaluateMerge: decisions and amendments", () => {
     expect(code(evidence(), live({}, { baseRef: "demo/20261105-0000000000000000" }))).toBe("block:WRONG_BASE");
     const prot = live().baseProtection!;
     for (const broken of [
-      { ...prot, requiredStatusContexts: ["test"] },
-      { ...prot, requiredStatusContexts: ["loopback/gate"] },
       { ...prot, requiresPullRequest: false },
       { ...prot, requiresUpToDate: false },
       { ...prot, blocksForcePush: false },
@@ -130,6 +135,117 @@ describe("evaluateMerge: decisions and amendments", () => {
     ]) {
       expect(code(evidence(), live({ baseProtection: broken }))).toBe("block:BASE_UNPROTECTED");
     }
+  });
+
+  describe("runtime status check source validation mutations", () => {
+    const prot = live().baseProtection!;
+
+    it("fails closed with CHECK_SOURCE_MISMATCH when a required context has no ruleset entry (item B.5)", () => {
+      // test context exists in policy but has no entry in ruleset
+      const missingTest = {
+        ...prot,
+        requiredStatusChecks: [
+          { context: "loopback/gate", integrationId: 5598944 },
+        ],
+      };
+      expect(code(evidence(), live({ baseProtection: missingTest }))).toBe("block:CHECK_SOURCE_MISMATCH");
+
+      // gate context exists in policy but has no entry in ruleset
+      const missingGate = {
+        ...prot,
+        requiredStatusChecks: [
+          { context: "test", integrationId: 15368 },
+        ],
+      };
+      expect(code(evidence(), live({ baseProtection: missingGate }))).toBe("block:CHECK_SOURCE_MISMATCH");
+
+      // empty ruleset entries
+      expect(code(evidence(), live({ baseProtection: { ...prot, requiredStatusChecks: [] } }))).toBe("block:CHECK_SOURCE_MISMATCH");
+    });
+
+    it("mutation: accepting a null source fails closed (CHECK_SOURCE_MISMATCH)", () => {
+      // test check has null integration ID (e.g. unpinned or unverified GitHub Action)
+      const nullCheckSource = {
+        ...prot,
+        requiredStatusChecks: [
+          { context: "test", integrationId: null },
+          { context: "loopback/gate", integrationId: 5598944 },
+        ],
+      };
+      expect(code(evidence(), live({ baseProtection: nullCheckSource }))).toBe("block:CHECK_SOURCE_MISMATCH");
+
+      // loopback/gate has null integration ID
+      const nullGateSource = {
+        ...prot,
+        requiredStatusChecks: [
+          { context: "test", integrationId: 15368 },
+          { context: "loopback/gate", integrationId: null },
+        ],
+      };
+      expect(code(evidence(), live({ baseProtection: nullGateSource }))).toBe("block:CHECK_SOURCE_MISMATCH");
+    });
+
+    it("mutation: ignoring an integration ID fails closed (CHECK_SOURCE_MISMATCH)", () => {
+      // test check has unexpected / mismatched integration ID
+      const wrongCheckSource = {
+        ...prot,
+        requiredStatusChecks: [
+          { context: "test", integrationId: 99999 },
+          { context: "loopback/gate", integrationId: 5598944 },
+        ],
+      };
+      expect(code(evidence(), live({ baseProtection: wrongCheckSource }))).toBe("block:CHECK_SOURCE_MISMATCH");
+
+      // loopback/gate has unexpected / mismatched integration ID
+      const wrongGateSource = {
+        ...prot,
+        requiredStatusChecks: [
+          { context: "test", integrationId: 15368 },
+          { context: "loopback/gate", integrationId: 99999 },
+        ],
+      };
+      expect(code(evidence(), live({ baseProtection: wrongGateSource }))).toBe("block:CHECK_SOURCE_MISMATCH");
+    });
+
+    it("conflicting duplicate sources fail closed (CHECK_SOURCE_MISMATCH)", () => {
+      const conflicting = {
+        ...prot,
+        requiredStatusChecks: [
+          { context: "test", integrationId: 15368 },
+          { context: "test", integrationId: 99999 },
+          { context: "loopback/gate", integrationId: 5598944 },
+        ],
+      };
+      expect(code(evidence(), live({ baseProtection: conflicting }))).toBe("block:CHECK_SOURCE_MISMATCH");
+
+      const conflictWithNull = {
+        ...prot,
+        requiredStatusChecks: [
+          { context: "test", integrationId: 15368 },
+          { context: "test", integrationId: null },
+          { context: "loopback/gate", integrationId: 5598944 },
+        ],
+      };
+      expect(code(evidence(), live({ baseProtection: conflictWithNull }))).toBe("block:CHECK_SOURCE_MISMATCH");
+    });
+
+    it("identical duplicate sources are accepted", () => {
+      const duplicateIdentical = {
+        ...prot,
+        requiredStatusChecks: [
+          { context: "test", integrationId: 15368 },
+          { context: "test", integrationId: 15368 },
+          { context: "loopback/gate", integrationId: 5598944 },
+        ],
+      };
+      expect(code(evidence(), live({ baseProtection: duplicateIdentical }))).toBe("MERGE");
+    });
+
+    it("policy with missing or invalid integration ID fails closed (CONFIG_INCOMPLETE)", () => {
+      expect(code(evidence(), live(), { ...policy, requiredCheckIntegrations: new Map([["loopback/gate", 5598944]]) })).toBe("block:CONFIG_INCOMPLETE");
+      expect(code(evidence(), live(), { ...policy, requiredCheckIntegrations: new Map([["test", 0], ["loopback/gate", 5598944]]) })).toBe("block:CONFIG_INCOMPLETE");
+      expect(code(evidence(), live(), { ...policy, requiredCheckIntegrations: new Map([["test", -1], ["loopback/gate", 5598944]]) })).toBe("block:CONFIG_INCOMPLETE");
+    });
   });
   it("D19: protected path changes block", () => {
     for (const f of [".github/workflows/ci.yml", "package.json", "package-lock.json", ".mocharc.yml", "vitest.config.ts", "sub/package.json", ".npmrc"]) {
@@ -149,7 +265,7 @@ describe("evaluateMerge: decisions and amendments", () => {
     expect(code(evidence(), l)).toBe("block:CI_MISSING");
   });
   it("M-b: only the latest verification run for the live head counts", () => {
-    const runs = (latest: "requested" | "fail" | "invalid" | "timeout") => [
+    const runs = (latest: "requested" | "fail" | "invalid" | "timeout" | "superseded") => [
       { seq: 1, headSha: A, status: "pass" as const, repository: "o/r", prNumber: 42 },
       { seq: 2, headSha: A, status: latest, repository: "o/r", prNumber: 42 },
     ];
@@ -157,6 +273,8 @@ describe("evaluateMerge: decisions and amendments", () => {
     expect(code(evidence({ verificationRuns: runs("fail") }), live())).toBe("block:VERIFICATION_FAILED");
     expect(code(evidence({ verificationRuns: runs("invalid") }), live())).toBe("block:VERIFICATION_INVALID");
     expect(code(evidence({ verificationRuns: runs("timeout") }), live())).toBe("block:VERIFICATION_TIMEOUT");
+    // D28: a superseded run never counts, even if it is the latest for the live head.
+    expect(code(evidence({ verificationRuns: runs("superseded") }), live())).toBe("block:VERIFICATION_STALE");
     // order of the array does not matter; seq does
     expect(code(evidence({ verificationRuns: [...runs("fail")].reverse() }), live())).toBe("block:VERIFICATION_FAILED");
   });

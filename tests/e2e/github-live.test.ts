@@ -21,7 +21,7 @@ describe.skipIf(!live)("live GitHub (read-only)", () => {
 
   it("the App can read the base branch rules, and the required protection is active", async () => {
     const rules = await client().getBranchRules(cfg!.baseBranch);
-    expect(rules.requiredStatusContexts).toEqual(expect.arrayContaining([...cfg!.requiredChecks, cfg!.gateStatusContext]));
+    expect(rules.requiredStatusChecks.map((c) => c.context)).toEqual(expect.arrayContaining([...cfg!.requiredChecks, cfg!.gateStatusContext]));
     expect(rules).toMatchObject({ requiresPullRequest: true, requiresUpToDate: true, blocksForcePush: true, restrictsDeletion: true });
   });
 

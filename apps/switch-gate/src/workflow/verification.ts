@@ -5,12 +5,14 @@ import type { CaseLocks } from "../cases/lock.js";
 import { transition, transitionInTx } from "../cases/service.js";
 import type { ChatPort } from "../chat/port.js";
 import { formatReason, safe } from "../chat/reasons.js";
+import type { KeyObject } from "node:crypto";
 import { extractReport } from "../agents/report.js";
+import { verifyReportSignature } from "../agents/signature.js";
 import type { AgentInbox, CommandContext, FixerHandoff, Reply } from "../commands/router.js";
 import { RateLimited, type GitHubReader } from "../github/client.js";
 import type { Db } from "../persistence/db.js";
 import {
-  completeRun, getCase, getRun, insertApproval, insertRun, latestCi, latestRunForHead, listApprovals, listCasesInStates,
+  completeRun, getCase, getRun, insertApproval, insertRun, supersedeOpenRuns, latestCi, latestRunForHead, listApprovals, listCasesInStates,
   listExpiredRuns, recordCommit, type CaseRecord,
 } from "../persistence/repos.js";
 
@@ -33,6 +35,19 @@ export interface WorkflowDeps {
   readonly expectedBaseSha: () => string | null;
   /** Stops privileged commands at their next write boundary once the gate is halted. */
   readonly halt: HaltGuard;
+  /**
+   * D28: true until every verifier-isolation proof has passed. Verification evidence is
+   * then advisory: it still gates the workflow, but it is never presented as trusted
+   * independent verification, and the maintainer is told to review the diff.
+   */
+  readonly verificationAdvisory: boolean;
+  /**
+   * D28: the verifier's Ed25519 public key. In isolated mode (verificationAdvisory false) every
+   * report must carry a valid signature, and a missing key rejects every report (fail closed).
+   * In advisory mode an unsigned report is accepted as before; a signature that is present but
+   * does not verify is always rejected.
+   */
+  readonly verifierPublicKey?: KeyObject | null;
   readonly log?: { error(obj: Record<string, unknown>, msg: string): void };
 }
 
@@ -92,7 +107,14 @@ export class VerificationWorkflow implements AgentInbox, FixerHandoff {
         transitionInTx(db, { caseId: c.id, to: "Verifying", actorId, trigger: "system", reason: null, auditType: "verification.started", targetSha: c.headSha }, now());
       }
       if (!force && open?.status === "requested") return null; // reuse the open run
-      return insertRun(db, c.id, c.repo, c.prNumber!, c.headSha!, now());
+      const created = insertRun(db, c.id, c.repo, c.prNumber!, c.headSha!, now());
+      // D28: at most one open run per case. Older open runs (an old head, or a forced re-run)
+      // are superseded so they can never complete, whatever arrives later.
+      const superseded = supersedeOpenRuns(db, c.id, created.id, now());
+      if (superseded.length > 0) {
+        append(db, { caseId: c.id, actorId: "system", type: "verification.superseded", targetSha: c.headSha, payload: { runIds: superseded, by: created.id } }, now());
+      }
+      return created;
     })();
     if (run === null) return;
     await this.d.chat.post(c.roomId, [
@@ -151,14 +173,36 @@ export class VerificationWorkflow implements AgentInbox, FixerHandoff {
     const r = extractReport(msg.body, VerifierReport);
     if (!r.ok) return this.invalidOutput(msg, null, r.detail);
     const report = r.value;
+    // D28: the signature is checked before anything about the report is recorded or trusted.
+    const signature = this.checkSignature(report);
+    if (signature.reject !== null) {
+      append(this.d.db, {
+        caseId: getRun(this.d.db, report.runId)?.caseId ?? null, actorId: msg.sender, type: "agent_output.invalid",
+        reasonCode: "VERIFIER_SIGNATURE_INVALID", payload: { signature: signature.status, runId: report.runId, eventId: msg.eventId },
+      }, this.d.now());
+      await this.d.chat.post(msg.roomId, formatReason("VERIFIER_SIGNATURE_INVALID", { detail: signature.reject }), msg.threadId);
+      return;
+    }
     const run = getRun(this.d.db, report.runId);
     if (!run || run.caseId !== report.caseId) return this.invalidOutput(msg, null, "report does not match an issued verification run");
     await this.d.locks.with(run.caseId, async () => {
       const { db, now } = this.d;
       const current = getRun(db, run.id)!;
+      if (current.status === "superseded") return this.invalidOutput(msg, run.caseId, "verification run was superseded by a newer request");
       if (current.status !== "requested") return this.invalidOutput(msg, run.caseId, "verification run already completed");
       const identityOk = report.headSha === current.headSha && report.repository === current.repo && report.pullRequest === current.prNumber;
-      const status = !identityOk ? "invalid" : report.verdict === "pass" ? "pass" : "fail";
+      // D28: the evidence must be for the PR's live head, read from GitHub now. If GitHub
+      // cannot be read, nothing is recorded (fail closed); the run stays open and times out.
+      let liveOk = false;
+      if (identityOk) {
+        const live = await this.livePullFor(current.prNumber);
+        if (typeof live === "string") {
+          this.d.log?.error({ caseId: current.caseId, op: "verifier.live_head", reasonCode: live }, "could not confirm the live head; verifier report not recorded");
+          return;
+        }
+        liveOk = live.headSha === current.headSha;
+      }
+      const status = !identityOk || !liveOk ? "invalid" : report.verdict === "pass" ? "pass" : "fail";
       db.transaction(() => {
         completeRun(db, current.id, status, JSON.stringify(report), now());
         append(db, {
@@ -166,12 +210,37 @@ export class VerificationWorkflow implements AgentInbox, FixerHandoff {
           type: status === "pass" ? "verification.passed" : status === "fail" ? "verification.failed" : "agent_output.invalid",
           targetSha: current.headSha,
           reasonCode: status === "pass" ? null : status === "fail" ? "VERIFICATION_FAILED" : "AGENT_OUTPUT_INVALID",
-          payload: { runId: current.id, verdict: report.verdict, findings: report.findings.length, regressionTestFailsBeforeFix: report.regressionTestFailsBeforeFix },
+          payload: {
+            runId: current.id, verdict: report.verdict, findings: report.findings.length, regressionTestFailsBeforeFix: report.regressionTestFailsBeforeFix,
+            advisory: this.d.verificationAdvisory, signature: signature.status, ...(identityOk && !liveOk ? { stale: "the PR head moved before the report arrived" } : {}),
+          },
         }, now());
       })();
       if (!identityOk) await this.d.chat.post(msg.roomId, formatReason("AGENT_OUTPUT_INVALID", { detail: "report names a different commit or PR than the run" }), msg.threadId);
+      else if (!liveOk) await this.d.chat.post(msg.roomId, formatReason("VERIFICATION_STALE", { caseId: current.caseId, headSha: current.headSha }), msg.threadId);
       await this.progressLocked(current.caseId);
     });
+  }
+
+  /**
+   * D28 signature policy. `status` is recorded in the audit; `reject` (a short reason) means the
+   * report must not be recorded. A valid signature proves possession of the verifier's key and
+   * that the report (run id, repository, PR, head SHA, verdict, findings) was not altered; it
+   * does not prove the tests were run.
+   */
+  private checkSignature(report: VerifierReport): { status: "valid" | "absent" | "unverified" | "invalid"; reject: string | null } {
+    const key = this.d.verifierPublicKey ?? null;
+    const present = report.signature !== undefined;
+    if (key === null) {
+      if (!this.d.verificationAdvisory) return { status: "unverified", reject: "no verifier public key is configured" };
+      return { status: present ? "unverified" : "absent", reject: null };
+    }
+    const check = verifyReportSignature(report, key);
+    if (check.ok) return { status: "valid", reject: null };
+    if (check.reason === "missing") {
+      return this.d.verificationAdvisory ? { status: "absent", reject: null } : { status: "absent", reject: "the report is not signed" };
+    }
+    return { status: "invalid", reject: `its signature is ${check.reason === "malformed" ? "malformed" : "not valid for this report and key"}` };
   }
 
   // --- progress out of Verifying (7.8) -------------------------------------------------
@@ -201,8 +270,12 @@ export class VerificationWorkflow implements AgentInbox, FixerHandoff {
       }
     }
     if (run.status !== "pass" || !ciOk) return;
-    transition(db, { caseId: c.id, to: "AwaitingApproval", actorId: "system", trigger: "system", reason: null, targetSha: c.headSha }, now());
-    await this.announce(c, `Ready for approval: ${this.d.gateMention} approve ${c.id} ${c.headSha}`);
+    transition(db, {
+      caseId: c.id, to: "AwaitingApproval", actorId: "system", trigger: "system", reason: null, targetSha: c.headSha,
+      payload: { verification: this.d.verificationAdvisory ? "advisory" : "isolated" },
+    }, now());
+    const advisory = this.d.verificationAdvisory ? `\n${formatReason("VERIFICATION_ADVISORY", { caseId: c.id })}` : "";
+    await this.announce(c, `Ready for approval: ${this.d.gateMention} approve ${c.id} ${c.headSha}${advisory}`);
   }
 
   // --- timeouts (7.4, 7.7) ---------------------------------------------------------
@@ -249,8 +322,12 @@ export class VerificationWorkflow implements AgentInbox, FixerHandoff {
   }
 
   private async livePull(c: CaseRecord): Promise<{ headSha: string; baseSha: string } | ReasonCode> {
+    return this.livePullFor(c.prNumber!);
+  }
+
+  private async livePullFor(prNumber: number): Promise<{ headSha: string; baseSha: string } | ReasonCode> {
     try {
-      return await this.d.github.getPull(c.prNumber!);
+      return await this.d.github.getPull(prNumber);
     } catch (e) {
       return e instanceof RateLimited ? "RATE_LIMITED" : "GITHUB_UNAVAILABLE";
     }
@@ -331,6 +408,8 @@ export class VerificationWorkflow implements AgentInbox, FixerHandoff {
       // eligible state, non-empty note (parser), audited.
       if (c.repo !== this.d.repo) return this.refuse(ctx, c, "NOT_AUTHORIZED", "retask");
       if (c.state !== "Blocked" && c.state !== "VerificationFailed") return this.refuse(ctx, c, "INVALID_STATE", "retask");
+      // A declined public report is closed: retask must not bypass triage.
+      if (c.blockedReason === "TRIAGE_DECLINED") return this.refuse(ctx, c, "INVALID_STATE", "retask");
       this.d.halt.assertRunning("retask");
       const problem = await this.check(c);
       // Halt boundary: the refusal audit and the FixInProgress transition happen after this.

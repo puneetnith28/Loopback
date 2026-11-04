@@ -4,20 +4,32 @@ export type ParseResult =
   | { readonly ok: true; readonly command: Command }
   | { readonly ok: false; readonly error: string };
 
-export const USAGE = [
-  "help | whoami",
-  "report <description of the bug>",
-  "status <LB-nnn> | audit <LB-nnn>",
-  "verify <LB-nnn>",
-  "approve <LB-nnn> <full 40-character commit sha>",
-  "reject <LB-nnn> <reason>",
-  "merge <LB-nnn>",
-  "retask <LB-nnn> <note>",
-].join("\n");
+/** One usage line per command; help shows only the lines the sender may use (D27). */
+export const USAGE_LINES: Readonly<Record<CommandKind, string>> = {
+  help: "help",
+  whoami: "whoami",
+  report: "report <description of the bug>",
+  status: "status <LB-nnn>",
+  audit: "audit <LB-nnn>",
+  accept: "accept <LB-nnn>",
+  decline: "decline <LB-nnn> <reason>",
+  verify: "verify <LB-nnn>",
+  approve: "approve <LB-nnn> <full 40-character commit sha>",
+  reject: "reject <LB-nnn> <reason>",
+  merge: "merge <LB-nnn>",
+  retask: "retask <LB-nnn> <note>",
+};
 
-const VERBS: ReadonlySet<string> = new Set<CommandKind>([
-  "help", "whoami", "report", "status", "verify", "approve", "reject", "merge", "audit", "retask",
-]);
+/** Usage for exactly these commands, in a fixed order. */
+export function usageFor(kinds: readonly CommandKind[]): string {
+  const allowed = new Set(kinds);
+  return (Object.keys(USAGE_LINES) as CommandKind[]).filter((k) => allowed.has(k)).map((k) => USAGE_LINES[k]).join("\n");
+}
+
+/** Full usage, for maintainers. */
+export const USAGE = usageFor(Object.keys(USAGE_LINES) as CommandKind[]);
+
+const VERBS: ReadonlySet<string> = new Set<CommandKind>(Object.keys(USAGE_LINES) as CommandKind[]);
 
 function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -64,6 +76,7 @@ export function parseCommand(body: string, gateMention: string): ParseResult {
     case "verify":
     case "merge":
     case "audit":
+    case "accept":
       if (tokens.length !== 1) return fail(`${verb} takes exactly one case id`);
       candidate = { kind: verb, caseId: caseId(tokens[0]) };
       break;
@@ -75,6 +88,11 @@ export function parseCommand(body: string, gateMention: string): ParseResult {
     case "reject": {
       const [id, ...reason] = tokens;
       candidate = { kind: "reject", caseId: caseId(id), reason: reason.join(" ") };
+      break;
+    }
+    case "decline": {
+      const [id, ...reason] = tokens;
+      candidate = { kind: "decline", caseId: caseId(id), reason: reason.join(" ") };
       break;
     }
     case "retask": {

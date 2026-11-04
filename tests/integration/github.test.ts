@@ -3,6 +3,7 @@ import { createVerify, generateKeyPairSync } from "node:crypto";
 import { beforeEach, describe, expect, it } from "vitest";
 import { GitHubClient } from "../../apps/switch-gate/src/github/client.js";
 import { mergePullRequest } from "../../apps/switch-gate/src/github/merge.js";
+import { evaluateMerge } from "../../apps/switch-gate/src/policy/evaluate.js";
 import {
   GitHubError, GitHubTransport, HeadChanged, NotMergeable, RateLimited, Uncertain, signAppJwt, type FetchFn,
 } from "../../apps/switch-gate/src/github/transport.js";
@@ -129,10 +130,72 @@ describe("reads", () => {
       { type: "pull_request", parameters: {} }, { type: "non_fast_forward" }, { type: "deletion" },
     ]));
     const rules = await new GitHubClient(transport(), "o/r", "loopback/gate").getBranchRules("demo/20261105-0123456789abcdef");
-    expect(rules).toEqual({ requiredStatusContexts: ["test", "loopback/gate"], requiresUpToDate: true, requiresPullRequest: true, blocksForcePush: true, restrictsDeletion: true });
+    expect(rules).toEqual({
+      requiredStatusChecks: [
+        { context: "test", integrationId: 15368 },
+        { context: "loopback/gate", integrationId: 999 },
+      ],
+      requiresUpToDate: true,
+      requiresPullRequest: true,
+      blocksForcePush: true,
+      restrictsDeletion: true,
+    });
     route("GET /repos/o/r/rules/branches/main", () => json(200, []));
     expect(await new GitHubClient(transport(), "o/r", "loopback/gate").getBranchRules("main"))
-      .toEqual({ requiredStatusContexts: [], requiresUpToDate: false, requiresPullRequest: false, blocksForcePush: false, restrictsDeletion: false });
+      .toEqual({ requiredStatusChecks: [], requiresUpToDate: false, requiresPullRequest: false, blocksForcePush: false, restrictsDeletion: false });
+  });
+
+  it("parses non-positive, non-integer or malformed integration IDs as null and forbids merge", async () => {
+    const invalidInputs: Array<{ name: string; raw: unknown }> = [
+      { name: "missing", raw: undefined },
+      { name: "explicit null", raw: null },
+      { name: "string", raw: "15368" },
+      { name: "float", raw: 15368.5 },
+      { name: "negative integer", raw: -1 },
+      { name: "zero", raw: 0 },
+      { name: "unsafe integer", raw: Number.MAX_SAFE_INTEGER + 100 },
+    ];
+
+    const testPolicy = {
+      baseBranch: "main",
+      requiredChecks: ["test"],
+      checkSources: new Map([["test", "github-actions"]]),
+      requiredCheckIntegrations: new Map([["test", 15368], ["loopback/gate", 999]]),
+      gateStatusContext: "loopback/gate",
+      maintainers: new Set(["@m:x"]),
+      quorum: 1,
+    };
+    const testEv = {
+      caseId: "LB-001", repo: "o/r", prNumber: 42, caseHeadSha: A,
+      verificationRuns: [{ seq: 1, headSha: A, status: "pass" as const, repository: "o/r", prNumber: 42 }],
+      approvals: [{ headSha: A, approverId: "@m:x", decision: "approve" as const, repo: "o/r", prNumber: 42 }],
+    };
+
+    for (const { name, raw } of invalidInputs) {
+      const checkObj: Record<string, unknown> = { context: "test" };
+      if (raw !== undefined) checkObj.integration_id = raw;
+      route("GET /repos/o/r/rules/branches/main", () => json(200, [
+        { type: "required_status_checks", parameters: { strict_required_status_checks_policy: true, required_status_checks: [checkObj, { context: "loopback/gate", integration_id: 999 }] } },
+        { type: "pull_request", parameters: {} }, { type: "non_fast_forward" }, { type: "deletion" },
+      ]));
+
+      const rules = await new GitHubClient(transport(), "o/r", "loopback/gate").getBranchRules("main");
+      expect(rules.requiredStatusChecks.find((c) => c.context === "test")?.integrationId, `for input ${name}`).toBeNull();
+
+      // Verify that this base protection does not permit a merge (fails with CHECK_SOURCE_MISMATCH)
+      const decision = evaluateMerge(testEv, {
+        repo: "o/r", prNumber: 42, changedFilesHeadSha: A,
+        pr: { state: "open", draft: false, merged: false, mergeable: true, headSha: A, baseRef: "main", headRef: "loopback/LB-001", headRepo: "o/r" },
+        checks: [{ id: 10, name: "test", appSlug: "github-actions", status: "completed", conclusion: "success", headSha: A }],
+        baseProtection: rules,
+        changedFiles: ["slugify.js"],
+      }, testPolicy);
+
+      expect(decision.action, `for input ${name}`).toBe("block");
+      if (decision.action === "block") {
+        expect(decision.code, `for input ${name}`).toBe("CHECK_SOURCE_MISMATCH");
+      }
+    }
   });
 });
 

@@ -136,9 +136,17 @@ describe("commit binding", () => {
   it("an unprotected base branch blocks the merge (D17)", async () => {
     const h = createHarness();
     await h.driveToReady();
-    h.gh.rules = { ...h.gh.rules, requiredStatusContexts: ["test"] };
+    h.gh.rules = { ...h.gh.rules, requiresPullRequest: false };
     await h.say(MAINT, `${G} merge LB-001`);
     expect(getCase(h.db, "LB-001")).toMatchObject({ state: "Blocked", blockedReason: "BASE_UNPROTECTED" });
+    expect(h.merger).not.toHaveBeenCalled();
+  });
+  it("a check source mismatch blocks the merge (D17)", async () => {
+    const h = createHarness();
+    await h.driveToReady();
+    h.gh.rules = { ...h.gh.rules, requiredStatusChecks: [{ context: "test", integrationId: 1 }] };
+    await h.say(MAINT, `${G} merge LB-001`);
+    expect(getCase(h.db, "LB-001")).toMatchObject({ state: "Blocked", blockedReason: "CHECK_SOURCE_MISMATCH" });
     expect(h.merger).not.toHaveBeenCalled();
   });
   it("GitHub unavailable blocks; nothing merges on cached evidence", async () => {

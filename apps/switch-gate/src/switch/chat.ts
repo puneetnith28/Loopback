@@ -107,3 +107,22 @@ function detailCode(body: string): string | null {
     return null;
   }
 }
+
+/**
+ * D26: one SwitchChat per room, each bound to that room's own connection. A post goes to
+ * the chat of its room; a room the gate does not serve is refused, never redirected.
+ */
+export class RoomChats implements ChatPort {
+  private readonly byRoom: ReadonlyMap<string, ChatPort>;
+
+  constructor(chats: ReadonlyMap<string, ChatPort>) {
+    if (chats.size === 0) throw new Error("RoomChats needs at least one room");
+    this.byRoom = chats;
+  }
+
+  async post(roomId: string, content: string, threadId: string | null): Promise<void> {
+    const chat = this.byRoom.get(roomId);
+    if (!chat) throw new SwitchPostError(null, "the gate does not post in that room");
+    await chat.post(roomId, content, threadId);
+  }
+}

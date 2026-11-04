@@ -72,11 +72,14 @@ export const Command = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("merge"), caseId: CaseId }),
   z.object({ kind: z.literal("audit"), caseId: CaseId }),
   z.object({ kind: z.literal("retask"), caseId: CaseId, note: z.string().trim().min(1).max(500) }),
+  // Maintainer triage of a public intake report (D26): only `accept` may task the fixer.
+  z.object({ kind: z.literal("accept"), caseId: CaseId }),
+  z.object({ kind: z.literal("decline"), caseId: CaseId, reason: z.string().min(3).max(500) }),
 ]);
 export type Command = z.infer<typeof Command>;
 export type CommandKind = Command["kind"];
 export const COMMAND_KINDS: readonly CommandKind[] = [
-  "help", "whoami", "report", "status", "verify", "approve", "reject", "merge", "audit", "retask",
+  "help", "whoami", "report", "status", "verify", "approve", "reject", "merge", "audit", "retask", "accept", "decline",
 ];
 
 // ---------------------------------------------------------------------------
@@ -124,6 +127,12 @@ export const VerifierReport = z.object({
   }).strict()).max(30),
   regressionTestFailsBeforeFix: z.boolean(),
   summary: z.string().max(800),
+  /**
+   * D28: base64 Ed25519 signature over the canonical report without this field
+   * (apps/switch-gate/src/agents/signature.ts). Required in isolated verification mode;
+   * optional in advisory mode. Proves possession of the verifier's key, not execution.
+   */
+  signature: z.string().min(1).max(200).optional(),
 }).strict();
 export type VerifierReport = z.infer<typeof VerifierReport>;
 
@@ -149,13 +158,15 @@ export type Approval = z.infer<typeof Approval>;
 
 export const AUDIT_EVENT_TYPES = [
   "case.created", "case.state_changed", "fixer.started", "pr.created",
-  "verification.started", "verification.passed", "verification.failed",
+  "verification.started", "verification.passed", "verification.failed", "verification.superseded",
   "approval.accepted", "approval.rejected", "commit.changed", "merge.blocked",
   "merge.requested", "merge.confirmed", "merge.outcome_unknown",
   "command.refused", "agent_output.invalid", "ci.observed", "gate_status.posted",
   // D8/D9/D10/D14/D15 additions
   "gate_status.corrected", "gate_status.correction_failed", "case.retasked",
   "policy.violation", "retry.attempted", "fixer.reported",
+  // D26: maintainer triage of public reports; D3.9: events Switch reported as not delivered
+  "case.triaged", "delivery.gap",
 ] as const;
 export const AuditEventType = z.enum(AUDIT_EVENT_TYPES);
 export type AuditEventType = (typeof AUDIT_EVENT_TYPES)[number];
@@ -167,7 +178,7 @@ export type AuditEventType = (typeof AUDIT_EVENT_TYPES)[number];
 export const REASON_CODES = [
   // evaluateMerge
   "GITHUB_UNAVAILABLE", "IDENTITY_MISMATCH", "ALREADY_MERGED", "PR_CLOSED", "PR_DRAFT",
-  "NOT_MERGEABLE", "MERGEABILITY_UNKNOWN", "WRONG_BASE", "BASE_UNPROTECTED",
+  "NOT_MERGEABLE", "MERGEABILITY_UNKNOWN", "WRONG_BASE", "BASE_UNPROTECTED", "CHECK_SOURCE_MISMATCH",
   "PROTECTED_PATH_CHANGED", "HEAD_MOVED", "CI_MISSING", "CI_PENDING", "CI_FAILED",
   "VERIFICATION_MISSING", "VERIFICATION_PENDING", "VERIFICATION_STALE",
   "VERIFICATION_IDENTITY", "VERIFICATION_FAILED", "VERIFICATION_INVALID",
@@ -179,6 +190,8 @@ export const REASON_CODES = [
   "NOT_ADDRESSED", "DELEGATED_SENDER", "PLATFORM_SENDER", "UNRECOGNISED_SENDER_KIND",
   // a privileged command stopped because the gate halted (Switch policy failure)
   "GATE_HALTED",
+  // D26 rooms and public intake, D27 refusals, D28 advisory verification
+  "WRONG_ROOM", "TRIAGE_DECLINED", "DUPLICATE_REPORT", "INTAKE_RATE_LIMITED", "VERIFICATION_ADVISORY", "REPORT_TOO_LONG", "INTAKE_BUSY", "VERIFIER_SIGNATURE_INVALID",
   // merge service
   "MERGE_DISABLED", "CONFIG_INCOMPLETE", "MERGE_OUTCOME_UNKNOWN", "AWAITING_MERGE_COMMAND",
   "RETRY_LIMIT_REACHED", "MERGE_ATTEMPTS_EXHAUSTED",

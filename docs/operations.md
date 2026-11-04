@@ -4,12 +4,17 @@
 
 The gatekeeper's workflow, policy, persistence and GitHub layers are implemented and tested
 with fakes. The Switch transport follows the installed switch-core 0.31.0 WebSocket protocol
-(see [setup.md](setup.md)); live message flow and sender attribution are not verified yet.
+(see [setup.md](setup.md)). The two-room design (private maintainers' room, public intake room,
+one connection each) is implemented and tested with fakes only: the intake room and the two-rule
+addressing policy do not exist on the live install yet, so this build exits with code 4 there
+until they are set up.
 
 `npm run gate` exit codes: `0` clean shutdown (SIGTERM/SIGINT), `1` configuration or startup
 error (including an unreadable stored Switch connection record), `3` the Switch connection stopped
 for good (`taken_over`, refused credential or membership, protocol mismatch, room lost, storage
-failure, or reconnect attempts exhausted). Exit code 3 needs an operator: do not configure an
+failure, or reconnect attempts exhausted) — in either room; both rooms stop together — `4` the
+addressing policy is not the expected one (below), `5` Switch does not offer the `post_message`
+and `read_context` operations the gate needs. Exit code 3 needs an operator: do not configure an
 automatic restart loop, and never clear the stored connection record to get past a `taken_over`;
 that would let a displaced gate take the connection back from the one holding it.
 
@@ -26,13 +31,17 @@ requests R/W, Commit statuses R/W, Checks R, Metadata R), its private key at
 1. `npm ci && npm run build`
 2. `npm run migrate` — applies schema migrations to `DB_PATH` (idempotent).
 3. Start Switch Console and the agent sessions (fixer and verifier in their isolated users).
-4. `npm run gate` — on start the gate reconciles interrupted merges *before* polling or
-   accepting commands. Stop with SIGINT/SIGTERM.
+4. `npm run gate` — on start the gate checks the Switch policy and operations, reconciles
+   interrupted merges and every open case against GitHub *before* polling or accepting commands,
+   then connects to both rooms and serves the health endpoints. Stop with SIGINT/SIGTERM.
 
 ## Health
 
-- `GET http://127.0.0.1:$HTTP_PORT/healthz` — process and database.
-- `GET http://127.0.0.1:$HTTP_PORT/readyz` — names failing dependencies. Bound to 127.0.0.1;
+- `GET http://127.0.0.1:$HTTP_PORT/healthz` — process and database (`SELECT 1`).
+- `GET http://127.0.0.1:$HTTP_PORT/readyz` — 200 only when: each room's connection is open with a
+  heartbeat in the last 6 s (`switch-maintainers`, `switch-intake`), the required Switch operations
+  were found (`switch-operations`), GitHub has core API quota left (`github`, cached 30 s), and the
+  gate is not halted (`not-halted`). A 503 names only the failing checks. Bound to 127.0.0.1;
   never expose it.
 
 ## Read-only mode
@@ -48,6 +57,38 @@ every 60 s while running: a policy found wrong, or one unreadable three times in
 gate with the same exit code. Privileged work already running stops at its next write boundary
 (audited `GATE_HALTED`, not retried); re-send the command once the gate is back. The next start
 reconciles any case left mid-merge.
+
+## Public intake and triage
+
+Public reports arrive in the intake room and wait in `Reported`; each posts a triage notice in
+the maintainers' room. `@loopback-gate accept LB-xxx` tasks the fixer; `@loopback-gate decline
+LB-xxx <reason>` closes it (`Blocked`, `TRIAGE_DECLINED`). Nothing is tasked automatically,
+including by reconciliation. A reporter can check their own report with `status LB-xxx` in the
+intake room. Limits: one copy of the same report per sender per 24 h, `INTAKE_MAX_REPORTS_PER_HOUR` per
+sender per hour, at most 1,000 characters per report (invisible format characters removed), and
+at most 50 public reports awaiting triage at once (further reports get `INTAKE_BUSY` until some
+are triaged). The triage notice shows the whole report; if it cannot be posted, the gate re-sends
+it every poll interval. A declined report cannot be retasked.
+
+## Delivery gaps
+
+If Switch reports undelivered events, the maintainers' room gets a notice with a count (no
+content) and the audit log a `delivery.gap` entry listing the missed message ids and senders. The
+missed messages were **not** executed: ask the senders to re-send. Every case is reconciled
+against GitHub at the same time.
+
+## Verification modes (D28)
+
+`VERIFIER_ISOLATION_PROVEN=false` (current): verification is **advisory**; chat and the audit
+(`verification: "advisory"`, `signature: "absent" | "unverified" | "valid"`) say so. With `true`,
+every verifier report must be signed with the verifier's Ed25519 key; an unsigned or wrongly
+signed report is refused with `VERIFIER_SIGNATURE_INVALID`, audited, and the run stays open (a
+correct report can still complete it). A signature proves the report's origin and integrity, not
+that tests were run.
+
+Each new verification request supersedes the case's older open runs (audited
+`verification.superseded`); a superseded run can never complete, so a late report for an old
+request or an old head is refused.
 
 ## Inspecting cases
 
@@ -102,7 +143,9 @@ docker run -d --name loopback-gate --env-file .env -v loopback-data:/data \
 The image is multi-stage (the native build toolchain exists only in the build stage), runs as the
 unprivileged `node` user, keeps state only in `/data`, and health-checks `/healthz` from inside
 the container (the endpoints bind to 127.0.0.1 and are never published). The private key must be
-mounted read-only and remain mode 600 on the host.
+mounted read-only and remain mode 600 on the host. (Docker creates the container's `/secrets`
+directory as 755; the gate accepts that because it only refuses key directories others can
+*write* to.)
 
 ## Demo reset
 

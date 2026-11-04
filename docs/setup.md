@@ -6,11 +6,12 @@ verified yet; each section ends with the checks that turn it from "configured" i
 
 ## 1. GitHub
 
-### Demo repository
-1. Fork `simov/slugify` (MIT) to your account. Its default branch is `master`.
-2. In the fork, record the starting commit as `DEMO_RESET_SHA`, tag it `demo-reset`, and add the
-   CI workflow (job name `test`, triggered for PRs into the default branch and `demo/**`).
-3. Confirm the demo bug reproduces (issue #177: `slugify.extend({'%': null})` throws).
+### Demo repository (`loopback-demo-target`)
+1. Create a dedicated demo repository under your GitHub account: `loopback-demo-target` (default branch: `main`).
+2. Populate it with the minimal target application, automated tests (`npm test`), and a deliberately seeded reproducible bug (Issue #1).
+3. In the repository, record the baseline commit as `DEMO_RESET_SHA`, tag it `demo-reset`, and add the
+   CI workflow (job name `test`, triggered for PRs into the default branch `main` and `demo/**`).
+4. Confirm the demo bug reproduces when the regression test runs.
 
 ### GitHub App `loopback-gate` (the only identity that can merge)
 
@@ -23,7 +24,9 @@ verified yet; each section ends with the checks that turn it from "configured" i
 | Metadata | Read (default) | Required for every App; also covers `GET /repos/{o}/{r}/rules/branches/{branch}` per GitHub's fine-grained permissions reference |
 
 No webhook. Install on the demo fork only. Save the private key as `secrets/gate.pem`
-(mode 600) and set `GH_APP_ID`, `GH_APP_INSTALLATION_ID`.
+(file mode 600, in a directory created with `install -d -m 700 secrets`) and set `GH_APP_ID`,
+`GH_APP_INSTALLATION_ID`. The gate refuses to start if the key file is group- or world-accessible
+or its directory is group- or world-writable. `secrets/` is ignored by Git.
 
 ### Agent tokens (fine-grained, demo fork only, short expiry)
 
@@ -32,9 +35,86 @@ No webhook. Install on the demo fork only. Save the private key as `secrets/gate
 | Fixer | Read & write | Read & write | **none** | **none** | — |
 | Verifier | Read | Read | none | none | Read |
 
+Both tokens are fine-grained tokens **owned by your personal GitHub account**. GitHub therefore
+attributes the fixer's pushes and PRs (and any verifier comments) to your account, not to a bot;
+Loopback's audit log is the record of which agent acted. Say so in the demo and in PR
+descriptions.
+
 Run each agent as its own OS user (or container) with only its token in `GH_TOKEN`, no access to
 your home directory, `~/.ssh`, `~/.config/gh` or `secrets/`, and egress limited to GitHub, the npm
 registry and its model provider.
+
+### Verifier isolation (D28)
+A second Claude Code session under the same OS user is **not** an isolated verifier: it can read
+the same settings files (including the Switch key in the working directory) and the same GitHub
+credentials. Until all of the following hold, keep `VERIFIER_ISOLATION_PROVEN=false`, and the gate
+labels verification **advisory** in chat and in the audit log:
+1. The verifier runs as a separate OS user (or container) whose home and working directory the
+   fixer's user cannot read, and vice versa.
+2. It has its own Switch agent registration and key, and its own verifier token (read-only).
+3. Evidence is recorded: `id`, file permissions of both working directories, and a failed attempt
+   by each user to read the other's credentials.
+
+**Known gap today:** the gate, the fixer session and you all run as the same desktop user, so the
+fixer session can read the gate's `.env` and `secrets/gate.pem` (file modes do not separate a
+user from itself). Isolating only the verifier does not close this; the gate needs its own
+identity too. Until then, treat the GitHub App key as reachable by the fixer.
+
+#### Identities and credentials (target layout)
+
+| Identity | Holds, readable only by itself | GitHub | Switch |
+|---|---|---|---|
+| `loopback-gate` | `.env`, `secrets/gate.pem`, the database | App `loopback-gate` | agent `loopback-gate` |
+| `loopback-fixer` | fixer token, fixer Switch key, its clone | fine-grained token: Contents and Pull requests R/W; no Statuses, Workflows or Administration | agent `loopback-fixer` |
+| `loopback-verifier` | verifier token, verifier Switch key, **signing key**, its clone | fine-grained token: Contents, Pull requests, Checks **read only** | agent `loopback-verifier` |
+
+Separate OS users or containers both work. Each home is mode 700; nothing is shared except read
+access to the demo repository (each identity clones its own copy). The verifier has no git
+credential helper and no write token.
+
+#### Advisory versus isolated verification
+
+- **Advisory** (`VERIFIER_ISOLATION_PROVEN=false`, the default): reports are accepted from the
+  exact verifier id, bound to the run, repository, PR and full SHA, and re-checked against the
+  live head, but labelled *advisory* in chat and audit. An unsigned report is accepted; a
+  signature that is present but invalid is rejected.
+- **Isolated** (`VERIFIER_ISOLATION_PROVEN=true`): additionally every report must carry a valid
+  Ed25519 signature from the verifier's key, checked before anything is recorded. The gate refuses
+  to start unless `VERIFIER_PUBLIC_KEY`, `LOOPBACK_FIXER_AGENT_ID` and `LOOPBACK_VERIFIER_AGENT_ID`
+  are set, the agent ids differ, and both are listed in `SWITCH_POLICY_AGENT_IDS`.
+
+A valid signature proves that the report came from the holder of the verifier's key and was not
+altered (run id, repository, PR, SHA, verdict, findings). It does **not** prove that the verifier
+ran the tests, nor that its runtime is isolated: that is what the OS separation and the isolation
+proof are for.
+
+#### Signing key (done by you, as the verifier identity; not done yet)
+
+```bash
+# as loopback-verifier
+install -d -m 700 ~/.config/loopback-verifier
+openssl genpkey -algorithm ed25519 -out ~/.config/loopback-verifier/signing-key.pem
+chmod 600 ~/.config/loopback-verifier/signing-key.pem
+# the PUBLIC key for the gate's VERIFIER_PUBLIC_KEY (raw base64, one line):
+openssl pkey -in ~/.config/loopback-verifier/signing-key.pem -pubout -outform DER | tail -c 32 | base64
+```
+
+Only the public key leaves the verifier identity. The verifier signs each report with
+`node scripts/sign-verifier-report.mjs < report.json` (it refuses a key file that is not mode 600,
+not owned by the caller, a symlink, or not Ed25519, and never prints the key).
+
+#### Isolation proof
+
+1. Run `scripts/verify-isolation.sh gate|fixer|verifier` as each identity (read-only: it attempts
+   to read the other identities' credential files, which must fail, reports home ownership and
+   modes, whether `GH_TOKEN` is set and whether a git credential helper exists, and makes one
+   read-only GitHub GET as the verifier). Missing paths count as failures. Save the output.
+2. Separately authorised: probe that the verifier token cannot write (requests that cannot change
+   anything, e.g. a status on a non-existent commit: 403 = no permission, 422 = permission present).
+3. A real signed report on a live PR is recorded with `signature: "valid"`; a forged one (unsigned,
+   or sent from the fixer) is rejected and audited.
+4. Only then set `VERIFIER_ISOLATION_PROVEN=true` with the public key and agent ids. The script
+   existing, or passing once, does not make the flag true by itself.
 
 ### Rulesets
 1. **Branch ruleset** targeting the default branch and `demo/*`: active, **empty bypass list**,
@@ -46,6 +126,13 @@ registry and its model provider.
    blocks every merge with `BASE_UNPROTECTED`.
 2. **Tag ruleset** targeting `demo-reset`: restrict updates and deletions.
 3. Export the branch ruleset: `gh api repos/OWNER/REPO/rulesets/ID > docs/ruleset.json`.
+
+### Required-Status-Check Source Validation & Configuration
+- **`CHECK_SOURCES`**: Maps PR check-run names to expected App slugs (e.g. `test:github-actions`), validating the `appSlug` of check runs returned by the GitHub Checks API.
+- **`REQUIRED_CHECK_INTEGRATIONS`**: Maps required status check contexts to ruleset integration IDs (format: `<check>:<integration-id>`, comma-separated). This validates the numerical GitHub App integration ID returned by GitHub's branch rules endpoint.
+- **`loopback/gate` binding**: The expected integration ID for `GATE_STATUS_CONTEXT` (`loopback/gate`) is automatically bound to `GH_APP_ID`. Supplying an explicit mapping in `REQUIRED_CHECK_INTEGRATIONS` is optional, but if supplied it must match `GH_APP_ID`.
+- **Fail-closed behavior**: `evaluateMerge` fails closed with terminal reason `CHECK_SOURCE_MISMATCH` if any required context has no ruleset entry, has a null source (`integrationId: null`), has a mismatched integration ID, or contains conflicting duplicate sources.
+- **GitHub Actions Integration ID**: GitHub Rulesets can only associate an `integration_id` with a check name after that check has run in the repository. Because workflow CI runs on pull requests, the actual GitHub Actions App ID must be obtained from an executed check run on a PR before configuring `REQUIRED_CHECK_INTEGRATIONS` in `.env`.
 
 ### Verify (record each outcome in `docs/threat-model.md`)
 - `scripts/verify-github-setup.sh` (read-only) passes.
@@ -65,15 +152,26 @@ Verified against Switch Console 0.40.1 / switch-core 0.31.0 (agent bridge on
    the deployment bootstrap key, which makes the non-admin "Agent Bootstrap" account the owner).
    Store the returned `id` and `api_key` in `.env` as `SWITCH_AGENT_ID` / `SWITCH_AGENT_API_KEY`
    without printing them, then remove the registration key from `.env`.
-3. Make the gate a member of the maintainers' room and set `SWITCH_ROOM_ID`. The gate claims that
-   room when it connects (`rooms=` on the WebSocket) and posts only there.
+3. Two rooms (D26): the private maintainers' room (`SWITCH_ROOM_ID`) and a public bug-intake room
+   (`SWITCH_INTAKE_ROOM_ID`, a different room). Make the gate a member of both. The gate opens one
+   connection per room (`scope=single`, `rooms=<that room>`) and posts in each room only through
+   that room's connection. **The intake room does not exist yet on the live install; creating it is
+   a manual step.**
 4. New agents only accept addressing from their owner and the owner's agents
-   (`who_can_talk: owner_and_owner_agents`). The gate needs exactly one rule instead:
-   `rooms: [SWITCH_ROOM_ID]`, `room_groups: "*"`, `users: [ExternalUser ids]`,
-   `agents: [fixer and verifier agent ids]`, `owner`, `owner_agents` and `platform` false. A workspace
-   admin sets it with `PUT /gateway/agents/{id}/addressing-policy` (Console shows the control only
-   for agents you own). Put the same ids in `SWITCH_POLICY_USER_IDS` and `SWITCH_POLICY_AGENT_IDS`;
-   the gate checks the live policy at startup and exits with code 4 if it differs.
+   (`who_can_talk: owner_and_owner_agents`). The gate needs exactly two rules instead:
+   - `rooms: [SWITCH_ROOM_ID]`, `room_groups: "*"`, `users: [maintainer ExternalUser ids]`,
+     `agents: [fixer and verifier agent ids]`, `owner`, `owner_agents`, `platform` false;
+   - `rooms: [SWITCH_INTAKE_ROOM_ID]`, `room_groups: "*"`, `users: "*"`, `agents: []`,
+     `owner`, `owner_agents`, `platform` false.
+
+   A workspace admin sets it with `PUT /gateway/agents/{id}/addressing-policy` (Console shows the
+   control only for agents you own). Put the maintainers' ids in `SWITCH_POLICY_USER_IDS` and the
+   agents' ids in `SWITCH_POLICY_AGENT_IDS`; the gate checks the live policy at startup and every
+   60 s and exits with code 4 if it differs. The live policy applied on 2026-11-03 is the earlier
+   one-rule policy (maintainers' room only, no agents), so this build exits with code 4 until both
+   rules are in place.
+5. The gate lists its Switch operations at startup (`GET /agents/{id}/ops`) and exits with code 5
+   unless `post_message` and `read_context` are available.
 
 ### Authorization
 - A message reaches a handler only if Switch addressed it to the gate (its policy admitted the
@@ -85,6 +183,11 @@ Verified against Switch Console 0.40.1 / switch-core 0.31.0 (agent bridge on
 - Grant a maintainer in both places (Switch policy `users`, Loopback list); revoke by removing
   either. Removing someone from `LOOPBACK_MAINTAINERS` also voids their recorded approvals.
 - Privileged commands stay off until `LOOPBACK_PRIVILEGED_ENABLED=true`.
+- In the intake room anyone may `help`, `report` and `status` (own reports only); nothing else
+  exists there, whatever the sender's role. A public report waits in `Reported` until a maintainer
+  runs `accept LB-xxx` (tasks the fixer) or `decline LB-xxx <reason>` in the maintainers' room.
+  Triage is not a privileged command. Refusals to anyone but a maintainer in their own room use
+  one generic text (D27); every refusal is audited with its precise reason.
 - The policy ids (`SWITCH_POLICY_*`, Switch row UUIDs) and Loopback's participant ids are
   different identifiers, and the gate cannot check that they name the same people and agents.
   A mismatch fails closed (reports refused, or commands with the outsider role), but configure
@@ -102,8 +205,13 @@ Verified against Switch Console 0.40.1 / switch-core 0.31.0 (agent bridge on
 
 ### Transport (implemented)
 - WebSocket `/agents/{id}/connection/ws`, Bearer auth, agent-protocol 9, `scope=single`,
-  `filter=all`, the room claimed on open. The connection id, the generation last held and the
-  resume position are kept in the gate's database; a restart reattaches fenced on that generation.
+  `filter=all`, one connection per room, each claiming its room on open. Each room's connection id,
+  generation and resume position are kept in the gate's database (`switch_connection:<room id>`); a
+  restart reattaches fenced on that generation. The maintainers' room adopts the record saved by
+  the earlier single-room gate. If either connection stops for good, both stop.
+- A `gap` frame (events Switch could not deliver) triggers recovery for that room: `read_context`
+  through that room's connection, a `delivery.gap` audit entry, a count-only notice to
+  maintainers, and reconciliation of every case. Missed messages are not executed; senders resend.
 - `taken_over` (an `evicted` frame, a 409 on the fenced beat, close code 4409) stops the gate with
   exit code 3 and is never retried. Authentication, membership and protocol refusals also stop it;
   network failures and 5xx are retried with a bounded backoff.
@@ -111,7 +219,12 @@ Verified against Switch Console 0.40.1 / switch-core 0.31.0 (agent bridge on
   top-level messages use `POST /agents/{id}/message`.
 
 ### Verify
-- `LOOPBACK_LIVE_SWITCH=1 npm test -- --project e2e` (posts two labelled messages into the room).
+- `LOOPBACK_LIVE_SWITCH=1 npm test -- --project e2e` (posts two labelled messages into the
+  maintainers' room; it does not exercise the intake room).
+- Two rooms (not yet verified live): both connections open; a public account in the intake room
+  can `report` and gets the receipt; the triage notice appears in the maintainers' room; a public
+  account's `approve` gets the generic refusal; an agent mention in the intake room arrives with
+  `addressed: false`.
 - Sender attribution: on 0.31.0 people arrive with `sender_kind` null, `on_behalf_of` null and
   `sender_role` null until their account is linked (observed live). Agent and platform messages
   have not been observed yet; record them before enabling privileged commands.
