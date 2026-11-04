@@ -155,7 +155,7 @@ export const AUDIT_EVENT_TYPES = [
   "command.refused", "agent_output.invalid", "ci.observed", "gate_status.posted",
   // D8/D9/D10/D14/D15 additions
   "gate_status.corrected", "gate_status.correction_failed", "case.retasked",
-  "policy.violation", "retry.attempted",
+  "policy.violation", "retry.attempted", "fixer.reported",
 ] as const;
 export const AuditEventType = z.enum(AUDIT_EVENT_TYPES);
 export type AuditEventType = z.infer<typeof AuditEventType>;

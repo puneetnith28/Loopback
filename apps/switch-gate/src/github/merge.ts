@@ -22,3 +22,10 @@ export async function mergePullRequest(
   if (res.status >= 500) throw new Uncertain(`merge returned ${res.status}`, res.status);
   throw new GitHubError(`merge returned ${res.status}`, res.status);
 }
+
+/** A merge capability bound to one transport and repository, injected by main.ts. */
+export type Merger = (prNumber: number, headSha: string) => Promise<{ merged: boolean; sha: string | null }>;
+
+export function createMerger(t: GitHubTransport, repo: string): Merger {
+  return (prNumber, headSha) => mergePullRequest(t, repo, prNumber, headSha);
+}

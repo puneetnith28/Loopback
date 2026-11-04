@@ -2,15 +2,15 @@ import type { ReasonCode } from "@loopback/contracts";
 
 /** Context for refusal messages. Every value is rendered through `safe()`. */
 export interface ReasonContext {
-  readonly caseId?: string;
-  readonly command?: string;
-  readonly sender?: string;
-  readonly approvedSha?: string;
-  readonly headSha?: string;
-  readonly check?: string;
-  readonly conclusion?: string;
-  readonly state?: string;
-  readonly detail?: string;
+  readonly caseId?: string | undefined;
+  readonly command?: string | undefined;
+  readonly sender?: string | undefined;
+  readonly approvedSha?: string | undefined;
+  readonly headSha?: string | undefined;
+  readonly check?: string | undefined;
+  readonly conclusion?: string | undefined;
+  readonly state?: string | undefined;
+  readonly detail?: string | undefined;
 }
 
 type Prefix = "BLOCKED" | "REFUSED" | "UNKNOWN" | "STOPPED";
