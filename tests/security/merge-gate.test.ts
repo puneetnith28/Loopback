@@ -377,3 +377,64 @@ describe("D25 (revised): approvals bind to the full SHA", () => {
     expect(h.db.prepare("SELECT head_sha FROM approvals").all()).toEqual([{ head_sha: A }]);
   });
 });
+
+describe("conflicting and repeated decisions by the same maintainer", () => {
+  const count = (h: ReturnType<typeof createHarness>, decision: string) =>
+    (h.db.prepare("SELECT count(*) AS n FROM approvals WHERE decision = ?").get(decision) as { n: number }).n;
+
+  it("approve then reject of the same SHA: both are kept and the merge is blocked", async () => {
+    const h = createHarness();
+    await h.driveToReady();
+    await h.say(MAINT, `${G} reject LB-001 found a regression`);
+    expect(count(h, "approve")).toBe(1);
+    expect(count(h, "reject")).toBe(1);
+    expect(audit(h)).toEqual(expect.arrayContaining(["approval.accepted", "approval.rejected"]));
+    expect(h.posts.at(-1)).toMatch(/Rejection recorded/);
+    await h.say(MAINT, `${G} merge LB-001`);
+    expect(getCase(h.db, "LB-001")).toMatchObject({ state: "Blocked", blockedReason: "REJECTED" });
+    expect(h.merger).not.toHaveBeenCalled();
+  });
+
+  it("reject then approve of the same SHA: the approval is refused; the rejection stays", async () => {
+    const h = createHarness();
+    await h.driveToAwaitingApproval();
+    await h.say(MAINT, `${G} reject LB-001 not this approach`);
+    await h.say(MAINT, `${G} approve LB-001 ${A}`);
+    expect(h.posts.at(-1)).toMatch(/REJECTED/);
+    expect(h.state()).toBe("AwaitingApproval");
+    expect(count(h, "approve")).toBe(0);
+    expect(audit(h)).toContain("command.refused");
+  });
+
+  it("a rejection by one maintainer blocks another maintainer's later approval of that SHA", async () => {
+    const h = createHarness();
+    await h.driveToAwaitingApproval();
+    await h.say("@switch-user-maint2:x", `${G} reject LB-001 breaks the API`);
+    await h.say(MAINT, `${G} approve LB-001 ${A}`);
+    expect(h.posts.at(-1)).toMatch(/REJECTED/);
+    expect(h.state()).toBe("AwaitingApproval");
+  });
+
+  it("repeating the same decision is recorded once", async () => {
+    const h = createHarness();
+    await h.driveToReady();
+    await h.say(MAINT, `${G} reject LB-001 first reason`);
+    await h.say(MAINT, `${G} reject LB-001 second reason`);
+    expect(count(h, "reject")).toBe(1);
+    expect(h.posts.at(-1)).toMatch(/already recorded/);
+  });
+
+  it("a new commit clears the rejection (it applied only to the old SHA)", async () => {
+    const h = createHarness();
+    await h.driveToAwaitingApproval();
+    await h.say(MAINT, `${G} reject LB-001 not this approach`);
+    h.gh.setPull(42, { headSha: B });
+    h.gh.pass(B);
+    await h.poller.tick();
+    await h.verifierReply("pass");
+    await h.poller.tick();
+    expect(getCase(h.db, "LB-001")).toMatchObject({ state: "AwaitingApproval", headSha: B });
+    await h.say(MAINT, `${G} approve LB-001 ${B}`);
+    expect(h.state()).toBe("ReadyToMerge");
+  });
+});

@@ -9,7 +9,7 @@ import type { AgentInbox, CommandContext, FixerHandoff, Reply } from "../command
 import { RateLimited, type GitHubReader } from "../github/client.js";
 import type { Db } from "../persistence/db.js";
 import {
-  completeRun, getCase, getRun, insertApproval, insertRun, latestCi, latestRunForHead, listCasesInStates,
+  completeRun, getCase, getRun, insertApproval, insertRun, latestCi, latestRunForHead, listApprovals, listCasesInStates,
   listExpiredRuns, recordCommit, type CaseRecord,
 } from "../persistence/repos.js";
 
@@ -282,6 +282,10 @@ export class VerificationWorkflow implements AgentInbox, FixerHandoff {
         })();
         await this.requestVerificationLocked(c.id, "system", false);
         return this.refuse(ctx, getCase(db, c.id)!, "HEAD_MOVED", decision, { headSha: live.headSha });
+      }
+      // A maintainer's rejection of a commit is sticky: no approval of that exact SHA can follow.
+      if (decision === "approve" && listApprovals(db, c.id).some((a) => a.headSha === live.headSha && a.decision === "reject")) {
+        return this.refuse(ctx, c, "REJECTED", "approve", { headSha: live.headSha });
       }
       const result = db.transaction(() => {
         const ins = insertApproval(db, {

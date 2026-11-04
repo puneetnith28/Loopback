@@ -23,7 +23,7 @@ afterEach(() => db.close());
 describe("migrations", () => {
   it("are idempotent and recorded", () => {
     expect(migrate(db)).toEqual([]);
-    expect(db.prepare("SELECT version FROM schema_version").all()).toEqual([{ version: 1 }]);
+    expect(db.prepare("SELECT version FROM schema_version ORDER BY version").all()).toEqual([{ version: 1 }, { version: 2 }]);
   });
   it("enable foreign keys on every connection", () => {
     expect(db.pragma("foreign_keys", { simple: true })).toBe(1);
@@ -45,11 +45,18 @@ describe("schema constraints", () => {
     expect(() => db.prepare("INSERT INTO verification_runs (id, case_id, repo, pr_number, head_sha, status, requested_at) VALUES ('v', 'LB-001', 'o/r', 42, ?, 'superseded', 't')").run(A)).toThrow(/CHECK/);
     expect(() => insertApproval(db, { caseId: "LB-001", repo: "o/r", prNumber: 42, approverId: "m", headSha: A, decision: "maybe" as "approve", sourceEventId: "e", reason: null }, NOW)).toThrow(/CHECK/);
   });
-  it("one decision per approver per SHA; source events unique", () => {
+  it("one decision of each kind per approver per SHA; source events unique", () => {
     const a = { caseId: "LB-001", repo: "o/r", prNumber: 42, approverId: "m", headSha: A, decision: "approve" as const, sourceEventId: "e1", reason: null };
     expect(insertApproval(db, a, NOW)).toBe("inserted");
     expect(insertApproval(db, { ...a, sourceEventId: "e2" }, NOW)).toBe("duplicate");
     expect(insertApproval(db, { ...a, approverId: "m2" }, NOW)).toBe("duplicate"); // same source event
+    // approve then reject by the same maintainer: both kept
+    expect(insertApproval(db, { ...a, decision: "reject", sourceEventId: "e3" }, NOW)).toBe("inserted");
+    expect(insertApproval(db, { ...a, decision: "reject", sourceEventId: "e4" }, NOW)).toBe("duplicate");
+  });
+  it("only canonical lower-case SHAs can be stored in approvals", () => {
+    const a = { caseId: "LB-001", repo: "o/r", prNumber: 42, approverId: "m", headSha: A.toUpperCase(), decision: "approve" as const, sourceEventId: "e9", reason: null };
+    expect(() => insertApproval(db, a, NOW)).toThrow(/CHECK/);
   });
   it("D11: an approval for another PR or repository is rejected by the trigger", () => {
     const a = { caseId: "LB-001", repo: "o/r", prNumber: 41, approverId: "m", headSha: A, decision: "approve" as const, sourceEventId: "e1", reason: null };
@@ -105,5 +112,24 @@ describe("audit log", () => {
     expect(rows.map((r) => r.type)).toEqual(["pr.created", "case.created"]);
     expect(rows[1]!.payload).toEqual({ secret: "[redacted]" });
     expect(countEvents(db, "LB-001", "pr.created", A)).toBe(1);
+  });
+});
+
+describe("migration to per-decision approvals", () => {
+  it("upgrades a populated v1 database, keeping rows and triggers", async () => {
+    const { MIGRATIONS } = await import("../../apps/switch-gate/src/persistence/migrations.js");
+    const old = openDatabase(":memory:");
+    migrate(old, MIGRATIONS.filter((m) => m.version === 1));
+    old.prepare(`INSERT INTO cases (id, state, reporter_id, room_id, repo, report_text, pr_number, head_sha, state_entered_at, created_at, updated_at)
+      VALUES ('LB-001','ReadyToMerge','r','room','o/r','t',42,?, 't','t','t')`).run(A);
+    insertApproval(old, { caseId: "LB-001", repo: "o/r", prNumber: 42, approverId: "m", headSha: A, decision: "approve", sourceEventId: "e1", reason: null }, NOW);
+    expect(migrate(old)).toEqual([2]);
+    expect(old.prepare("SELECT approver_id, decision FROM approvals").all()).toEqual([{ approver_id: "m", decision: "approve" }]);
+    const triggers = (old.prepare("SELECT name FROM sqlite_master WHERE type = 'trigger' AND tbl_name = 'approvals' ORDER BY name").all() as { name: string }[]).map((r) => r.name);
+    expect(triggers).toEqual(["approvals_bind_case", "approvals_no_delete", "approvals_no_update"]);
+    expect(insertApproval(old, { caseId: "LB-001", repo: "o/r", prNumber: 42, approverId: "m", headSha: A, decision: "reject", sourceEventId: "e2", reason: "x" }, NOW)).toBe("inserted");
+    expect(() => old.prepare("DELETE FROM approvals").run()).toThrow(/immutable/);
+    expect(() => insertApproval(old, { caseId: "LB-001", repo: "o/r", prNumber: 41, approverId: "z", headSha: A, decision: "approve", sourceEventId: "e3", reason: null }, NOW)).toThrow(/does not match/);
+    old.close();
   });
 });

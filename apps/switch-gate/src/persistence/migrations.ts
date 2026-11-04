@@ -126,4 +126,39 @@ CREATE TABLE processed_events (
 CREATE TABLE kv (k TEXT PRIMARY KEY, v TEXT NOT NULL);   -- connection_id, cursor, next case number, expected base
 `;
 
-export const MIGRATIONS: readonly Migration[] = [{ version: 1, name: "init", sql: INIT }];
+// One decision of each kind per maintainer per SHA: an approval followed by a rejection of the
+// same commit keeps both rows (the rejection blocks the merge); repeats of the same decision dedupe.
+const APPROVAL_DECISIONS = /* sql */ `
+CREATE TABLE approvals_v2 (
+  id              TEXT PRIMARY KEY,
+  case_id         TEXT NOT NULL REFERENCES cases(id),
+  repo            TEXT NOT NULL,
+  pr_number       INTEGER NOT NULL,
+  approver_id     TEXT NOT NULL,
+  head_sha        TEXT NOT NULL CHECK (length(head_sha) = 40 AND head_sha NOT GLOB '*[^0-9a-f]*'),
+  decision        TEXT NOT NULL CHECK (decision IN ('approve','reject')),
+  source_event_id TEXT NOT NULL UNIQUE,
+  reason          TEXT,
+  created_at      TEXT NOT NULL,
+  UNIQUE (case_id, head_sha, approver_id, decision)
+);
+INSERT INTO approvals_v2 (id, case_id, repo, pr_number, approver_id, head_sha, decision, source_event_id, reason, created_at)
+  SELECT id, case_id, repo, pr_number, approver_id, head_sha, decision, source_event_id, reason, created_at FROM approvals;
+DROP TABLE approvals;
+ALTER TABLE approvals_v2 RENAME TO approvals;
+CREATE INDEX approvals_case_head ON approvals(case_id, head_sha);
+CREATE TRIGGER approvals_bind_case BEFORE INSERT ON approvals
+WHEN NOT EXISTS (
+  SELECT 1 FROM cases c WHERE c.id = NEW.case_id AND c.repo = NEW.repo AND c.pr_number = NEW.pr_number
+)
+BEGIN SELECT RAISE(ABORT, 'approval does not match the case repository and PR'); END;
+CREATE TRIGGER approvals_no_update BEFORE UPDATE ON approvals
+BEGIN SELECT RAISE(ABORT, 'approvals are immutable'); END;
+CREATE TRIGGER approvals_no_delete BEFORE DELETE ON approvals
+BEGIN SELECT RAISE(ABORT, 'approvals are immutable'); END;
+`;
+
+export const MIGRATIONS: readonly Migration[] = [
+  { version: 1, name: "init", sql: INIT },
+  { version: 2, name: "approval_decisions", sql: APPROVAL_DECISIONS },
+];
