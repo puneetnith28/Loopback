@@ -3,9 +3,15 @@
 ## Current status
 
 The gatekeeper's workflow, policy, persistence and GitHub layers are implemented and tested
-with fakes. **The Switch transport is not implemented yet**: it must follow the protocol of the
-installed Switch version (decision D23), which has not been installed or verified. Until it
-exists, `npm run gate` validates configuration and then refuses to start (exit code 2).
+with fakes. The Switch transport follows the installed switch-core 0.31.0 WebSocket protocol
+(see [setup.md](setup.md)); live message flow and sender attribution are not verified yet.
+
+`npm run gate` exit codes: `0` clean shutdown (SIGTERM/SIGINT), `1` configuration or startup
+error (including an unreadable stored Switch connection record), `3` the Switch connection stopped
+for good (`taken_over`, refused credential or membership, protocol mismatch, room lost, storage
+failure, or reconnect attempts exhausted). Exit code 3 needs an operator: do not configure an
+automatic restart loop, and never clear the stored connection record to get past a `taken_over`;
+that would let a displaced gate take the connection back from the one holding it.
 
 ## Prerequisites
 

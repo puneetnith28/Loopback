@@ -29,11 +29,11 @@ Switch hosts the room where people and the three agents meet: the gate (a custom
 fixer and the verifier (provider agents), with mention-based commands and room documents as the
 agents' briefs (`prompts/`, `templates/loopback-room.yaml`).
 
-**Status:** the gate's Switch transport is **not built yet**. Current Switch docs describe a
-different connection protocol than the original design, so the transport will follow whatever the
-installed version actually exposes, once it is installed and verified (decision D23). Until then
-the gate refuses to start. Everything behind the transport (commands, workflow, merge gate) is
-implemented and tested with fakes.
+**Status:** the gate's Switch transport is implemented against the installed switch-core 0.31.0
+WebSocket protocol (decision D23) and tested with a scripted socket; registration, authentication,
+heartbeat, takeover fencing and reconnect were verified live. Still to verify live: room claim,
+real messages and their sender attribution, threaded replies, and behaviour across a Switch
+restart. Privileged commands stay disabled until sender attribution is verified (D16).
 
 ## 3. Architecture and trust boundaries
 
@@ -66,7 +66,7 @@ commit lands after approval.
 
 See [SECURITY.md](SECURITY.md) and the full [threat model](docs/threat-model.md), which maps
 each threat to its defence and tests and lists the accepted residual risks. Known limits: single
-instance, local only, Switch transport pending, live GitHub configuration not yet exercised.
+instance, local only, live Switch messaging and live GitHub configuration not yet exercised.
 
 ## 7. Tests
 

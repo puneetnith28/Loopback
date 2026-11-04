@@ -56,21 +56,36 @@ registry and its model provider.
 
 ## 2. Switch
 
+Verified against Switch Console 0.40.1 / switch-core 0.31.0 (agent bridge on
+`http://127.0.0.1:<api port>` from `~/.config/switchdash/local-switch-server/ports.json`).
+
 1. Install Switch Console (Linux is "early access"): `sudo apt install ./switch-console-amd64.deb`,
-   then complete the interactive logins (agent CLI, Mattermost or Gateway account). Record the
-   exact Console and server versions.
-2. Register `loopback-gate` as a custom agent using the installed version's documented
-   registration endpoint (current docs: `POST /agents` with a registration API key; verify on the
-   install). Store the returned key once in `SWITCH_AGENT_API_KEY`.
-3. Create the room from `templates/loopback-room.yaml` (unverified; if the template cannot reference
-   the gate, use `!invite-agent @loopback-gate`).
-4. Collect participant ids with `@loopback-gate whoami` once the transport exists.
+   then complete the interactive logins. Record the exact Console and server versions.
+2. Register `loopback-gate` once with `POST /agents` and a registration key (a personal key, or
+   the deployment bootstrap key, which makes the non-admin "Agent Bootstrap" account the owner).
+   Store the returned `id` and `api_key` in `.env` as `SWITCH_AGENT_ID` / `SWITCH_AGENT_API_KEY`
+   without printing them, then remove the registration key from `.env`.
+3. Make the gate a member of the maintainers' room and set `SWITCH_ROOM_ID`. The gate claims that
+   room when it connects (`rooms=` on the WebSocket) and posts only there.
+4. New agents only accept addressing from their owner and the owner's agents
+   (`who_can_talk: owner_and_owner_agents`). Allow the maintainers (and the fixer/verifier agents)
+   to address the gate in Console, or `@loopback-gate` commands from them never count as addressed.
+
+### Transport (implemented)
+- WebSocket `/agents/{id}/connection/ws`, Bearer auth, agent-protocol 9, `scope=single`,
+  `filter=all`, the room claimed on open. The connection id, the generation last held and the
+  resume position are kept in the gate's database; a restart reattaches fenced on that generation.
+- `taken_over` (an `evicted` frame, a 409 on the fenced beat, close code 4409) stops the gate with
+  exit code 3 and is never retried. Authentication, membership and protocol refusals also stop it;
+  network failures and 5xx are retried with a bounded backoff.
+- Replies in a thread use `POST /agents/{id}/ops/post_message` with `X-Switch-Connection-Id`;
+  top-level messages use `POST /agents/{id}/message`.
 
 ### Verify
-- Sender attribution: post as a maintainer and from an agent you own; record `sender`,
-  `sender_kind` and `on_behalf_of`. Set `SWITCH_HUMAN_SENDER_KIND` only after this is recorded.
-- Ids are stable across a Switch restart and reconnect.
-- A threaded reply lands in its thread (otherwise replies carry the case id).
-
-The gate's Switch transport is **not implemented** until these facts are verified on the real
-install (decision D23); `npm run gate` refuses to start until then.
+- `LOOPBACK_LIVE_SWITCH=1 npm test -- --project e2e` (posts two labelled messages into the room).
+- Sender attribution: post as a maintainer and from an agent; record `sender`, `sender_kind`,
+  `on_behalf_of`, `sender_role`. On 0.31.0 the live message event sets `sender_kind` only for
+  platform-carried messages (`"platform"`), otherwise null, so `SWITCH_HUMAN_SENDER_KIND` cannot
+  distinguish people from agents; privileged commands stay disabled until an attribution rule is
+  verified and decided.
+- Ids are stable across a Switch restart and reconnect; a threaded reply lands in its thread.
