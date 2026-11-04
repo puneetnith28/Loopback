@@ -47,6 +47,8 @@ export const InboundMessage = z.object({
   senderKind: z.string().min(1).nullable(),
   /** Raw Switch on_behalf_of. Any non-null value makes the message an agent message (D16). */
   onBehalfOf: z.string().min(1).nullable(),
+  /** Raw Switch sender_role ("owner" | "admin" | "member" per the server; null for agents). Not yet used for authorization. */
+  senderRole: z.string().min(1).nullable(),
   addressed: z.boolean(),
   body: z.string().max(20_000),
   threadId: z.string().min(1).nullable(),

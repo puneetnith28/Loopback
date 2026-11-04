@@ -42,7 +42,7 @@ export function createGate(cfg: GateConfig, chat: ChatPort, log: Logger, deps: {
   });
   const github = deps.github ?? new GitHubClient(transport, cfg.github.repo, cfg.github.gateStatusContext);
   const locks = new CaseLocks();
-  const gateMention = `@${cfg.switch.selfId.replace(/^@/, "").split(":")[0] ?? "loopback-gate"}`;
+  const gateMention = cfg.switch.gateMention;
   const expectedBaseSha = () => (cfg.github.demoResetSha === null ? null : kvGet(db, "expected_base_sha") ?? cfg.github.demoResetSha);
 
   const wfDeps: WorkflowDeps = {

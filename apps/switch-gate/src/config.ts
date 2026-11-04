@@ -74,6 +74,8 @@ const SwitchSchema = z.object({
   SWITCH_AGENT_API_KEY: nonEmpty,
   SWITCH_ROOM_ID: nonEmpty,
   SWITCH_SELF_ID: ParticipantId,
+  // How messages address the gate; the registered agent name (verified live before use).
+  SWITCH_GATE_MENTION: z.string().trim().regex(/^@[a-z0-9][a-z0-9._-]*$/, "must be @ followed by the agent name").default("@loopback-gate"),
   SWITCH_HUMAN_SENDER_KIND: z.string().trim().optional().transform((s) => (s ? s : null)),
 });
 
@@ -83,6 +85,8 @@ export interface SwitchConfig {
   readonly apiKey: string;
   readonly roomId: string;
   readonly selfId: string;
+  /** The @mention that addresses the gate in a message body. */
+  readonly gateMention: string;
   /** Verified human sender_kind; null keeps privileged commands disabled (D16). */
   readonly humanSenderKind: string | null;
 }
@@ -191,6 +195,7 @@ export function loadSwitchConfig(env: Env): SwitchConfig {
     apiKey: v.SWITCH_AGENT_API_KEY,
     roomId: v.SWITCH_ROOM_ID,
     selfId: v.SWITCH_SELF_ID,
+    gateMention: v.SWITCH_GATE_MENTION,
     humanSenderKind: v.SWITCH_HUMAN_SENDER_KIND,
   };
 }

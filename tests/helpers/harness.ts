@@ -167,7 +167,7 @@ export function createHarness(opts: { mergeEnabled?: boolean; expectedBase?: str
   let seq = 0;
   const say = async (sender: string, body: string, over: Partial<InboundMessage> = {}) => {
     seq += 1;
-    await router.handle({ eventId: `e${seq}`, roomId: "room", sequence: seq, messageId: `e${seq}`, sender, senderKind: "member", onBehalfOf: null, addressed: true, body, threadId: null, timestamp: seq, ...over });
+    await router.handle({ eventId: `e${seq}`, roomId: "room", sequence: seq, messageId: `e${seq}`, sender, senderKind: "member", onBehalfOf: null, senderRole: null, addressed: true, body, threadId: null, timestamp: seq, ...over });
   };
   const lastRunId = () => {
     const m = [...posts].reverse().map((p) => /Run id: ([0-9a-f-]{36})/.exec(p)).find(Boolean);

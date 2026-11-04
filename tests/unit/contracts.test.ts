@@ -39,7 +39,7 @@ describe("primitives", () => {
 describe("InboundMessage (D16)", () => {
   const base = {
     eventId: "m1", roomId: "r", sequence: 1, messageId: "m1", sender: "@u:x",
-    senderKind: "member", onBehalfOf: null, addressed: true, body: "hi", threadId: null, timestamp: 1,
+    senderKind: "member", onBehalfOf: null, senderRole: null, addressed: true, body: "hi", threadId: null, timestamp: 1,
   };
   it("preserves attribution fields", () => {
     const m = InboundMessage.parse({ ...base, onBehalfOf: "@owner:x" });

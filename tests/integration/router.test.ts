@@ -26,7 +26,7 @@ const msg = (sender: string, body: string, over: Partial<InboundMessage> = {}): 
   seq += 1;
   return {
     eventId: `m${seq}`, roomId: "room", sequence: seq, messageId: `m${seq}`, sender, senderKind: "member",
-    onBehalfOf: null, addressed: true, body, threadId: null, timestamp: seq, ...over,
+    onBehalfOf: null, senderRole: null, addressed: true, body, threadId: null, timestamp: seq, ...over,
   };
 };
 
