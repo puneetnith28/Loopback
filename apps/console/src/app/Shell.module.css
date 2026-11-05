@@ -1,0 +1,48 @@
+.skip { position: absolute; left: var(--space-2); top: -48px; z-index: var(--z-toast); padding: var(--space-2) var(--space-3); background: var(--color-accent); color: var(--color-accent-text); border-radius: var(--radius-md); text-decoration: none; font-weight: var(--weight-medium); transition: transform var(--duration-fast) var(--ease-out); }
+.skip:focus-visible { transform: translateY(56px); }
+.header { position: sticky; top: 0; z-index: var(--z-sticky); display: flex; align-items: center; gap: var(--space-3); height: var(--layout-header); padding: 0 var(--layout-gutter); background: color-mix(in srgb, var(--color-canvas) 92%, transparent); border-bottom: var(--border-width) solid var(--color-border-subtle); backdrop-filter: saturate(1.2) blur(8px); }
+.brand { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--color-text); text-decoration: none; font-weight: var(--weight-semibold); letter-spacing: var(--tracking-tight); }
+.mark { flex: none; }
+.product { color: var(--color-text-tertiary); font-weight: var(--weight-regular); }
+.spacer { flex: 1; }
+
+.frame { display: grid; grid-template-columns: minmax(0, 1fr); min-height: calc(100vh - var(--layout-header)); }
+.main { min-width: 0; }
+.main:focus { outline: none; }
+
+/* Narrow screens: the nav is a disclosure panel under the header. */
+.nav { display: none; padding: var(--space-2) var(--layout-gutter) var(--space-3); border-bottom: var(--border-width) solid var(--color-border-subtle); background: var(--color-canvas); }
+.nav[data-open="true"] { display: block; }
+.navList { display: grid; gap: 2px; padding: 0; margin: 0; list-style: none; }
+.navLink { display: flex; align-items: center; gap: var(--space-2-5); min-height: 40px; padding: 0 var(--space-3); border-radius: var(--radius-md); color: var(--color-text-secondary); text-decoration: none; font-size: var(--text-sm); font-weight: var(--weight-medium); }
+.navLink svg { flex: none; color: var(--color-text-tertiary); }
+.navLink:hover { color: var(--color-text); background: var(--color-hover); }
+.navLink[aria-current="page"] { color: var(--color-text); background: var(--color-active); }
+.navLink[aria-current="page"] svg { color: var(--color-machine); }
+.navLink:focus-visible { outline-offset: -2px; }
+.navNote { margin-top: var(--space-3); padding: 0 var(--space-3); font-size: var(--text-2xs); color: var(--color-text-tertiary); }
+
+@media (min-width: 768px) { .header { padding: 0 var(--layout-gutter-wide); } }
+
+/* Wide screens: persistent sidebar; the menu button is not needed. */
+@media (min-width: 1024px) {
+  .menuButton { display: none; }
+  .frame { grid-template-columns: var(--layout-nav) minmax(0, 1fr); }
+  .nav, .nav[data-open="false"] {
+    display: block; position: sticky; top: var(--layout-header); align-self: start; height: calc(100vh - var(--layout-header));
+    overflow-y: auto; padding: var(--space-4) var(--space-3); border-bottom: 0; border-right: var(--border-width) solid var(--color-border-subtle);
+  }
+}
+
+/* Narrow screens: keep the brand, DEMO marker and theme control on one row. */
+@media (max-width: 520px) {
+  .product, .wideOnly { display: none; }
+}
+/* 320px (WCAG 1.4.10 reflow): the wordmark becomes visually hidden but stays the link's accessible name. */
+@media (max-width: 380px) {
+  .header { gap: var(--space-2); }
+  .brandName { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
+}
+@media (forced-colors: active) {
+  .navLink[aria-current="page"] { outline: 2px solid Highlight; }
+}
