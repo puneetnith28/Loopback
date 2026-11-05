@@ -30,18 +30,25 @@ npm run lint
 npm test                 # unit, integration and security suites (live suites skip themselves)
 npm run test:coverage    # what CI runs on Linux, with coverage thresholds
 npm run test:linux       # from Windows: the complete Linux suite in a throwaway container
+npm run release:check    # verifies version consistency across package manifests
 npm run build
+npm --prefix apps/console run build
 ```
 
-CI runs two jobs: **check** (Linux, authoritative: coverage and a full-history gitleaks scan) and
-**windows-portable** (typecheck, lint, and every test that can run natively). Both must be green
+CI runs two jobs: **check** (Linux, authoritative: coverage, builds, and a full-history gitleaks scan) and
+**windows-portable** (typecheck, lint, build, and every test that can run natively). Both must be green
 before merging.
+
+## Code of Conduct
+
+All contributors and maintainers are expected to adhere to our [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Branches, pull requests and commits
 
 - Nobody pushes directly to `main`. Everyone works on a branch named `<type>/<short-topic>` (e.g.
   `fix/poller-backoff`, `docs/setup-windows`) and opens a pull request into `main`; merge only with
   CI green and the maintainer's review.
+- Fill out the pull request checklist in `.github/pull_request_template.md`.
 - Never force-push to `main`, rewrite published history, or amend published commits.
 - Commit messages follow Conventional Commits: `<type>: <description>`, with `feat`, `fix`,
   `refactor`, `docs`, `test`, `chore`, `perf` or `ci`. Describe the change, not the plan step.
