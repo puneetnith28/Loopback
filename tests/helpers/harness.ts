@@ -151,10 +151,10 @@ export interface Harness {
   state(id?: string): string | undefined;
 }
 
-export function createHarness(opts: { runIssuerKey?: KeyObject | null; verifierPublicKey?: KeyObject | null; verificationAdvisory?: boolean; intakeMaxReportsPerHour?: number; mergeEnabled?: boolean; expectedBase?: string | null; quorum?: number; retryLimit?: number; maxAttempts?: number; privilegedEnabled?: boolean } = {}): Harness {
-  const db = openDatabase(":memory:");
+export function createHarness(opts: { db?: Db; gh?: FakeGitHub; runIssuerKey?: KeyObject | null; verifierPublicKey?: KeyObject | null; verificationAdvisory?: boolean; intakeMaxReportsPerHour?: number; mergeEnabled?: boolean; expectedBase?: string | null; quorum?: number; retryLimit?: number; maxAttempts?: number; privilegedEnabled?: boolean } = {}): Harness {
+  const db = opts.db ?? openDatabase(":memory:");
   migrate(db);
-  const gh = new FakeGitHub();
+  const gh = opts.gh ?? new FakeGitHub();
   const posts: string[] = [];
   const roomPosts: { room: string; content: string }[] = [];
   const failPostsTo: { room: string | null } = { room: null };
