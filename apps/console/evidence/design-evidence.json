@@ -1,0 +1,26 @@
+{
+  "contract": "apps/console/DESIGN.md (sections 1-6): Evidence Ledger, provenance stamps, the Loop with commit seal, dark-first graphite + independent light theme, six content states, trust/safety rules, anti-patterns.",
+  "targetViewports": ["390x844", "1440x900"],
+  "accessibility": {
+    "status": "pass",
+    "evidence": "axe-core (jsdom, contrast rule off) passes on every interactive component and on the full /design page (it caught and we fixed a duplicate 'Breadcrumb' landmark name). Contrast computed from tokens.css: 66 text/tone/focus pairings meet WCAG 2.2 AA in both themes (tests/tokens.test.ts). Keyboard: tabs (arrows/Home/End, roving tabindex), menu (arrows, Escape returns focus), dialog (native modal, focus returns), tooltip on focus + Escape — all asserted in tests. Visible focus ring token checked >= 3:1. Status always icon + text. Reduced motion removes movement (base.css)."
+  },
+  "responsive": {
+    "status": "pass",
+    "evidence": "Real Chromium via chrome-devtools: 1440x900 document scrollWidth 1425 = clientWidth (no overflow); 390x844 (mobile emulation, DPR 2) scrollWidth 390 = clientWidth after fixing three defects found in the browser (implicit grid column sized to the TOC, non-wrapping status line, closed tooltip still in layout; also skeleton grid and header). StateTrack measured horizontal (10 columns) at 625px and 1087px, vertical at 519px."
+  },
+  "contentStates": {
+    "loading": { "status": "pass", "evidence": "Rendered at 390x844: role=status, aria-busy, skeleton in final layout, no overflow; RTL test asserts aria-busy." },
+    "empty": { "status": "pass", "evidence": "Rendered at 390x844: 'No open cases' with explanation and next step; RTL test." },
+    "error": { "status": "pass", "evidence": "Rendered at 390x844: role=alert 'Could not load cases' with plain-language cause and Try again; RTL test asserts retry callback." },
+    "partial": { "status": "pass", "evidence": "Rendered at 390x844: notice naming the unavailable sources (CI evidence, verification runs) above the available table with Retry; RTL test." },
+    "success": { "status": "pass", "evidence": "Rendered at 390x844 and 1440x900: case table with provenance-stamped, sortable rows inside a DEMO frame; RTL sort test." },
+    "permission": { "status": "pass", "evidence": "Rendered at 390x844: 'No access: maintainers only' naming the boundary and how to request access without revealing data; RTL test." }
+  },
+  "renderedEvidence": [
+    { "viewport": "1440x900", "artifact": "design-1440x900-dark.png", "observation": "Dark theme hero: case evidence ledger specimen in a hatched DEMO frame; the Loop horizontal with Awaiting approval current (amber), sealed full SHA; five facts each with a provenance stamp; timeline newest-first." },
+    { "viewport": "1440x900", "artifact": "design-1440x900-light-loop.png", "observation": "Light theme (independently tuned warm paper): Loop explorer horizontal over the 10 main-path states with state select and head-moved toggle." },
+    { "viewport": "1440x900", "artifact": "design-1440x900-light-seal.png", "observation": "Light theme: Stale example with broken seal showing both full SHAs (evidence vs current head) and Merged example sealed; captured before the label-alignment fix, which was then verified by measurement." },
+    { "viewport": "390x844", "artifact": "design-390x844-dark.png", "observation": "Mobile: compact header (brand, nav, DEMO, theme) on one row, DEMO banner wraps cleanly, TOC as horizontal strip, specimen frame fits the width." }
+  ]
+}
