@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -260,6 +261,7 @@ describe("evaluateGateConfig: the gate's own rules", () => {
     const loose = join(dir, "loose.pem");
     writeFileSync(loose, readFileSync(ghKey), { mode: 0o644 });
     chmodSync(loose, 0o644);
+    if (process.platform === "win32") execFileSync("icacls", [loose, "/grant", "*S-1-1-0:R"], { stdio: "ignore" });
     expect(vars(evalWith({ GH_APP_PRIVATE_KEY_PATH: loose }), "current")).toContain("GH_APP_PRIVATE_KEY_PATH");
     const pub = join(dir, "pub.pem");
     writeFileSync(pub, generateKeyPairSync("ed25519").publicKey.export({ type: "spki", format: "pem" }), { mode: 0o600 });
