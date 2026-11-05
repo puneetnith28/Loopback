@@ -56,19 +56,57 @@ PR, commit, CI and merge state.
 
 ## 4. Quickstart
 
-The steps below build and test the code. Running the flow end to end also needs the live GitHub and
-Switch setup in [docs/setup.md](docs/setup.md) (on Windows, [docs/windows.md](docs/windows.md)); it has
-been done on one machine, and a fresh-clone reproduction has not been attempted.
+There are two ways to use Loopback. Both need Node 22 and a clone of this repository.
+
+### Try it in a few minutes, with no accounts
+
+This builds the code, runs the tests and shows the console on sample data. Nothing touches GitHub
+or a chat room.
 
 ```bash
 npm ci
 npm run build
-npm run migrate        # reads .env; creates the SQLite schema at DB_PATH
-npm test               # unit, integration and security suites
+npm test
+npm run console-api:mock                # terminal 1: a read-only API serving sample data
+npm run dev --workspace apps/console    # terminal 2: the console, on http://localhost:5173
 ```
 
-Configuration is described in [.env.example](.env.example) and
-[docs/operations.md](docs/operations.md).
+[docs/console-api.md](docs/console-api.md) has the mock's token and address.
+
+### Run the real flow on your own repository
+
+This lets your team report a bug in chat and merge its fix only through the gate. It takes several
+hours the first time, because each role gets its own credentials. It has been done on one Windows
+machine so far; **a setup from a fresh clone by someone else has not been tried yet**, so expect rough edges.
+
+You need:
+
+- **A GitHub repository you own**, with CI, and permission to add rulesets to it.
+- **A GitHub App** for the gate (the only identity that can merge) and **two fine-grained tokens**, one
+  each for the fixer and the verifier.
+- **Switch Console** with Mattermost, for the two chat rooms and the agents.
+- **Docker** for the agent containers, and an AI model for the agents. Free models work but hit usage
+  limits and need close supervision.
+
+Then:
+
+1. Follow [docs/setup.md](docs/setup.md) for GitHub and Switch (on Windows, also
+   [docs/windows.md](docs/windows.md)). Give the agents `prompts/` as their room documents.
+2. Copy [.env.example](.env.example) to `.env` and fill it in. Keep keys outside any synced folder, and
+   never commit them. [docs/operations.md](docs/operations.md) explains the settings.
+3. Prepare and check:
+   ```bash
+   npm ci
+   npm run build
+   npm run migrate
+   npm run readiness    # lists anything still missing
+   npm run gate
+   ```
+4. In the public room: `@loopback-gate report <the bug>`. In the maintainers' room:
+   `@loopback-gate accept LB-001`, then `approve LB-001 <full commit sha>` and `merge LB-001`.
+
+Merging stays off until you set `LOOPBACK_PRIVILEGED_ENABLED=true` and `MERGE_ENABLED=true`. Review each
+change yourself before approving, because verification is advisory unless the verifier's isolation is proven.
 
 ## 5. Demo walkthrough
 

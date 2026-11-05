@@ -6,6 +6,7 @@ import { generateKeyPairSync } from "node:crypto";
 import { parseEnv } from "node:util";
 import { CONTAINERS, FLAGS, REQUIRED, assessReadiness, evaluateGateConfig, parseEnvFile, parseEnvText, rulesUsable, spkiOf, type ReadinessFacts } from "../../scripts/live-readiness.mjs";
 import { ConfigError, assertIdentityConsistency, loadGitHubConfig, loadIdentityConfig, loadRunIssuerKey, loadRuntimeConfig, loadSwitchConfig } from "../../apps/switch-gate/src/config.js";
+import { writePrivateKey } from "../helpers/private-key.js";
 
 // Live readiness is a read-only report: it must never call a missing prerequisite ready, and it
 // must report any safety flag that is on as a problem (it never turns one on).
@@ -194,8 +195,8 @@ describe("evaluateGateConfig: the gate's own rules", () => {
     chmodSync(dir, 0o700);
     ghKey = join(dir, "gate.pem");
     issuerKey = join(dir, "run-issuer.pem");
-    writeFileSync(ghKey, generateKeyPairSync("ed25519").privateKey.export({ type: "pkcs8", format: "pem" }), { mode: 0o600 });
-    writeFileSync(issuerKey, generateKeyPairSync("ed25519").privateKey.export({ type: "pkcs8", format: "pem" }), { mode: 0o600 });
+    writePrivateKey(ghKey, generateKeyPairSync("ed25519").privateKey.export({ type: "pkcs8", format: "pem" }).toString());
+    writePrivateKey(issuerKey, generateKeyPairSync("ed25519").privateKey.export({ type: "pkcs8", format: "pem" }).toString());
   });
   afterAll(() => { rmSync(dir, { recursive: true, force: true }); });
 
