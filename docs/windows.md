@@ -79,6 +79,10 @@ such line, Switch never delivered it to the gate.
 **After a restart.** Start Docker Desktop first, then Switch Console (it skips Mattermost if Docker
 isn't running), then `npm run agents -- up`, then the gate.
 
+**Flags through npm.** Windows PowerShell drops the `--` in `npm run <script> -- --flag`, so npm takes
+the flag for itself and the script never sees it. Call the script with `node` instead:
+`node scripts/ruleset-proof.mjs --apply`.
+
 ### Fewer permission prompts for the verifier
 
 An agent waiting on a prompt looks idle in chat while its run counts down, so the gate posts one

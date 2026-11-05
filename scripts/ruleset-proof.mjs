@@ -10,6 +10,10 @@
 //   Tokens:   the fixer's from <cred dir>/fixer.env; the maintainer's from LOOPBACK_OWNER_TOKEN or
 //             `gh auth token`. They are sent only in Authorization headers and never printed.
 //   Optional: --out <file> (default docs/evidence/phase-06-ruleset-proof.md).
+//             PROOF_GREEN_SHA=<a commit whose CI passes and which descends from DEMO_RESET_SHA>. A run
+//             branch holds the seeded bug, so a PR from its own commit fails CI, and outcomes 1 and 3b
+//             need green CI to mean anything. The throwaway PR then starts from this commit.
+//   In Windows PowerShell call node directly: `npm run ruleset-proof -- --apply` loses the flag.
 //
 // WHAT IT DOES TO THE REPOSITORY. On the fixer's token it creates a loopback/proof-* branch and PR,
 // and it closes and deletes them afterwards. It leaves a demo/proof-* branch that can never be
@@ -39,12 +43,13 @@ const REFUSED_MERGE = [403, 405, 409, 422];
 const REFUSED_WRITE = [403, 409, 422];
 const REFUSED_NO_PERMISSION = [403, 404];
 
-export function validateInputs({ repo, runBranch, resetSha }) {
+export function validateInputs({ repo, runBranch, resetSha, greenSha }) {
   const problems = [];
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo ?? "")) problems.push("GH_REPO must be owner/repo");
   if (/\/loopback$/i.test(repo ?? "")) problems.push("refusing to run against the main Loopback repository");
   if (!/^demo\/\d{8}-[0-9a-f]{16}$/.test(runBranch ?? "")) problems.push("RUN_BRANCH must be demo/<yyyymmdd>-<16 hex>, from scripts/reset-demo.sh");
   if (!/^[0-9a-f]{40}$/.test(resetSha ?? "")) problems.push("DEMO_RESET_SHA must be a full commit SHA");
+  if (greenSha !== undefined && !/^[0-9a-f]{40}$/.test(greenSha)) problems.push("PROOF_GREEN_SHA must be a full commit SHA");
   return problems;
 }
 
@@ -53,7 +58,7 @@ export function validateInputs({ repo, runBranch, resetSha }) {
  * "fixer". Returns { outcomes, pr }. An outcome is { id, title, expected, actual, verdict } with a
  * verdict of PASS, FAIL or NOT RUN, and the proof passes only if every outcome is PASS.
  */
-export async function runProof(api, { repo, runBranch, resetSha, nonce, wait = () => sleep(CI_POLL_MS), now = () => Date.now(), ciWaitMs = CI_WAIT_MS }) {
+export async function runProof(api, { repo, runBranch, resetSha, greenSha, nonce, wait = () => sleep(CI_POLL_MS), now = () => Date.now(), ciWaitMs = CI_WAIT_MS }) {
   const r = `repos/${repo}`;
   const outcomes = [];
   const note = (id, title, expected, actual, verdict) => outcomes.push({ id, title, expected, actual, verdict });
@@ -72,7 +77,7 @@ export async function runProof(api, { repo, runBranch, resetSha, nonce, wait = (
   const cleanups = [];
   let pr = null;
   try {
-    const made = await api("fixer", "POST", `${r}/git/refs`, { ref: `refs/heads/${work}`, sha: resetSha });
+    const made = await api("fixer", "POST", `${r}/git/refs`, { ref: `refs/heads/${work}`, sha: greenSha ?? resetSha });
     note("setup", "the fixer can create its case branch", "201", String(made.status), made.status === 201 ? "PASS" : "FAIL");
     if (made.status !== 201) return { outcomes, pr };
     cleanups.push(() => api("owner", "DELETE", `${r}/git/refs/heads/${work}`));
@@ -153,12 +158,13 @@ export async function runProof(api, { repo, runBranch, resetSha, nonce, wait = (
 
 export const passed = (outcomes) => outcomes.length > 0 && outcomes.every((o) => o.verdict === "PASS");
 
-export function renderEvidence({ repo, runBranch, resetSha, when, outcomes, pr }) {
+export function renderEvidence({ repo, runBranch, resetSha, greenSha, when, outcomes, pr }) {
   const cell = (s) => String(s).replace(/\|/g, "\\|");
   const rows = outcomes.map((o) => `| ${cell(o.id)} | ${cell(o.title)} | ${cell(o.expected)} | ${cell(o.actual)} | **${o.verdict}** |`);
   return [
     "# Ruleset proof (step 6.6)", "",
     `Run ${when} by \`scripts/ruleset-proof.mjs\` against \`${repo}\`, run branch \`${runBranch}\` at \`${resetSha}\`${pr ? `, throwaway PR #${pr}` : ""}.`,
+    ...(greenSha ? [`The throwaway PR started from \`${greenSha}\`, because the run branch holds the seeded bug and a PR from it fails CI.`] : []),
     "Outcomes 6, 7, 8 and the gate's half of 9 are also proved by `tests/security/demo-base-integrity.test.ts`.", "",
     "| # | Outcome | Expected | Actual | Verdict |", "|---|---|---|---|---|", ...rows, "",
     `**Overall: ${passed(outcomes) ? "every outcome passed" : "NOT PROVEN"}.**`, "",
@@ -186,7 +192,8 @@ async function main(argv) {
   const repo = process.env.GH_REPO;
   const runBranch = process.env.RUN_BRANCH;
   const resetSha = process.env.DEMO_RESET_SHA;
-  const problems = validateInputs({ repo, runBranch, resetSha });
+  const greenSha = process.env.PROOF_GREEN_SHA || undefined;
+  const problems = validateInputs({ repo, runBranch, resetSha, greenSha });
   if (problems.length > 0) usage(problems);
 
   const nonce = randomBytes(6).toString("hex");
@@ -236,8 +243,8 @@ async function main(argv) {
     try { parsed = await res.json(); } catch { /* an empty body */ }
     return { status: res.status, body: parsed };
   };
-  const { outcomes, pr } = await runProof(api, { repo, runBranch, resetSha, nonce });
-  const text = renderEvidence({ repo, runBranch, resetSha, when: new Date().toISOString(), outcomes, pr });
+  const { outcomes, pr } = await runProof(api, { repo, runBranch, resetSha, greenSha, nonce });
+  const text = renderEvidence({ repo, runBranch, resetSha, greenSha, when: new Date().toISOString(), outcomes, pr });
   writeFileSync(out, text);
   process.stdout.write(`${text}\nEvidence written to ${out}\n`);
   return passed(outcomes) ? 0 : 1;

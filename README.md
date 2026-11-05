@@ -124,7 +124,8 @@ instance, local only. Verification is advisory until the verifier's isolation is
 container (`deploy/isolation/`): on the live Windows install the agents run on the host as the desktop
 user, so they can reach that user's files. A signature proves a report wasn't altered, not that its tests
 ran, so a human must review before approving.
-Not yet met: the ruleset proof that only the gatekeeper can merge, a merge on a per-run branch, an extra
+[Proved live](docs/evidence/phase-06-ruleset-proof.md): GitHub's rules refuse a merge without the gate's own
+status, even from the maintainer's account with green CI. Not yet met: a merge on a per-run branch, an extra
 push turning a live case Stale, two clean end-to-end runs, a fresh-clone test and a verifier that
 completes its brief without human guidance. [docs/release-readiness.md](docs/release-readiness.md) has
 the item-by-item audit, written before the live run, so this section and the evidence file are newer.

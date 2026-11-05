@@ -54,6 +54,39 @@ describe("runProof", () => {
     expect(r.pr).toBe(7);
   });
 
+  describe("a seeded run branch fails CI on purpose, so outcomes 1 and 3b need a green start", () => {
+    const GREEN = "3".repeat(40);
+    const caseBranchSha = (bodies: unknown[]) => (bodies.find((b) => /loopback\/proof-/.test((b as { ref: string }).ref)) as { sha: string }).sha;
+    const capture = () => {
+      const bodies: unknown[] = [];
+      const g = github((_a, m, p, body) => { if (m === "POST" && p.endsWith("/git/refs")) bodies.push(body); return undefined; });
+      return { g, bodies };
+    };
+
+    it("starts the throwaway branch from the run branch's commit by default", async () => {
+      const { g, bodies } = capture();
+      await run(g);
+      expect(caseBranchSha(bodies)).toBe(SHA);
+    });
+
+    it("starts it from the green commit when given one, and still targets the run branch", async () => {
+      const { g, bodies } = capture();
+      const r = await run(g, { greenSha: GREEN });
+      expect(caseBranchSha(bodies)).toBe(GREEN);
+      expect(passed(r.outcomes), JSON.stringify(r.outcomes)).toBe(true);
+      expect(r.outcomes.find((o) => o.id === "9a")?.expected).toBe(SHA);
+    });
+
+    it("says so in the evidence", () => {
+      const text = renderEvidence({ repo: REPO, runBranch: RUN, resetSha: SHA, greenSha: GREEN, when: "now", outcomes: [], pr: 7 });
+      expect(text).toContain(GREEN);
+    });
+
+    it("refuses a malformed green commit", () => {
+      expect(validateInputs({ repo: REPO, runBranch: RUN, resetSha: SHA, greenSha: "main" }).join("\n")).toMatch(/PROOF_GREEN_SHA/);
+    });
+  });
+
   it("always closes the PR and deletes its branch", async () => {
     const g = github();
     await run(g);

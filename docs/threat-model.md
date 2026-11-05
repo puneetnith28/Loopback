@@ -48,8 +48,9 @@ against live services.
 `security/demo-base-integrity.test.ts`. A base branch found away from its expected commit halts the
 gate for the run, at startup and until a definite answer is possible: an unreachable GitHub or an
 unresolved merge only postpones the check. Before tasking the fixer the gate checks again. What GitHub
-itself enforces (outcomes 1 to 4, and the tag) is proved only by `npm run ruleset-proof -- --apply`,
-which has **not** been run.
+itself enforces (outcomes 1 to 4, and the tag) was proved live on 2026-11-05: see
+[evidence/phase-06-ruleset-proof.md](evidence/phase-06-ruleset-proof.md). With green CI, GitHub refused a
+merge from the maintainer's account, with and without a `loopback/gate` status from that account.
 
 **Unsigned verifier reports (D32).** With `VERIFIER_PUBLIC_KEY` set, the gate rejects an unsigned report
 in advisory mode as well. During the first live run an unsigned report carrying results from an older
