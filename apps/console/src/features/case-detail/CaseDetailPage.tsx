@@ -14,7 +14,7 @@ import { Card } from "../../design-system/components/Surface.tsx";
 import { Tabs } from "../../design-system/components/Tabs.tsx";
 import { UntrustedText } from "../../design-system/components/UntrustedText.tsx";
 import { absoluteTime, relativeTime } from "../../lib/format.ts";
-import { reasonLabel } from "../../lib/labels.ts";
+import { reasonGuidance, reasonLabel } from "../../lib/labels.ts";
 import { STATE_LABELS } from "../../lib/lifecycle.ts";
 import { revealHidden } from "../../lib/untrusted.ts";
 import { AuditTimeline } from "../shared/AuditTimeline.tsx";
@@ -66,7 +66,15 @@ function CaseEvidence({ detail: c, config, configFailed }: { readonly detail: Ca
             <dt>Pull request</dt><dd>{c.prNumber ? <span className={shared.mono}>#{c.prNumber}</span> : "None yet"}</dd>
             <dt>Branch</dt><dd>{c.branch ? <span className={shared.mono}>{revealHidden(c.branch, 255).text}</span> : "None yet"}</dd>
             <dt>In this state since</dt><dd><time dateTime={c.stateEnteredAt} title={absoluteTime(c.stateEnteredAt)}>{relativeTime(c.stateEnteredAt)}</time></dd>
-            {c.blockedReason ? <><dt>Blocked because</dt><dd>{reasonLabel(c.blockedReason)} <span className={shared.mono}>({c.blockedReason})</span></dd></> : null}
+            {c.blockedReason ? (
+              <>
+                <dt>Blocked because</dt>
+                <dd>
+                  {reasonLabel(c.blockedReason)} <span className={shared.mono}>({c.blockedReason})</span>
+                  {reasonGuidance(c.blockedReason) ? <p className={shared.muted}>{reasonGuidance(c.blockedReason)}</p> : null}
+                </dd>
+              </>
+            ) : null}
           </dl>
         </Card>
         <ApprovalCard detail={c} config={config} configFailed={configFailed} />
