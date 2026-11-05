@@ -22,7 +22,7 @@ import { CODE_EXCERPTS, SCENE_GUIDE, SETUP_STEPS } from "./demo-page/content.mjs
 import { isMainModule } from "./sh.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const NAMES = { priya: "Priya (maintainer)", sam: "Sam (contributor)", mallory: "Mallory (not a maintainer)", fixer: "loopback-fixer", verifier: "loopback-verifier" };
+const NAMES = { puneet: "Puneet (maintainer)", prashant: "Prashant (contributor)", mallory: "Mallory (not a maintainer)", fixer: "loopback-fixer", verifier: "loopback-verifier" };
 const CONSOLE_TOKEN = "loopback-console-mock-token-not-a-secret";
 const CLOCK_START = 1_000_000_000_000;
 const CASE = "/api/v1/cases/LB-001";

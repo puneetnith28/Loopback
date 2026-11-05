@@ -32,8 +32,8 @@ const G = "@loopback-gate";
 const FIXER = "@switch-agent-fixer:demo";
 const VERIFIER = "@switch-agent-verifier:demo";
 const SELF = "@switch-agent-gate:demo";
-const MAINTAINER = "@switch-mattermost-priya:demo";
-const REPORTER = "@switch-mattermost-sam:demo";
+const MAINTAINER = "@switch-mattermost-puneet:demo";
+const REPORTER = "@switch-mattermost-prashant:demo";
 const STRANGER = "@switch-mattermost-mallory:demo";
 const MAINT_ROOM = "loopback-maintainers";
 const INTAKE_ROOM = "loopback-intake";
@@ -45,7 +45,7 @@ const MERGE_SHA = "d3e8f1a2c4b6079e5d1f3a8c6b2e4d7f9a0c1b35";
 const REPORT = "formatToken throws TypeError when extend({ '%': null }) is used";
 
 const NAMES: Readonly<Record<string, string>> = {
-  [MAINTAINER]: "Priya (maintainer)", [REPORTER]: "Sam (contributor)", [STRANGER]: "Mallory (not a maintainer)",
+  [MAINTAINER]: "Puneet (maintainer)", [REPORTER]: "Prashant (contributor)", [STRANGER]: "Mallory (not a maintainer)",
   [FIXER]: "loopback-fixer (agent)", [VERIFIER]: "loopback-verifier (agent)",
 };
 

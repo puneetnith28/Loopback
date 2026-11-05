@@ -4,7 +4,7 @@
 /** One entry per rehearsal scene, in order. The build fails if the counts differ. */
 export const SCENE_GUIDE = [
   {
-    what: "Switch delivered Sam's message to the gate, because it was addressed to the gate. The gate opened case LB-001 and told the maintainers.",
+    what: "Switch delivered Prashant's message to the gate, because it was addressed to the gate. The gate opened case LB-001 and told the maintainers.",
     why: "A public report starts no agent. Bug reports can carry instructions aimed at an AI, so a person has to accept the report first.",
     console: ["See the new case", "/cases/LB-001"],
   },

@@ -1,164 +1,375 @@
 <title>Loopback Rehearsal</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<meta name="description" content="Understand Loopback without installing it: do the same steps a local user does, in the same screens, then turn Switch off and watch the workflow stop.">
+<meta name="description" content="Switch puts AI agents in your team chat. Loopback makes sure nothing merges without a person. Run the whole flow with no install, then turn Switch off and watch it stop.">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=Open+Sans:wght@400;600;700&display=swap">
 <style>
-/* Layout: a chapter bar with the Switch button always in reach; the run is a guide column beside a workspace of the
-   same screens a local user has. Page colours and type follow the project's evidence console. The chat pane and the
-   terminal keep their own fixed look, because they stand for other applications. */
+/* Concept: Switch is the main character. One button sits at the centre of a wired circuit, and everything on the page
+   runs through it: agents, rooms, pulses, even the signals on the background grid. Turn it off and the page goes dark.
+   One dark look on purpose. The chat pane and terminal keep their own look, because they stand for other applications. */
 :root {
-  --bg: #f3f6f8; --surface: #ffffff; --sunk: #e9eef2; --line: #cfd8df; --fg: #14202a; --muted: #52626f;
-  --accent: #0b6f76; --accent-soft: #d9eff0; --on-accent: #ffffff; --ok: #17693a; --ok-soft: #dcf1e3; --wait: #7a5600; --wait-soft: #f7ecd0;
-  --bad: #a4262c; --bad-soft: #fbe4e4;
+  --ink: #0a0e12; --panel: #0d1218; --raised: #141b22; --sunk: #070a0d; --line: #2f5a60; --line-dim: #1d272e;
+  --fg: #e7eef1; --muted: #93a3ab; --faint: #55636b; --wire: #8fd0d0; --seal: #a9dfdc; --seal-ink: #06181a; --glow: rgba(143, 208, 208, .35);
+  --ok: #7fdca0; --ok-soft: #10291b; --wait: #e9c063; --wait-soft: #2a2310; --bad: #ff9a9a; --bad-soft: #2a1417;
   --sans: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif; --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
   /* Chat pane: measured from a running Mattermost 11.9 in its default theme. */
   --mm-top: #14213e; --mm-side: #1e325c; --mm-side-text: rgba(255,255,255,.72); --mm-side-hover: rgba(255,255,255,.08); --mm-active: rgba(255,255,255,.16);
-  --mm-center: #ffffff; --mm-text: #3f4350; --mm-soft: rgba(63,67,80,.72); --mm-line: rgba(63,67,80,.16); --mm-link: #1c58d9; --mm-button: #1c58d9; --mm-hover: rgba(63,67,80,.05);
+  --mm-center: #ffffff; --mm-text: #3f4350; --mm-soft: rgba(63,67,80,.72); --mm-line: rgba(63,67,80,.16); --mm-button: #1c58d9; --mm-hover: rgba(63,67,80,.05);
   --mm-bad: #fbeaea; --mm-bad-text: #a4262c; --mm-via: #0b6f76; --mm-code: rgba(63,67,80,.07); --mm-font: "Open Sans", "Segoe UI", system-ui, sans-serif;
   /* Terminal */
-  --term-bg: #0d1117; --term-fg: #d6dde4; --term-dim: #8592a0; --term-ok: #6fd795; --term-bad: #ff9a9a; --term-prompt: #4fc4cc;
+  --term-bg: #05080b; --term-fg: #d6dde4; --term-dim: #8592a0; --term-ok: #7fdca0; --term-bad: #ff9a9a; --term-prompt: #8fd0d0;
+  --top-h: 104px;
+  color-scheme: dark;
 }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
-  --bg: #0e141a; --surface: #161e26; --sunk: #0a0f14; --line: #2b3742; --fg: #e6edf2; --muted: #9aaab7;
-  --accent: #4fc4cc; --accent-soft: #123338; --on-accent: #06181a; --ok: #6fd795; --ok-soft: #12301f; --wait: #e9c063; --wait-soft: #33290f;
-  --bad: #ff9a9a; --bad-soft: #3a1619; color-scheme: dark;
-} }
-:root[data-theme="dark"] {
-  --bg: #0e141a; --surface: #161e26; --sunk: #0a0f14; --line: #2b3742; --fg: #e6edf2; --muted: #9aaab7;
-  --accent: #4fc4cc; --accent-soft: #123338; --on-accent: #06181a; --ok: #6fd795; --ok-soft: #12301f; --wait: #e9c063; --wait-soft: #33290f;
-  --bad: #ff9a9a; --bad-soft: #3a1619; color-scheme: dark;
-}
+body.off { --wire: #47545b; --seal: #7b8990; --glow: transparent; --line: #232e35; }
 * { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
 html, body { min-height: 100%; }
-body { background: var(--bg); color: var(--fg); font: 15px/1.55 var(--sans); }
-body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--surface); }
-a { color: var(--accent); }
-a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+body { background-color: var(--ink); color: var(--fg); font: 15px/1.55 var(--sans); background-image: linear-gradient(var(--line-dim) 1px, transparent 1px), linear-gradient(90deg, var(--line-dim) 1px, transparent 1px); background-size: 64px 64px; background-position: center top; transition: background-color .4s; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--panel); }
+#signals { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; }
+#sweep { position: fixed; left: 0; top: 0; width: 10px; height: 10px; border-radius: 50%; pointer-events: none; z-index: 20; opacity: 0; }
+a { color: var(--wire); }
+a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
 code, .mono { font-family: var(--mono); }
-h1, h2, h3 { text-wrap: balance; line-height: 1.2; margin: 0; }
+h1, h2, h3 { text-wrap: balance; line-height: 1.15; margin: 0; }
 p { margin: 0; }
+[data-chapter] { position: relative; z-index: 1; }
+.eyebrow { font: 500 11.5px var(--mono); letter-spacing: .09em; text-transform: uppercase; color: var(--wire); transition: color .3s; }
+.muted { color: var(--muted); }
 
-/* Chapter bar */
-.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--surface); border-bottom: 1px solid var(--line); }
-.top-in { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; padding-block: 8px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
-.brand { font: 600 15px var(--mono); color: var(--accent); }
-.chapters { display: flex; gap: 2px; overflow-x: auto; flex: 1 1 360px; min-width: 0; scrollbar-width: none; }
-.chapters a { flex: none; padding: 5px 10px; border-radius: 5px; color: var(--muted); font-size: 14px; font-weight: 500; text-decoration: none; }
-.chapters a:hover { background: var(--sunk); color: var(--fg); }
-.chapters a[aria-current="page"] { background: var(--accent-soft); color: var(--fg); font-weight: 600; }
-.toggle { display: inline-flex; align-items: center; gap: 8px; font: 600 14px var(--sans); padding: 4px 12px 4px 5px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); cursor: pointer; }
-.toggle .knob { width: 36px; height: 20px; border-radius: 999px; background: var(--accent); position: relative; flex: none; }
-.toggle .knob::after { content: ""; position: absolute; top: 3px; left: 19px; width: 14px; height: 14px; border-radius: 50%; background: var(--surface); transition: left .15s; }
-.toggle[aria-checked="false"] { border-color: var(--bad); }
-.toggle[aria-checked="false"] .knob { background: var(--bad); }
-.toggle[aria-checked="false"] .knob::after { left: 3px; }
-.sim { display: flex; flex-wrap: wrap; gap: 2px 8px; padding-block: 5px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); background: var(--wait-soft); font-size: 13px; line-height: 1.4; }
+/* ---- Floating top bar: it tightens as you scroll, and a highlight slides to whatever you point at ---- */
+.top { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 10px); z-index: 6; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; width: calc(100% - max(16px, env(safe-area-inset-left, 0px)) - max(16px, env(safe-area-inset-right, 0px))); max-width: 1240px; margin: 10px auto 0; padding: 7px 8px 7px 14px; background: rgba(13, 18, 24, .74); -webkit-backdrop-filter: blur(14px) saturate(1.3); backdrop-filter: blur(14px) saturate(1.3); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 10px 30px rgba(0, 0, 0, .35); transition: max-width .4s cubic-bezier(.3, 1, .4, 1), padding .3s, background .3s, box-shadow .3s, border-color .3s; animation: navIn .6s cubic-bezier(.2, .8, .2, 1) both; }
+body.scrolled .top { max-width: 1080px; padding-block: 5px; background: rgba(13, 18, 24, .92); box-shadow: 0 16px 44px rgba(0, 0, 0, .55), 0 0 26px rgba(143, 208, 208, .08); }
+body.off .top { border-color: rgba(255, 154, 154, .35); }
+@keyframes navIn { from { opacity: 0; transform: translateY(-14px) scale(.98); } to { opacity: 1; transform: none; } }
+.brand { display: inline-flex; align-items: center; gap: 8px; font: 600 15px var(--mono); color: var(--seal); text-decoration: none; flex: none; }
+.logo { position: relative; width: 17px; height: 17px; border: 1.5px solid var(--seal); border-radius: 50%; animation: spin 3.2s linear infinite; flex: none; }
+.logo i { position: absolute; top: -3.5px; left: 50%; width: 5px; height: 5px; margin-left: -2.5px; border-radius: 50%; background: var(--fg); box-shadow: 0 0 7px var(--wire); }
+body.off .logo { animation: none; border-style: dashed; border-color: var(--faint); }
+body.off .logo i { background: var(--bad); box-shadow: none; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.chapters { position: relative; display: flex; gap: 2px; overflow-x: auto; flex: 1 1 300px; min-width: 0; scrollbar-width: none; }
+.chapters .ind { position: absolute; top: 0; bottom: 0; left: 0; width: 0; border-radius: 8px; background: var(--raised); border: 1px solid var(--line); opacity: 0; pointer-events: none; transition: left .35s cubic-bezier(.3, 1.3, .5, 1), width .35s cubic-bezier(.3, 1.3, .5, 1), opacity .2s; }
+.chapters a { position: relative; z-index: 1; flex: none; padding: 6px 11px; border-radius: 8px; color: var(--muted); font-size: 13.5px; font-weight: 500; text-decoration: none; transition: color .2s; }
+.chapters a:hover { color: var(--fg); }
+.chapters a[aria-current="page"] { color: var(--fg); }
+.chapters a[aria-current="page"]::after { content: ""; position: absolute; left: 50%; bottom: 2px; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: var(--seal); box-shadow: 0 0 6px var(--wire); }
+.chip { flex: none; font: 500 10.5px var(--mono); letter-spacing: .08em; padding: 2px 7px; border: 1px solid var(--wait); color: var(--wait); text-decoration: none; }
+.top-right { display: flex; align-items: center; gap: 12px; flex: none; }
+.mini { display: inline-flex; align-items: center; gap: 8px; padding: 0; border: 0; background: none; color: var(--fg); font: 500 11px var(--mono); letter-spacing: .06em; cursor: pointer; white-space: nowrap; }
+.mini .k { width: 36px; height: 20px; border-radius: 999px; border: 1.5px solid var(--seal); position: relative; flex: none; box-shadow: 0 0 12px var(--glow); transition: border-color .25s, box-shadow .25s; }
+.mini .k::after { content: ""; position: absolute; top: 3px; left: 18px; width: 11px; height: 11px; border-radius: 50%; background: var(--seal); transition: left .18s, background .2s; }
+.mini[aria-checked="false"] .k::after { left: 3px; }
+.mini[aria-checked="false"] { color: var(--bad); }
+.btn { display: inline-flex; align-items: center; gap: 8px; font: 500 14px var(--sans); padding: 8px 14px; background: var(--raised); color: var(--fg); border: 1px solid var(--line); cursor: pointer; text-decoration: none; transition: border-color .15s, transform .15s, background .15s, box-shadow .2s; }
+.btn:hover:not(:disabled) { border-color: var(--seal); transform: translateY(-1px); }
+.btn:active:not(:disabled) { transform: translateY(0); }
+.btn:disabled { opacity: .4; cursor: default; }
+.btn.primary { background: var(--seal); border-color: var(--seal); color: var(--seal-ink); font-weight: 600; }
+.btn.primary:hover:not(:disabled) { box-shadow: 0 0 24px var(--glow); }
+.btn.small { padding: 5px 10px; font-size: 13px; }
+.btn.big { font-size: 17px; padding: 13px 24px; position: relative; }
+.btn.big::after { content: ""; position: absolute; inset: -1px; border: 1px solid var(--seal); animation: halo 2.4s ease-out infinite; pointer-events: none; }
+body.off .btn.big::after { animation: none; opacity: 0; }
+@keyframes halo { from { opacity: .9; transform: scale(1); } to { opacity: 0; transform: scale(1.09, 1.35); } }
+body[data-at="run"] .run-top { display: none; }
+.sim { position: relative; z-index: 1; display: flex; flex-wrap: wrap; gap: 2px 8px; width: calc(100% - max(16px, env(safe-area-inset-left, 0px)) - max(16px, env(safe-area-inset-right, 0px))); max-width: 1240px; margin: 8px auto 0; padding: 4px 12px; background: var(--wait-soft); border: 1px solid rgba(233, 192, 99, .3); border-radius: 10px; font-size: 12.5px; line-height: 1.4; color: var(--fg); }
+.sim.off { border-color: rgba(255, 154, 154, .35); }
 .sim strong { color: var(--wait); }
+.sim .short { display: none; }
 .sim.off { background: var(--bad-soft); }
 .sim.off strong { color: var(--bad); }
 
-/* Reading chapters */
-.read { max-width: 1120px; margin: 0 auto; padding-block: 32px 64px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 36px; }
+/* ---- The circuit: agents, wires, Switch, room ---- */
+.dgm { position: relative; display: grid; grid-template-columns: minmax(180px, 230px) minmax(96px, 150px) minmax(0, 1fr); align-items: stretch; min-height: 372px; }
+.dgm-wires, .rr-wires, .jobs-wires { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+.w-base { fill: none; stroke: var(--wire); stroke-width: 1.3; transition: stroke .3s; }
+body.off .w-base { stroke-dasharray: .6 1.6; }
+.w-flow { fill: none; stroke: var(--fg); stroke-width: 2; stroke-linecap: round; stroke-dasharray: 5 200; stroke-dashoffset: 5; filter: drop-shadow(0 0 4px var(--wire)); animation: flow 2.8s linear infinite; }
+.w-flow.rev { animation-name: flow-rev; }
+.w-one { fill: none; stroke: var(--fg); stroke-width: 2.6; stroke-linecap: round; stroke-dasharray: 9 200; opacity: 0; filter: drop-shadow(0 0 6px var(--wire)); }
+.w-one.alarm { stroke: var(--bad); filter: drop-shadow(0 0 7px var(--bad)); }
+body.off .w-flow, body.off .w-one { display: none; }
+@keyframes flow { from { stroke-dashoffset: 5; } to { stroke-dashoffset: -100; } }
+@keyframes flow-rev { from { stroke-dashoffset: -100; } to { stroke-dashoffset: 5; } }
+.boot .w-base { stroke-dasharray: 100; animation: draw 1s ease-out both; }
+@keyframes draw { from { stroke-dashoffset: 100; } to { stroke-dashoffset: 0; } }
+.dgm-agents { position: relative; z-index: 1; display: grid; gap: 14px; }
+.agent { display: grid; gap: 1px; align-content: start; padding: 9px 13px 11px; background: var(--panel); border: 1px solid var(--line); transition: opacity .3s, border-color .3s; min-width: 0; }
+.dots { display: flex; gap: 4px; margin-bottom: 5px; }
+.dots i { width: 5px; height: 5px; border-radius: 50%; background: var(--faint); }
+.agent b { font-weight: 600; font-size: 14.5px; }
+.agent .kind { font: 10.5px var(--mono); letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+.agent code { margin-top: 7px; font: 500 12.5px var(--mono); color: var(--wire); overflow-wrap: anywhere; }
+.boot .agent { animation: rise .45s ease-out both; animation-delay: calc(var(--i, 0) * 90ms); }
+body.off .agent { opacity: .38; border-color: var(--line-dim); }
+body.off .agent code { color: var(--muted); }
+body.off .agent.is-gate { opacity: .8; }
+body.off .agent.is-gate code { color: var(--bad); }
+.dgm-hub { position: relative; z-index: 2; display: grid; place-content: center; justify-items: center; gap: 12px; }
+.knob { width: 72px; height: 38px; padding: 0; border-radius: 999px; border: 1.5px solid var(--seal); background: var(--raised); cursor: pointer; position: relative; box-shadow: 0 0 0 6px var(--ink), 0 0 0 7px var(--line), 0 0 30px var(--glow); transition: box-shadow .3s, border-color .3s; }
+.knob::before { content: ""; position: absolute; inset: -8px; border-radius: 999px; border: 1px solid var(--wire); animation: breathe 2.6s ease-out infinite; pointer-events: none; }
+@keyframes breathe { from { opacity: .7; transform: scale(1); } to { opacity: 0; transform: scale(1.35, 1.6); } }
+.knob::after { content: ""; position: absolute; top: 6px; left: 39px; width: 24px; height: 24px; border-radius: 50%; background: var(--seal); box-shadow: 0 0 14px var(--glow); transition: left .22s cubic-bezier(.3, 1.4, .5, 1), background .2s; }
+.knob[aria-checked="false"]::after { left: 6px; }
+.knob[aria-checked="false"]::before { animation: none; opacity: 0; }
+.knob:hover { box-shadow: 0 0 0 6px var(--ink), 0 0 0 7px var(--seal), 0 0 34px var(--glow); }
+.knob.sm { width: 50px; height: 28px; box-shadow: 0 0 0 4px var(--panel), 0 0 0 5px var(--line), 0 0 20px var(--glow); }
+.knob.sm::after { top: 4px; left: 25px; width: 17px; height: 17px; }
+.knob.sm[aria-checked="false"]::after { left: 4px; }
+.knob-label { font: 600 11px var(--mono); letter-spacing: .1em; background: var(--ink); padding: 0 6px; white-space: nowrap; transition: color .2s; }
+body.off .knob-label { color: var(--bad); }
+.dgm-room { position: relative; z-index: 1; display: grid; grid-template-columns: 158px minmax(0, 1fr) 146px; background: var(--panel); border: 1px solid var(--line); min-width: 0; transition: border-color .3s; }
+.dgm-room > * { min-width: 0; }
+.col-title { font: 500 10.5px var(--mono); letter-spacing: .09em; text-transform: uppercase; color: var(--muted); }
+.members { padding: 13px; border-right: 1px solid var(--line-dim); display: grid; gap: 8px; align-content: start; }
+.member { display: flex; gap: 8px; align-items: center; font-size: 13px; font-weight: 500; min-width: 0; transition: opacity .3s, transform .3s; }
+.member > span:last-child { overflow-wrap: anywhere; min-width: 0; }
+.member small { display: block; font: 10px var(--mono); color: var(--muted); font-weight: 400; }
+.av { flex: none; width: 24px; height: 24px; display: grid; place-items: center; border-radius: 50%; background: var(--raised); border: 1px solid var(--line-dim); font: 600 11px var(--mono); }
+.member.bot .av { border-radius: 4px; background: var(--seal); color: var(--seal-ink); border-color: var(--seal); transition: background .3s; }
+body.off .member.bot { opacity: 0; transform: translateX(-8px); height: 0; overflow: hidden; margin-top: -8px; }
+.chatmini { display: grid; grid-template-rows: auto minmax(0, 1fr); min-width: 0; }
+.chat-title { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid var(--line-dim); }
+.chat-title b { font-size: 14.5px; font-weight: 600; overflow-wrap: anywhere; }
+.replay { padding: 0; border: 0; background: none; color: var(--wire); font: 500 11px var(--mono); cursor: pointer; }
+.replay:hover { color: var(--fg); }
+body.off .replay { visibility: hidden; }
+.mposts { padding: 12px 14px 14px; display: grid; gap: 11px; align-content: start; min-height: 0; }
+.mpost { display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 9px; animation: rise .35s ease-out both; }
+.mpost .h { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-weight: 600; font-size: 13px; }
+.badge-agent { font: 500 9px var(--mono); letter-spacing: .05em; padding: 0 4px; border: 1px solid var(--line); color: var(--seal); }
+.mpost p { margin-top: 1px; font-size: 13px; line-height: 1.45; color: var(--muted); overflow-wrap: anywhere; }
+.mpost .at { color: var(--wire); font-weight: 500; }
+.mpost.block p { color: var(--bad); font-weight: 500; }
+.mevent { font: 11.5px/1.45 var(--mono); color: var(--muted); padding: 5px 9px; border: 1px dashed var(--line); overflow-wrap: anywhere; animation: rise .35s ease-out both; }
+.mempty { font: 12.5px/1.5 var(--mono); color: var(--faint); animation: rise .35s ease-out both; }
+.roomrail { padding: 13px; border-left: 1px solid var(--line-dim); display: grid; gap: 7px; align-content: start; }
+.ritem { padding: 6px 9px; font-size: 12.5px; font-weight: 500; border: 1px solid var(--line); background: var(--raised); display: flex; gap: 7px; align-items: center; transition: background .3s, border-color .3s, color .3s; }
+.ritem::before { content: ""; width: 4px; height: 4px; border-radius: 50%; background: var(--seal); flex: none; }
+body.off .ritem { border-style: dashed; border-color: var(--line-dim); background: none; color: var(--faint); }
+@keyframes rise { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: none; } }
+.dgm.vertical { grid-template-columns: minmax(0, 1fr); min-height: 0; }
+.dgm.vertical .dgm-agents { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.dgm.vertical .agent { padding: 7px 9px 9px; }
+.dgm.vertical .agent b { font-size: 13px; }
+.dgm.vertical .pre, .dgm.vertical .kind { display: none; }
+.dgm.vertical .agent code { font-size: 11px; margin-top: 3px; }
+.dgm.vertical .dgm-hub { padding-block: 38px 34px; }
+
+/* ---- Home ---- */
+.home { display: grid; gap: 72px; padding-block: 20px 80px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.home > * { max-width: 1180px; width: 100%; margin-inline: auto; min-width: 0; }
+/* Title page: the name inside a loop of wire that runs through the Switch button. */
+.intro { position: relative; min-height: calc(100svh - var(--top-h) - 20px); display: grid; align-content: center; justify-items: center; text-align: center; gap: 22px; padding-block: 12px 4px; }
+.intro > * { min-width: 0; max-width: 100%; }
+.intro .eyebrow { animation: rise .6s ease-out both; }
+.mark-wrap { position: relative; padding: clamp(16px, 3vw, 34px) clamp(30px, 6vw, 84px) max(30px, clamp(16px, 3vw, 34px)); }
+.mark { margin: 0; font: 700 clamp(44px, 13vw, 168px)/.95 var(--sans); letter-spacing: -.035em; white-space: nowrap; transition: color .4s; }
+.mark span { display: inline-block; animation: letter .75s cubic-bezier(.2, .8, .2, 1) both; animation-delay: calc(var(--i) * 55ms + 150ms); }
+.mark .oo { color: var(--seal); text-shadow: 0 0 34px var(--glow); transition: color .4s, text-shadow .4s; }
+@keyframes letter { from { opacity: 0; transform: translateY(.35em); filter: blur(6px); } to { opacity: 1; transform: none; filter: none; } }
+body.off .mark { color: var(--faint); }
+body.off .mark .oo { color: var(--bad); text-shadow: none; }
+.track-svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+.track-svg .w-base { animation: draw 1.4s .3s ease-out both; stroke-dasharray: 100; }
+body.off .track-svg .w-base { animation: none; stroke-dasharray: .4 1.1; }
+.intro-knob { position: absolute; left: 50%; bottom: 0; transform: translate(-50%, 50%); z-index: 2; }
+.intro-knob .knob-label { position: absolute; top: calc(100% + 12px); left: 50%; transform: translateX(-50%); }
+.tagline { margin-top: 34px; font-size: clamp(18px, 2.3vw, 26px); line-height: 1.35; font-weight: 500; max-width: 32em; text-wrap: balance; animation: rise .7s .5s ease-out both; }
+.meta { font: 11.5px var(--mono); letter-spacing: .06em; color: var(--muted); text-transform: uppercase; animation: rise .7s .65s ease-out both; }
+.intro-cta { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; align-items: center; animation: rise .7s .8s ease-out both; }
+.cue { margin-top: 6px; display: grid; justify-items: center; gap: 4px; padding: 6px 10px; border: 0; background: none; color: var(--muted); font: 500 11px var(--mono); letter-spacing: .08em; cursor: pointer; animation: rise .7s 1s ease-out both; }
+.cue:hover { color: var(--fg); }
+.cue i { width: 11px; height: 11px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg); animation: bob 1.6s ease-in-out infinite; }
+@keyframes bob { 50% { transform: translateY(5px) rotate(45deg); } }
+.hero { display: grid; gap: 16px; scroll-margin-top: calc(var(--top-h) + 12px); }
+.hero-h { font-size: clamp(26px, 2.9vw, 38px); font-weight: 700; letter-spacing: -.012em; }
+.hero-h em { font-style: normal; color: var(--seal); transition: color .3s; }
+body.off .hero-h em { color: var(--bad); text-decoration: line-through; text-decoration-thickness: 2px; }
+.hero-text { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px 40px; align-items: end; }
+.hero-text > * { min-width: 0; }
+h1 { font-size: clamp(26px, 2.9vw, 38px); font-weight: 700; letter-spacing: -.012em; }
+h1 em { font-style: normal; color: var(--seal); transition: color .3s; }
+body.off h1 em { color: var(--bad); text-decoration: line-through; text-decoration-thickness: 2px; }
+.lede { margin-top: 8px; font-size: 15.5px; color: var(--muted); max-width: 74ch; }
+.cta { display: grid; gap: 7px; justify-items: start; }
+.cta small { font: 11px var(--mono); color: var(--muted); letter-spacing: .03em; }
+.under { display: flex; flex-wrap: wrap; gap: 8px 16px; justify-content: space-between; align-items: center; font: 11px var(--mono); letter-spacing: .06em; color: var(--muted); }
+.refusal { flex: 1 1 100%; padding: 9px 12px; border: 1px solid var(--bad); background: var(--bad-soft); color: var(--bad); font: 12.5px/1.5 var(--mono); overflow-wrap: anywhere; animation: rise .3s ease-out both; }
+.sect { display: grid; gap: 22px; }
+.sect-head { display: grid; gap: 8px; max-width: 760px; }
+.sect h2 { font-size: clamp(22px, 2.6vw, 32px); font-weight: 700; letter-spacing: -.01em; }
+.sect-head p { color: var(--muted); font-size: 15.5px; }
+@supports (animation-timeline: view()) { @media (prefers-reduced-motion: no-preference) {
+  .rv { animation: rv linear both; animation-timeline: view(); animation-range: entry 0% entry 35%; }
+  @keyframes rv { from { opacity: .25; transform: translateY(26px); } to { opacity: 1; transform: none; } }
+} }
+
+/* Everything Switch does */
+.jobs { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 26px; align-items: stretch; }
+.jobs > * { min-width: 0; }
+.ring { position: relative; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 30px 26px; }
+.job { position: relative; z-index: 1; display: grid; gap: 2px; align-content: start; min-width: 0; padding: 10px 12px; text-align: left; background: var(--panel); border: 1px solid var(--line); color: var(--fg); font: 500 13.5px/1.3 var(--sans); cursor: pointer; transition: border-color .2s, background .2s, transform .2s, opacity .3s; }
+.job:hover { border-color: var(--seal); }
+.job[aria-pressed="true"] { background: var(--raised); border-color: var(--seal); transform: translateY(-2px); box-shadow: 0 0 20px var(--glow); }
+.job span { font: 10.5px var(--mono); color: var(--muted); letter-spacing: .03em; }
+body.off .job { opacity: .4; border-color: var(--line-dim); }
+.ring-core { position: relative; z-index: 2; display: grid; place-content: center; justify-items: center; gap: 12px; padding-block: 8px; }
+.ring .jobs-wires .w-base { stroke: var(--line); }
+.ring .jobs-wires .w-base.on { stroke: var(--seal); }
+.detail { display: grid; gap: 14px; align-content: start; padding: 18px; background: var(--panel); border: 1px solid var(--line); min-width: 0; }
+.detail h3 { font-size: 19px; font-weight: 600; }
+.detail .pair { display: grid; gap: 3px; animation: rise .3s ease-out both; }
+.detail .pair p { font-size: 14.5px; }
+.detail .gone p { color: var(--bad); }
+.detail .gone .eyebrow { color: var(--bad); }
+
+/* The late commit, as a motion graphic */
+.late { display: grid; gap: 18px; padding: 20px; background: var(--panel); border: 1px solid var(--line); min-width: 0; transition: border-color .3s; }
+.late.alarm { border-color: var(--bad); }
+.track { position: relative; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); padding-top: 26px; }
+.track::before { content: ""; position: absolute; left: calc(100% / 12); right: calc(100% / 12); top: 36px; height: 1px; background: var(--line); }
+.backpath { position: absolute; left: calc(100% / 12 * 7); right: calc(100% / 12); top: 8px; height: 28px; border: 1.5px dashed var(--bad); border-bottom: 0; border-radius: 12px 12px 0 0; opacity: 0; transition: opacity .3s; }
+.late.back .backpath { opacity: 1; }
+.bead { position: absolute; top: 27px; left: calc(100% / 12); width: 19px; height: 19px; margin-left: -9.5px; border-radius: 50%; background: var(--seal); box-shadow: 0 0 18px var(--glow), 0 0 0 4px rgba(169, 223, 220, .12); transition: left .7s cubic-bezier(.5, 0, .2, 1), background .25s; z-index: 2; }
+.late.alarm .bead { background: var(--bad); box-shadow: 0 0 22px var(--bad); }
+.late.won .bead { background: var(--ok); box-shadow: 0 0 22px var(--ok); }
+body.off .bead { background: var(--faint); box-shadow: none; }
+.station { position: relative; display: grid; justify-items: center; gap: 7px; text-align: center; min-width: 0; font-size: 12.5px; font-weight: 600; color: var(--muted); transition: color .25s; }
+.station::before { content: ""; width: 9px; height: 9px; margin-top: 6px; border-radius: 50%; background: var(--ink); border: 1px solid var(--line); z-index: 1; transition: background .25s, border-color .25s; }
+.station.past { color: var(--fg); }
+.station.past::before { background: var(--seal); border-color: var(--seal); }
+.station.now { color: var(--seal); }
+.late.alarm .station.now { color: var(--bad); }
+.late-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 16px 24px; align-items: center; }
+.late-body > * { min-width: 0; }
+.commit { display: grid; gap: 7px; }
+.sha-big { font: 600 clamp(17px, 2.2vw, 23px) var(--mono); overflow-wrap: anywhere; transition: color .2s; }
+.late.alarm .sha-big { color: var(--bad); animation: shake .4s; }
+.lights { display: flex; flex-wrap: wrap; gap: 6px; }
+.light { display: flex; align-items: center; gap: 6px; padding: 3px 9px; border: 1px solid var(--line-dim); font: 500 11.5px var(--mono); color: var(--faint); transition: all .3s; }
+.light::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--faint); transition: inherit; }
+.light.lit { color: var(--ok); border-color: var(--ok); background: var(--ok-soft); }
+.light.lit::before { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+.late-caption { font-size: 16px; min-height: 3.1em; animation: rise .3s ease-out both; }
+.late.alarm .late-caption { color: var(--bad); font-weight: 500; }
+.late-foot { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
+@keyframes shake { 0%, 100% { transform: translateX(0); } 20% { transform: translateX(-5px); } 40% { transform: translateX(5px); } 60% { transform: translateX(-3px); } 80% { transform: translateX(3px); } }
+
+/* Problem rows, next chapters */
+.rows3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; border-block: 1px solid var(--line); }
+.rows3 > div { display: grid; gap: 8px; align-content: start; padding: 16px 18px; border-left: 1px solid var(--line-dim); min-width: 0; }
+.rows3 > div:first-child { border-left: 0; padding-left: 0; }
+.rows3 b { font-size: 15.5px; font-weight: 600; line-height: 1.35; }
+.rows3 p { font-size: 14px; color: var(--muted); }
+.finale { display: grid; justify-items: center; text-align: center; gap: 14px; padding: 44px 18px; background: var(--panel); border: 1px solid var(--line); }
+.finale h2 { font-size: clamp(23px, 3vw, 36px); font-weight: 700; }
+.links { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+
+/* ---- Reading chapters ---- */
+.read { max-width: 1120px; margin: 0 auto; padding-block: 30px 72px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 36px; }
 .read > * { min-width: 0; }
 .read section { display: grid; gap: 12px; min-width: 0; }
-h1 { font-size: clamp(27px, 4vw, 42px); font-weight: 700; max-width: 24em; }
+.read h1 { font-size: clamp(25px, 3.4vw, 38px); }
 .read h2 { font-size: 21px; font-weight: 600; }
 .read h3 { font-size: 15px; font-weight: 600; }
-.lede { font-size: 17px; color: var(--muted); max-width: 68ch; }
-.prose { color: var(--muted); max-width: 70ch; }
+.prose { color: var(--muted); max-width: 72ch; }
 .actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
-.btn { display: inline-block; font: 500 14px var(--sans); padding: 8px 14px; border-radius: 5px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); cursor: pointer; text-decoration: none; }
-.btn:hover:not(:disabled) { border-color: var(--accent); }
-.btn:disabled { opacity: .45; cursor: default; }
-.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
-.btn.small { padding: 4px 10px; font-size: 13px; }
-.scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+.scroll { overflow-x: auto; border: 1px solid var(--line); background: var(--panel); }
 table { border-collapse: collapse; width: 100%; font-size: 14px; }
-th, td { text-align: left; padding: 8px 11px; border-bottom: 1px solid var(--line); vertical-align: top; }
-th { color: var(--muted); font-weight: 600; background: var(--sunk); white-space: nowrap; }
+th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line-dim); vertical-align: top; }
+th { font: 500 10.5px var(--mono); letter-spacing: .07em; text-transform: uppercase; color: var(--muted); white-space: nowrap; background: var(--raised); }
 tr:last-child td { border-bottom: 0; }
-.wide td { min-width: 170px; }
+.wide td { min-width: 165px; }
 .nowrap td, .nowrap th { white-space: nowrap; font-size: 13px; }
-.flow { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 0; list-style: none; margin: 0; padding: 0; }
-.flow li { display: grid; gap: 4px; align-content: start; padding: 12px 14px; border-left: 1px solid var(--line); min-width: 0; }
-.flow li:first-child { border-left: 0; padding-left: 0; }
-.flow .n { font: 500 12px var(--mono); color: var(--accent); }
-.flow b { font-weight: 600; }
-.flow .d { font-size: 13px; color: var(--muted); line-height: 1.4; }
-.loopnote { font-size: 14px; padding: 9px 12px; background: var(--wait-soft); border-radius: 5px; max-width: 80ch; }
-.cast { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px 24px; }
-.cast div { display: grid; gap: 2px; min-width: 0; }
-.cast b { font-weight: 600; }
-.cast span { font-size: 14px; color: var(--muted); }
-pre.code { margin: 0; padding: 12px 14px; overflow-x: auto; background: var(--term-bg); color: var(--term-fg); border-radius: 6px; font: 13px/1.55 var(--mono); }
+pre.code { margin: 0; padding: 12px 14px; overflow-x: auto; background: var(--term-bg); border: 1px solid var(--line-dim); color: var(--term-fg); font: 13px/1.55 var(--mono); }
 .excerpt { display: grid; gap: 6px; min-width: 0; }
-.excerpt .file { font: 12px var(--mono); color: var(--muted); overflow-wrap: anywhere; }
+.excerpt .file { font: 12px var(--mono); overflow-wrap: anywhere; }
 
-/* Without Switch */
-.path { display: flex; flex-wrap: wrap; gap: 8px; align-items: stretch; }
-.node { flex: 1 1 130px; display: grid; gap: 2px; align-content: start; padding: 10px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); min-width: 0; }
-.node b { font-weight: 600; font-size: 14px; }
-.node span { font-size: 13px; color: var(--muted); line-height: 1.35; }
-.node.hub { border-color: var(--accent); background: var(--accent-soft); }
-.node.dead { background: var(--sunk); opacity: .55; }
-.node.hub.dead { opacity: 1; background: var(--bad-soft); border-color: var(--bad); }
-.node.hub.dead b { text-decoration: line-through; color: var(--bad); }
-.refusal { padding: 12px 14px; border: 1px solid var(--bad); border-radius: 6px; display: grid; gap: 6px; min-width: 0; }
-.refusal pre { margin: 0; font: 13px/1.5 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; color: var(--bad); }
-.eyebrow { font-size: 12px; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
-
-/* The run and setup */
-.work { display: grid; grid-template-columns: 350px minmax(0, 1fr); gap: 0; height: calc(100dvh - 92px); min-height: 620px; }
-.guide { display: flex; flex-direction: column; gap: 12px; padding: 14px 16px 16px; padding-left: max(16px, env(safe-area-inset-left, 0px)); overflow-y: auto; border-right: 1px solid var(--line); background: var(--surface); min-width: 0; }
-.progress { height: 4px; background: var(--sunk); border-radius: 2px; overflow: hidden; }
-.progress i { display: block; height: 100%; background: var(--accent); transition: width .2s; }
-.stepline { display: flex; justify-content: space-between; gap: 8px; align-items: center; font: 13px var(--mono); color: var(--muted); }
-.stepline select { font: 12px var(--sans); max-width: 170px; padding: 2px 4px; color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 4px; }
+/* ---- Run and setup ---- */
+.run { display: grid; grid-template-rows: auto minmax(0, 1fr); height: calc(100dvh - var(--top-h)); min-height: 700px; }
+.rr { position: relative; display: grid; grid-template-columns: auto 64px auto 64px auto minmax(0, 1fr); align-items: center; gap: 0 2px; padding: 9px 16px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); background: var(--panel); border-bottom: 1px solid var(--line); }
+.rr-agents { position: relative; z-index: 1; display: grid; gap: 3px; }
+.rr-a { display: flex; align-items: center; gap: 6px; font: 500 11px var(--mono); color: var(--fg); padding: 1px 7px; border: 1px solid var(--line); background: var(--raised); transition: opacity .3s, border-color .2s, box-shadow .2s; }
+.rr-a.lit { border-color: var(--seal); box-shadow: 0 0 12px var(--glow); }
+body.off .rr-a { opacity: .35; }
+.rr-core { position: relative; z-index: 2; grid-column: 3; display: grid; justify-items: center; gap: 5px; }
+.rr-core .knob-label { background: none; font-size: 9.5px; }
+.rr-room { position: relative; z-index: 1; grid-column: 5; padding: 7px 11px; border: 1px solid var(--line); background: var(--raised); font: 500 11.5px var(--mono); white-space: nowrap; transition: border-color .2s, box-shadow .2s; }
+.rr-room.lit { border-color: var(--seal); box-shadow: 0 0 12px var(--glow); }
+.says { grid-column: 6; display: grid; gap: 1px; padding-left: 22px; min-width: 0; }
+.says p { font-size: 13px; line-height: 1.4; overflow-wrap: anywhere; animation: rise .3s ease-out both; }
+body.off .says p { color: var(--bad); }
+.work { display: grid; grid-template-columns: 350px minmax(0, 1fr); min-height: 0; }
+.setup-work { height: calc(100dvh - var(--top-h)); min-height: 660px; }
+.guide { display: flex; flex-direction: column; gap: 12px; padding: 14px 16px 16px; padding-left: max(16px, env(safe-area-inset-left, 0px)); overflow-y: auto; border-right: 1px solid var(--line); background: var(--panel); min-width: 0; }
+.stepline { display: flex; justify-content: space-between; gap: 8px; align-items: center; font: 12.5px var(--mono); color: var(--muted); }
+.stepline select { font: 12px var(--sans); max-width: 170px; padding: 2px 4px; color: var(--fg); background: var(--raised); border: 1px solid var(--line); }
+.ticks { display: flex; gap: 2px; }
+.ticks i { flex: 1; height: 5px; background: var(--line-dim); transition: background .3s, box-shadow .3s; }
+.ticks i.past { background: var(--seal); }
+.ticks i.now { background: var(--fg); box-shadow: 0 0 8px var(--glow); animation: tick 1.4s ease-in-out infinite; }
+.ticks i.point { background: var(--wait); }
+@keyframes tick { 50% { opacity: .45; } }
 .guide h2 { font-size: 17px; font-weight: 600; line-height: 1.3; }
-.badge { display: inline-block; font: 600 11px var(--sans); letter-spacing: .05em; text-transform: uppercase; padding: 2px 7px; border-radius: 3px; background: var(--wait-soft); color: var(--wait); }
-.todo { display: grid; gap: 8px; padding: 12px; background: var(--accent-soft); border-radius: 6px; min-width: 0; }
+.pointbadge { display: inline-block; justify-self: start; font: 600 10.5px var(--mono); letter-spacing: .07em; text-transform: uppercase; padding: 2px 7px; background: var(--wait-soft); color: var(--wait); }
+.todo { display: grid; gap: 8px; padding: 12px; background: var(--raised); border: 1px solid var(--seal); min-width: 0; animation: rise .3s ease-out both; }
 .todo p { font-size: 14px; }
-.cmd { font: 500 12.5px/1.5 var(--mono); padding: 7px 9px; background: var(--surface); border: 1px solid var(--line); border-radius: 4px; overflow-wrap: anywhere; }
+.cmd { font: 500 12.5px/1.5 var(--mono); padding: 7px 9px; background: var(--sunk); border: 1px solid var(--line-dim); overflow-wrap: anywhere; }
 .said { display: grid; gap: 3px; min-width: 0; }
+#after > *, #after { min-width: 0; }
+#after { display: grid; gap: 11px; animation: rise .35s ease-out both; }
 .said p { font-size: 14px; }
 .said code { font-size: 13px; }
-.checks { list-style: none; margin: 0; padding: 10px 0 0; border-top: 1px solid var(--line); display: grid; gap: 4px; font-size: 13px; line-height: 1.4; }
-.checks li { display: grid; grid-template-columns: 18px minmax(0, 1fr); }
+.checks { list-style: none; margin: 0; padding: 10px 0 0; border-top: 1px solid var(--line-dim); display: grid; gap: 4px; font-size: 13px; line-height: 1.4; }
+.checks li { display: grid; grid-template-columns: 18px minmax(0, 1fr); animation: rise .3s ease-out both; }
 .checks .yes { color: var(--ok); font-weight: 700; }
 .checks .no { color: var(--bad); font-weight: 700; }
 .spacer { flex: 1; }
-.nav { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding-top: 10px; border-top: 1px solid var(--line); }
-.evidence { display: grid; gap: 5px; padding-top: 10px; border-top: 1px solid var(--line); }
+.nav { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding-top: 10px; border-top: 1px solid var(--line-dim); }
+.evidence { display: grid; gap: 5px; padding-top: 10px; border-top: 1px solid var(--line-dim); }
+.evidence.alarm { animation: shake .45s; }
 .evidence .sha { font: 600 14px var(--mono); overflow-wrap: anywhere; }
-.row { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 4px; align-items: baseline; padding: 3px 7px; border-radius: 4px; font-size: 13px; transition: background-color .4s; }
+#rows { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px; }
+.row { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 4px; align-items: baseline; padding: 3px 7px; font-size: 13px; transition: background-color .4s, color .4s; }
 .row b { font: 500 12px var(--mono); }
 .row.pass { background: var(--ok-soft); } .row.pass .mark { color: var(--ok); }
 .row.wait { background: var(--wait-soft); } .row.wait .mark { color: var(--wait); }
-.row.none { background: var(--sunk); color: var(--muted); }
+.row.none { background: var(--raised); color: var(--muted); }
 .row.void { background: var(--bad-soft); } .row.void .mark, .voided { color: var(--bad); }
-.voided { font-size: 13px; font-weight: 600; }
-.offnote { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--bad); border-radius: 6px; }
+.voided { font-size: 13px; font-weight: 600; animation: rise .3s ease-out both; }
+.offnote { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--bad); background: var(--bad-soft); animation: rise .3s ease-out both; }
+.offnote p { font-size: 14px; }
 .offnote pre { margin: 0; font: 12.5px/1.5 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; color: var(--bad); }
+.sealed { display: grid; grid-template-columns: 54px minmax(0, 1fr); gap: 12px; align-items: center; padding: 12px; border: 1px solid var(--ok); background: var(--ok-soft); animation: rise .4s ease-out both; }
+.sealed svg { width: 54px; height: 54px; }
+.sealed circle, .sealed path { fill: none; stroke: var(--ok); stroke-width: 3; stroke-dasharray: 100; animation: draw .9s ease-out both; }
+.sealed path { animation-delay: .5s; }
+.sealed b { display: block; font-size: 15px; }
+.sealed span { font-size: 13px; color: var(--muted); }
 
-.space { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
-.tabs { display: flex; gap: 2px; overflow-x: auto; padding: 6px 8px 0; background: var(--sunk); border-bottom: 1px solid var(--line); scrollbar-width: none; flex: none; }
-.tabs button { flex: none; font: 500 13px var(--sans); padding: 6px 12px; border: 1px solid transparent; border-bottom: 0; border-radius: 5px 5px 0 0; background: none; color: var(--muted); cursor: pointer; position: relative; }
+.space { display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--panel); }
+.tabs { display: flex; gap: 0; overflow-x: auto; background: var(--sunk); border-bottom: 1px solid var(--line); scrollbar-width: none; flex: none; }
+.tabs button { flex: none; font: 500 13px var(--sans); padding: 8px 14px; border: 0; border-bottom: 2px solid transparent; background: none; color: var(--muted); cursor: pointer; transition: color .15s, border-color .15s, background .15s; }
 .tabs button:hover { color: var(--fg); }
-.tabs button[aria-selected="true"] { background: var(--surface); border-color: var(--line); color: var(--fg); font-weight: 600; margin-bottom: -1px; }
-.tabs .dot { display: inline-block; width: 7px; height: 7px; margin-left: 6px; border-radius: 50%; background: var(--accent); vertical-align: 1px; }
+.tabs button[aria-selected="true"] { background: var(--panel); border-bottom-color: var(--seal); color: var(--fg); font-weight: 600; }
+.tabs .dot { display: inline-block; width: 7px; height: 7px; margin-left: 6px; border-radius: 50%; background: var(--seal); vertical-align: 1px; animation: tick 1.2s ease-in-out infinite; }
 .pane { flex: 1; min-height: 0; min-width: 0; overflow: auto; display: flex; flex-direction: column; }
-.tag { flex: none; font-size: 12px; padding: 4px 12px; color: var(--muted); background: var(--sunk); border-bottom: 1px solid var(--line); }
+.pane.show { animation: paneIn .24s ease-out both; }
+@keyframes paneIn { from { opacity: .3; } to { opacity: 1; } }
+.tag { flex: none; font-size: 12px; padding: 4px 12px; color: var(--muted); background: var(--panel); border-bottom: 1px solid var(--line-dim); }
 
 /* Chat, sized from the measured application: 44px top bar, 264px sidebar, 56px channel header. */
 .mm { flex: 1; min-height: 0; display: grid; grid-template-rows: 44px minmax(0, 1fr); background: var(--mm-top); color: var(--mm-text); font: 14px/20px var(--mm-font); }
 .mm-top { display: flex; align-items: center; gap: 12px; padding: 0 12px; color: var(--mm-side-text); min-width: 0; }
 .mm-search { flex: 0 1 430px; margin: 0 auto; padding: 4px 10px; border-radius: 4px; background: rgba(255,255,255,.08); font-size: 13px; color: rgba(255,255,255,.55); white-space: nowrap; overflow: hidden; }
 .mm-me { display: flex; gap: 8px; align-items: center; font-size: 13px; color: #fff; white-space: nowrap; flex: none; }
-.mm-body { display: grid; grid-template-columns: 264px minmax(0, 1fr); min-height: 0; padding: 0 12px 12px 0; }
+.mm-body { display: grid; grid-template-columns: 240px minmax(0, 1fr); min-height: 0; padding: 0 12px 12px 0; }
 .mm-side { padding: 8px 0; color: var(--mm-side-text); min-width: 0; overflow-y: auto; }
 .mm-team { padding: 6px 18px 10px; font: 600 16px var(--mm-font); color: #fff; }
 .mm-group { padding: 10px 18px 4px; font: 600 12px var(--mm-font); letter-spacing: .02em; color: rgba(255,255,255,.55); }
-.mm-chan { display: flex; align-items: center; gap: 9px; width: 100%; height: 32px; padding: 0 16px 0 19px; border: 0; background: none; color: inherit; font: 400 14px var(--mm-font); text-align: left; cursor: pointer; }
+.mm-chan { display: flex; align-items: center; gap: 9px; width: 100%; height: 32px; padding: 0 16px 0 19px; border: 0; background: none; color: inherit; font: 400 14px var(--mm-font); text-align: left; cursor: pointer; transition: background .15s; }
 .mm-chan:hover { background: var(--mm-side-hover); }
 .mm-chan[aria-current="true"] { background: var(--mm-active); color: #fff; box-shadow: inset 3px 0 0 #5d89ea; }
 .mm-chan.unread { color: #fff; font-weight: 700; }
@@ -168,12 +379,12 @@ pre.code { margin: 0; padding: 12px 14px; overflow-x: auto; background: var(--te
 .mm-head { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--mm-line); min-width: 0; }
 .mm-head b { font: 600 16px/16px var(--mm-font); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mm-head label { margin-left: auto; display: flex; gap: 5px; align-items: center; font-size: 12px; color: var(--mm-soft); white-space: nowrap; cursor: pointer; }
-.mm-posts { overflow-y: auto; padding-bottom: 8px; min-height: 0; }
+.mm-posts { overflow-y: auto; padding-bottom: 8px; min-height: 0; scroll-behavior: smooth; }
 .mm-empty { padding: 28px 24px; display: grid; gap: 6px; color: var(--mm-soft); }
 .mm-empty b { font: 600 20px var(--mm-font); color: var(--mm-text); }
 .post { display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: 0 11px; padding: 10px 16px 6px 21px; }
 .post:hover { background: var(--mm-hover); }
-.post .av { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; font: 600 13px var(--mm-font); color: #fff; }
+.post .av { width: 32px; height: 32px; border: 0; color: #fff; font: 600 13px var(--mm-font); }
 .post .h { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 7px; }
 .post .n { font-weight: 600; }
 .post .bot { font: 600 10px/14px var(--mm-font); padding: 0 4px; border-radius: 2px; background: var(--mm-code); color: var(--mm-soft); }
@@ -183,22 +394,27 @@ pre.code { margin: 0; padding: 12px 14px; overflow-x: auto; background: var(--te
 .post .m pre { margin: 4px 0; padding: 7px 9px; border-radius: 4px; background: var(--mm-code); font: 12.5px/1.45 var(--mono); white-space: pre-wrap; }
 .post.refused { background: var(--mm-bad); }
 .post.refused .m { color: var(--mm-bad-text); font-weight: 600; }
-.post.fresh { animation: rise .28s ease-out; }
-@keyframes rise { from { opacity: .2; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.post.fresh { animation: rise .32s ease-out both; animation-delay: calc(var(--i, 0) * 520ms); }
+.post.refused.fresh { animation-name: riseShake; animation-duration: .55s; }
+@keyframes riseShake { 0% { opacity: 0; transform: translateY(7px); } 40% { opacity: 1; transform: none; } 55% { transform: translateX(-4px); } 70% { transform: translateX(4px); } 85% { transform: translateX(-2px); } 100% { transform: none; } }
 .post .via { margin-top: 3px; font: 11.5px/1.4 var(--mono); color: var(--mm-via); overflow-wrap: anywhere; }
 .post.undelivered { background: var(--mm-bad); }
 .post.undelivered .m { text-decoration: line-through; color: var(--mm-soft); }
 .post.undelivered .via { color: var(--mm-bad-text); font-weight: 600; }
+.typing { padding: 2px 21px 4px; font-size: 12px; color: var(--mm-soft); overflow: hidden; animation: typingOut .01s linear both; animation-delay: var(--until, 0ms); }
+.typing i { display: inline-block; width: 4px; height: 4px; margin-right: 3px; border-radius: 50%; background: var(--mm-soft); animation: tick .8s ease-in-out infinite; }
+.typing i:nth-child(2) { animation-delay: .15s; } .typing i:nth-child(3) { animation-delay: .3s; margin-right: 6px; }
+@keyframes typingOut { to { height: 0; padding: 0; opacity: 0; } }
 .mm-compose { padding: 0 16px 12px; display: grid; gap: 5px; }
-.mm-box { display: flex; gap: 6px; align-items: flex-end; padding: 6px 6px 6px 12px; border: 1px solid var(--mm-line); border-radius: 4px; background: var(--mm-center); }
+.mm-box { display: flex; gap: 6px; align-items: flex-end; padding: 6px 6px 6px 12px; border: 1px solid var(--mm-line); border-radius: 4px; background: var(--mm-center); transition: border-color .15s, box-shadow .15s; }
 .mm-box.ready { border-color: var(--mm-button); box-shadow: 0 0 0 1px var(--mm-button); }
-.mm-box input { flex: 1; min-width: 0; padding: 6px 0; border: 0; outline: 0; background: none; color: var(--mm-text); font: 14px var(--mm-font); }
+.mm-box input { flex: 1; min-width: 0; padding: 6px 0; border: 0; outline: 0; background: none; color: var(--mm-text); font: 14px var(--mm-font); color-scheme: light; }
 .mm-box input::placeholder { color: var(--mm-soft); }
-.mm-box button { flex: none; width: 34px; height: 32px; display: grid; place-items: center; border: 0; border-radius: 4px; background: var(--mm-code); color: var(--mm-soft); cursor: pointer; }
+.mm-box button { flex: none; width: 34px; height: 32px; display: grid; place-items: center; border: 0; border-radius: 4px; background: var(--mm-code); color: var(--mm-soft); cursor: pointer; transition: background .15s; }
 .mm-box.ready button { background: var(--mm-button); color: #fff; }
 .mm-hint { font-size: 12.5px; line-height: 1.4; color: var(--mm-bad-text); }
 .mm-as { font-size: 12px; color: var(--mm-soft); }
-.frame { flex: 1; width: 100%; min-height: 0; border: 0; background: var(--bg); }
+.frame { flex: 1; width: 100%; min-height: 0; border: 0; background: var(--ink); }
 
 /* Other panes */
 .term { flex: 1; padding: 12px 14px; background: var(--term-bg); color: var(--term-fg); font: 12.5px/1.55 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; overflow-y: auto; min-height: 0; }
@@ -210,33 +426,43 @@ pre.code { margin: 0; padding: 12px 14px; overflow-x: auto; background: var(--te
 .gh h3 { font-size: 18px; font-weight: 600; overflow-wrap: anywhere; }
 .gh .sub { color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
 .pill { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 13px; font-weight: 600; background: var(--ok-soft); color: var(--ok); }
-.pill.merged { background: var(--accent-soft); color: var(--accent); }
+.pill.merged { background: var(--raised); color: var(--seal); border: 1px solid var(--seal); }
 .feed { display: grid; gap: 6px; list-style: none; margin: 0; padding: 0; font-size: 14px; }
-.feed li { padding: 7px 10px; background: var(--sunk); border-radius: 5px; overflow-wrap: anywhere; }
-.sc { flex: 1; min-height: 0; display: grid; grid-template-columns: 180px minmax(0, 1fr); background: var(--surface); }
-.sc-nav { display: grid; gap: 2px; align-content: start; padding: 10px 8px; border-right: 1px solid var(--line); background: var(--sunk); }
-.sc-nav button { padding: 6px 10px; border: 0; border-radius: 5px; background: none; color: var(--muted); font: 500 14px var(--sans); text-align: left; cursor: pointer; }
-.sc-nav button[aria-current="true"] { background: var(--surface); color: var(--fg); font-weight: 600; }
+.feed li { padding: 7px 10px; background: var(--raised); overflow-wrap: anywhere; animation: rise .3s ease-out both; }
+.sc { flex: 1; min-height: 0; display: grid; grid-template-columns: 180px minmax(0, 1fr); background: var(--panel); }
+.sc-nav { display: grid; gap: 2px; align-content: start; padding: 10px 8px; border-right: 1px solid var(--line-dim); background: var(--sunk); }
+.sc-nav button { padding: 6px 10px; border: 0; background: none; color: var(--muted); font: 500 14px var(--sans); text-align: left; cursor: pointer; }
+.sc-nav button[aria-current="true"] { background: var(--raised); color: var(--fg); font-weight: 600; }
 .sc-main { padding: 16px; display: grid; gap: 14px; align-content: start; overflow: auto; min-width: 0; }
 .sc-main h3 { font-size: 16px; font-weight: 600; }
-.sc-main img { border: 1px solid var(--line); border-radius: 6px; }
+.sc-main img { border: 1px solid var(--line); }
 .field { display: grid; gap: 3px; font-size: 14px; }
 .field span { font-size: 13px; color: var(--muted); }
-.field i { font-style: normal; padding: 6px 9px; border: 1px solid var(--line); border-radius: 4px; background: var(--sunk); font-size: 13px; }
+.field i { font-style: normal; padding: 6px 9px; border: 1px solid var(--line-dim); background: var(--raised); font-size: 13px; }
 .setup-go { display: flex; flex-wrap: wrap; gap: 8px; }
-.setup-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; }
-.setup-list button { width: 100%; display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 4px; padding: 5px 8px; border: 0; border-radius: 4px; background: none; color: var(--muted); font: 13px/1.35 var(--sans); text-align: left; cursor: pointer; }
-.setup-list button:hover { background: var(--sunk); }
-.setup-list button[aria-current="step"] { background: var(--accent-soft); color: var(--fg); font-weight: 600; }
+.setup-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; position: relative; }
+.setup-list button { width: 100%; display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 6px; padding: 5px 8px; border: 0; border-left: 2px solid var(--line-dim); background: none; color: var(--muted); font: 13px/1.35 var(--sans); text-align: left; cursor: pointer; transition: color .15s, border-color .15s, background .15s; }
+.setup-list button:hover { color: var(--fg); }
+.setup-list button.past { border-left-color: var(--seal); }
+.setup-list button[aria-current="step"] { background: var(--raised); border-left-color: var(--fg); color: var(--fg); font-weight: 600; }
+.setup-list .mono { font-size: 12px; }
+.mbar { display: none; }
+@media (min-width: 941px) { .run .guide .nav { position: sticky; bottom: -16px; z-index: 2; margin-bottom: -16px; padding-bottom: 16px; background: var(--panel); } }
 
+@media (max-width: 1080px) {
+  .hero-text { grid-template-columns: minmax(0, 1fr); }
+  .jobs { grid-template-columns: minmax(0, 1fr); }
+  .dgm-room { grid-template-columns: 146px minmax(0, 1fr) 130px; }
+}
 @media (max-width: 940px) {
-  .top { position: static; }
-  .work { grid-template-columns: minmax(0, 1fr); height: auto; min-height: 0; }
+  .run, .setup-work { height: auto; min-height: 0; }
+  .work { grid-template-columns: minmax(0, 1fr); }
   .guide { border-right: 0; border-bottom: 1px solid var(--line); padding-right: max(16px, env(safe-area-inset-right, 0px)); overflow: visible; }
-  .space { height: 86dvh; min-height: 520px; }
-  .flow { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 0; }
-  .flow li:nth-child(odd) { border-left: 0; padding-left: 0; }
-  .cast { grid-template-columns: minmax(0, 1fr); }
+  .space { height: 84dvh; min-height: 520px; }
+  .setup-work { display: grid; }
+  .rr { grid-template-columns: auto 34px auto 34px minmax(0, 1fr); }
+  .rr-room { min-width: 0; overflow: hidden; text-overflow: ellipsis; padding-inline: 8px; justify-self: start; max-width: 100%; }
+  .says { grid-column: 1 / -1; padding: 8px 0 0; }
   .mm-body { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); padding: 0 6px 6px; }
   .mm-side { display: flex; gap: 4px; padding: 0 0 6px; overflow-x: auto; scrollbar-width: none; }
   .mm-team, .mm-group { display: none; }
@@ -245,86 +471,202 @@ pre.code { margin: 0; padding: 12px 14px; overflow-x: auto; background: var(--te
   .mm-me { margin-left: auto; }
   .mm-head label span { display: none; }
   .sc { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
-  .sc-nav { display: flex; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--line); }
+  .sc-nav { display: flex; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--line-dim); }
   .sc-nav button { flex: none; }
+  .rows3 { grid-template-columns: minmax(0, 1fr); }
+  .rows3 > div { border-left: 0; border-top: 1px solid var(--line-dim); padding-inline: 0; }
+  .rows3 > div:first-child { border-top: 0; }
+  .late-body { grid-template-columns: minmax(0, 1fr); }
+  body[data-at="run"] .mbar { display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 7; gap: 8px; align-items: center; justify-content: space-between; padding: 8px max(16px, env(safe-area-inset-right, 0px)) calc(8px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); background: var(--panel); border-top: 1px solid var(--seal); }
+  body[data-at="run"] { padding-bottom: 62px; }
+  .mbar span { font: 12px var(--mono); color: var(--muted); }
 }
-@media (prefers-reduced-motion: reduce) { .post.fresh { animation: none; } .row, .toggle .knob::after, .progress i { transition: none; } }
+@media (max-width: 760px) {
+  .home { gap: 54px; }
+  .dgm-room { grid-template-columns: minmax(0, 1fr); }
+  .members { border-right: 0; border-bottom: 1px solid var(--line-dim); grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .members .col-title { grid-column: 1 / -1; }
+  .roomrail { border-left: 0; border-top: 1px solid var(--line-dim); grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .roomrail .col-title { grid-column: 1 / -1; }
+  .ring { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .ring-core { grid-column: 1 / -1; grid-row: 1; padding-block: 16px; }
+  .jobs-wires { display: none; }
+  .top { gap: 4px 10px; }
+  .chapters { order: 5; flex-basis: 100%; }
+  .top-right { margin-left: auto; gap: 10px; }
+  .mini { font-size: 0; gap: 0; }
+  .run-top { padding: 6px 10px; font-size: 13px; }
+  .sim .long { display: none; }
+  .sim .short { display: inline; }
+  .hero-text { gap: 12px; }
+  .station { font-size: 11px; }
+  .late { padding: 14px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+  html, .mm-posts { scroll-behavior: auto; }
+  .w-flow { display: none; }
+}
 </style>
 
-<div class="top">
-  <div class="top-in">
-    <span class="brand">Loopback</span>
-    <nav class="chapters" aria-label="Chapters" id="chapters">
-      <a href="#what">What it is</a>
-      <a href="#setup">Setup</a>
-      <a href="#run">Run a bug through it</a>
-      <a href="#without">Without Switch</a>
-      <a href="#built">How it's built</a>
-      <a href="#proof">What's proven</a>
-    </nav>
-    <button class="toggle" id="toggle" type="button" role="switch" aria-checked="true"><span class="knob"></span><span id="toggle-label">Switch is on</span></button>
+<canvas id="signals" aria-hidden="true"></canvas>
+<div id="sweep" aria-hidden="true"></div>
+
+<header class="top">
+  <a class="brand" href="#what"><span class="logo" aria-hidden="true"><i></i></span>Loopback</a>
+  <nav class="chapters" aria-label="Chapters" id="chapters">
+    <a href="#what">Overview</a>
+    <a href="#setup">Setup</a>
+    <a href="#run">Run the demo</a>
+    <a href="#without">Without Switch</a>
+    <a href="#built">How it's built</a>
+    <a href="#proof">What's proven</a>
+  </nav>
+  <div class="top-right">
+    <a class="chip" href="#proof" title="What is real and what is simulated">SIMULATED</a>
+    <button class="mini" id="toggle" type="button" role="switch" aria-checked="true" aria-label="Switch"><span class="k"></span><span id="toggle-label">SWITCH ON</span></button>
+    <a class="btn primary small run-top" href="#run">Run the demo</a>
   </div>
-  <div class="sim" id="sim"><strong id="sim-title">Simulated rehearsal.</strong> <span id="sim-text"></span></div>
-</div>
+</header>
+<div class="sim" id="sim"><strong id="sim-title">Simulated rehearsal.</strong> <span class="long" id="sim-text"></span><span class="short" id="sim-short"></span></div>
 
-<div class="read" data-chapter="what">
-  <section>
-    <h1>AI agents fix bugs in your team chat. Nothing merges unless a person approved that exact commit.</h1>
-    <p class="lede">Loopback is a merge gate that lives in Switch rooms. Someone reports a bug in chat, one AI agent fixes it, a second checks the fix, and a maintainer approves one exact commit. If the code changes after that, the approval stops counting and the merge is refused.</p>
-    <div class="actions">
-      <a class="btn primary" href="#run">Run a bug through it</a>
-      <a class="btn" href="#without">See it stop without Switch</a>
-      <a class="btn" href="#step-late" id="jump-late">Jump to the late commit</a>
+<template id="dgm-tpl">
+  <div class="dgm">
+    <svg class="dgm-wires" aria-hidden="true"></svg>
+    <div class="dgm-agents">
+      <div class="agent" data-agent="fixer" style="--i:0"><div class="dots"><i></i><i></i><i></i></div><b><span class="pre">loopback-</span>fixer</b><span class="kind">Provider agent</span><code>$ opencode</code></div>
+      <div class="agent" data-agent="verifier" style="--i:1"><div class="dots"><i></i><i></i><i></i></div><b><span class="pre">loopback-</span>verifier</b><span class="kind">Provider agent</span><code>$ opencode</code></div>
+      <div class="agent is-gate" data-agent="gate" style="--i:2"><div class="dots"><i></i><i></i><i></i></div><b><span class="pre">loopback-</span>gate</b><span class="kind">Custom agent · Node 22</span><code class="gate-line">$ npm run gate</code></div>
     </div>
-    <p class="prose">The run takes about five minutes and needs no install. You type the same messages a real team types, and see the gate's real answers. The evidence console is the real app, and the other screens are close copies, labelled as such.</p>
+    <div class="dgm-hub">
+      <button class="knob" type="button" role="switch" aria-checked="true" aria-label="Switch"></button>
+      <div class="knob-label">SWITCH ON</div>
+    </div>
+    <div class="dgm-room">
+      <div class="members">
+        <div class="col-title">Members</div>
+        <div class="member"><span class="av">P</span><span>Puneet<small>maintainer</small></span></div>
+        <div class="member"><span class="av">M</span><span>Mallory<small>no authority</small></span></div>
+        <div class="member bot"><span class="av">F</span><span>loopback-fixer</span></div>
+        <div class="member bot"><span class="av">V</span><span>loopback-verifier</span></div>
+        <div class="member bot"><span class="av">G</span><span>loopback-gate</span></div>
+      </div>
+      <div class="chatmini">
+        <div class="chat-title"><b># loopback-maintainers</b><button class="replay" type="button">Replay ↻</button></div>
+        <div class="mposts" aria-live="polite"></div>
+      </div>
+      <div class="roomrail">
+        <div class="col-title">Room</div>
+        <div class="ritem">Case board</div>
+        <div class="ritem">Decision log</div>
+        <div class="ritem">Addressing rules</div>
+        <div class="ritem">Agent status</div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<main class="home" data-chapter="what">
+  <section class="intro" aria-labelledby="mark">
+    <div class="eyebrow">A merge gate that lives in Switch rooms</div>
+    <div class="mark-wrap" id="mark-wrap">
+      <svg class="track-svg" id="track-svg" aria-hidden="true"></svg>
+      <h1 class="mark" id="mark" aria-label="Loopback"></h1>
+      <div class="intro-knob">
+        <button class="knob" type="button" role="switch" aria-checked="true" aria-label="Switch"></button>
+        <div class="knob-label">SWITCH ON</div>
+      </div>
+    </div>
+    <p class="tagline">AI agents fix bugs in your team chat. Nothing merges unless a person approved that exact commit.</p>
+    <div class="meta">Built on Switch · Real gate code · No install</div>
+    <div class="intro-cta">
+      <a class="btn primary big" href="#run" id="run-cta">Run the demo →</a>
+      <a class="btn" href="#without">See it without Switch</a>
+    </div>
+    <button class="cue" id="cue" type="button">SEE SWITCH AT WORK<i></i></button>
   </section>
 
-  <section>
-    <h2>The problem it solves</h2>
-    <div class="scroll">
-      <table class="wide">
-        <thead><tr><th scope="col">What goes wrong today</th><th scope="col">What Loopback does</th></tr></thead>
-        <tbody>
-          <tr><td>A maintainer says "looks good", then one more commit lands before the merge.</td><td>An approval names one full commit. The gate re-reads GitHub before merging, and any new commit voids the evidence.</td></tr>
-          <tr><td>An agent says its tests passed when they never ran.</td><td>The gate trusts GitHub's CI results and a signed report tied to one run and one commit. An agent's word counts for nothing.</td></tr>
-          <tr><td>A public bug report carries instructions aimed at the agent.</td><td>No agent sees a report until a maintainer accepts it, and the report reaches the agent fenced as untrusted data.</td></tr>
-        </tbody>
-      </table>
+  <section class="hero" id="circuit">
+    <div class="hero-text">
+      <div>
+        <h2 class="hero-h"><em>Switch</em> puts AI agents in your team chat. Loopback makes sure nothing merges without a person.</h2>
+        <p class="lede" id="hero-lede"></p>
+      </div>
+      <div class="cta">
+        <a class="btn primary big" href="#run">Run the demo →</a>
+        <small>About 5 minutes. No install.</small>
+      </div>
+    </div>
+    <div id="dgm-hero"></div>
+    <div class="under">
+      <span id="hero-hint">TURN THE SWITCH OFF AND WATCH WHAT'S LEFT</span>
+      <span>TESTED ON MATTERMOST 11.9 · SWITCH 0.31</span>
+      <div class="refusal" data-refusal hidden></div>
     </div>
   </section>
 
-  <section>
-    <h2>How one bug moves through it</h2>
-    <ol class="flow">
-      <li><span class="n">1</span><b>Report</b><span class="d">Anyone, in the public room</span></li>
-      <li><span class="n">2</span><b>Accept</b><span class="d">A maintainer decides it's worth fixing</span></li>
-      <li><span class="n">3</span><b>Fix</b><span class="d">The fixer agent opens a pull request</span></li>
-      <li><span class="n">4</span><b>Verify</b><span class="d">CI runs, and the verifier agent signs a report for that commit</span></li>
-      <li><span class="n">5</span><b>Approve</b><span class="d">A maintainer names the full commit</span></li>
-      <li><span class="n">6</span><b>Merge</b><span class="d">The gate re-reads GitHub, then merges that commit</span></li>
-    </ol>
-    <p class="loopnote">If a new commit lands at any point after step 3, the case goes back to step 4. CI, the verifier and the approval all have to be earned again.</p>
-  </section>
-
-  <section>
-    <h2>Who does what</h2>
-    <div class="cast">
-      <div><b>Switch</b><span>Runs the rooms, connects people and agents, and tells the gate exactly who sent each message.</span></div>
-      <div><b>The gate</b><span>A custom Switch agent. It holds the rules and is the only thing allowed to merge.</span></div>
-      <div><b>Maintainers</b><span>People on an exact list of Switch ids. They accept, approve and merge, in chat.</span></div>
-      <div><b>Fixer agent</b><span>Reproduces the bug with a failing test, fixes it and opens a pull request.</span></div>
-      <div><b>Verifier agent</b><span>Checks the fix independently and signs its report for one commit.</span></div>
-      <div><b>GitHub</b><span>The source of truth for code. Its rules refuse any merge without the gate's own status.</span></div>
+  <section class="sect rv">
+    <div class="sect-head">
+      <div class="eyebrow">Switch does the hard part</div>
+      <h2>Eight things only Switch gives this project</h2>
+      <p>The gate holds the merge rules. Switch gives it people, agents and proof of who said what. Pick one to see what breaks without it.</p>
+    </div>
+    <div class="jobs">
+      <div class="ring" id="ring"></div>
+      <div class="detail" id="job-detail" aria-live="polite"></div>
     </div>
   </section>
 
-  <section>
-    <h2>Where to go next</h2>
-    <p class="prose">Use the chapters at the top, in any order. The button beside them turns Switch off on every chapter, so you can see what's left.</p>
+  <section class="sect rv">
+    <div class="sect-head">
+      <div class="eyebrow">The moment it exists for</div>
+      <h2>A commit lands after the approval</h2>
+      <p>Chat approvals usually mean "this pull request is fine". Here an approval names one commit, and the gate re-reads GitHub before it merges.</p>
+    </div>
+    <div class="late" id="late">
+      <div class="track" id="track"><div class="backpath"></div><div class="bead" id="bead"></div></div>
+      <div class="late-body">
+        <div class="commit">
+          <div class="eyebrow">Commit under review</div>
+          <div class="sha-big" id="late-sha"></div>
+          <div class="lights" id="lights"></div>
+        </div>
+        <p class="late-caption" id="late-caption"></p>
+      </div>
+      <div class="late-foot">
+        <button class="btn small" id="late-next" type="button">Next moment</button>
+        <a class="btn primary small" href="#step-late">Do this yourself in the demo →</a>
+      </div>
+    </div>
   </section>
-</div>
 
-<div class="work" data-chapter="setup" hidden>
+  <section class="sect rv">
+    <div class="sect-head">
+      <div class="eyebrow">Why it's needed</div>
+      <h2>Coding agents write fixes in minutes. Trusting them is the hard part.</h2>
+    </div>
+    <div class="rows3">
+      <div><b>One more commit lands after "looks good".</b><p>An approval names a full commit. Any new commit voids the evidence.</p></div>
+      <div><b>An agent says its tests passed when they never ran.</b><p>The gate trusts GitHub's CI results and a signed report tied to one run and one commit.</p></div>
+      <div><b>A public bug report carries instructions aimed at the agent.</b><p>No agent sees a report until a maintainer accepts it, and it arrives fenced as untrusted data.</p></div>
+    </div>
+  </section>
+
+  <section class="finale rv">
+    <div class="eyebrow">Your turn</div>
+    <h2>Take one bug from report to merge</h2>
+    <p class="muted" style="max-width:60ch">You type the same messages a real team types and read the gate's real answers. The evidence console is the real app. The other screens are close copies, labelled as such.</p>
+    <a class="btn primary big" href="#run">Run the demo →</a>
+    <div class="links">
+      <a class="btn small" href="#setup">See the setup</a>
+      <a class="btn small" href="#without">See it without Switch</a>
+      <a class="btn small" href="#built">How it's built</a>
+      <a class="btn small" href="#proof">What's proven</a>
+    </div>
+  </section>
+</main>
+
+<div class="work setup-work" data-chapter="setup" hidden>
   <aside class="guide">
     <div class="eyebrow">Setup: what a local install involves</div>
     <ol class="setup-list" id="setup-list"></ol>
@@ -334,178 +676,154 @@ pre.code { margin: 0; padding: 12px 14px; overflow-x: auto; background: var(--te
     <div class="nav">
       <button class="btn" id="setup-back" type="button">Back</button>
       <button class="btn" id="setup-next" type="button">Next</button>
-      <a class="btn" href="#run">Skip to the run</a>
+      <a class="btn primary" href="#run">Run the demo →</a>
     </div>
   </aside>
   <div class="space"><div class="tag" id="setup-tag"></div><div class="pane" id="setup-pane"></div></div>
 </div>
 
-<div class="work" data-chapter="run" hidden>
-  <aside class="guide" aria-label="What to do">
-    <div class="stepline"><span id="count"></span><select id="jump" aria-label="Go to a step"></select></div>
-    <div class="progress"><i id="bar"></i></div>
-    <div class="said"><span class="badge" id="point-badge" hidden>The point of Loopback</span><h2 id="title" tabindex="-1"></h2></div>
-    <div id="action"></div>
-    <div id="after" class="said" aria-live="polite"></div>
-    <div class="spacer"></div>
-    <div class="evidence" aria-label="Evidence for the current commit">
-      <div class="eyebrow">Commit under review</div>
-      <div class="sha" id="sha"></div>
-      <div id="rows" style="display:grid;gap:3px"></div>
-      <p class="voided" id="voided" hidden>New commit. All earlier evidence for this case no longer counts.</p>
+<div class="run" data-chapter="run" hidden>
+  <div class="rr" id="rr">
+    <svg class="rr-wires" aria-hidden="true"></svg>
+    <div class="rr-agents" style="grid-column:1">
+      <div class="rr-a" data-agent="fixer">fixer</div>
+      <div class="rr-a" data-agent="verifier">verifier</div>
+      <div class="rr-a" data-agent="gate">gate</div>
     </div>
-    <div class="nav">
-      <button class="btn" id="back" type="button">Back</button>
-      <button class="btn" id="play" type="button">Play the rest</button>
-      <button class="btn" id="point" type="button">Late commit</button>
+    <div class="rr-core">
+      <button class="knob sm" type="button" role="switch" aria-checked="true" aria-label="Switch"></button>
+      <div class="knob-label">SWITCH ON</div>
     </div>
-  </aside>
-  <div class="space">
-    <div class="tabs" role="tablist" aria-label="Screens" id="tabs">
-      <button role="tab" type="button" data-tab="chat">Team chat</button>
-      <button role="tab" type="button" data-tab="github">GitHub</button>
-      <button role="tab" type="button" data-tab="console">Evidence console</button>
-      <button role="tab" type="button" data-tab="switch">Switch Console</button>
-      <button role="tab" type="button" data-tab="terminal">Terminal</button>
-    </div>
-    <div class="tag" id="tag"></div>
-    <div class="pane" id="pane-chat">
-      <div class="mm">
-        <div class="mm-top"><div class="mm-search">Search</div><div class="mm-me" id="me"></div></div>
-        <div class="mm-body">
-          <nav class="mm-side" aria-label="Rooms">
-            <div class="mm-team">Acme</div>
-            <div class="mm-group">CHANNELS</div>
-            <div id="rooms" style="display:contents"></div>
-          </nav>
-          <div class="mm-main">
-            <div class="mm-head"><b id="room-name"></b><label><input type="checkbox" id="showvia" checked> <span>Show what Switch did</span></label></div>
-            <div class="mm-posts" id="posts" aria-live="polite"></div>
-            <form class="mm-compose" id="compose">
-              <div class="mm-as" id="as"></div>
-              <div class="mm-box" id="box">
-                <input id="input" autocomplete="off" aria-label="Message">
-                <button type="submit" aria-label="Send"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M2 21 23 12 2 3v7l15 2-15 2z"/></svg></button>
-              </div>
-              <div class="mm-hint" id="hint" role="status" hidden></div>
-            </form>
+    <div class="rr-room" id="rr-room">#room</div>
+    <div class="says"><div class="eyebrow">What Switch is doing</div><p id="switch-says" aria-live="polite"></p></div>
+  </div>
+  <div class="work">
+    <aside class="guide" aria-label="What to do">
+      <div class="stepline"><span id="count"></span><select id="jump" aria-label="Go to a step"></select></div>
+      <div class="ticks" id="ticks"></div>
+      <div class="said"><span class="pointbadge" id="point-badge" hidden>The point of Loopback</span><h2 id="title" tabindex="-1"></h2></div>
+      <div id="action"></div>
+      <div id="after"></div>
+      <div class="spacer"></div>
+      <div class="evidence" id="evidence" aria-label="Evidence for the current commit">
+        <div class="eyebrow">Commit under review</div>
+        <div class="sha" id="sha"></div>
+        <div id="rows"></div>
+        <p class="voided" id="voided" hidden>New commit. All earlier evidence for this case no longer counts.</p>
+      </div>
+      <div class="nav">
+        <button class="btn" id="back" type="button">Back</button>
+        <button class="btn" id="play" type="button">Play the rest</button>
+        <button class="btn" id="point" type="button">Late commit</button>
+      </div>
+    </aside>
+    <div class="space">
+      <div class="tabs" role="tablist" aria-label="Screens" id="tabs">
+        <button role="tab" type="button" data-tab="chat">Team chat</button>
+        <button role="tab" type="button" data-tab="github">GitHub</button>
+        <button role="tab" type="button" data-tab="console">Evidence console</button>
+        <button role="tab" type="button" data-tab="switch">Switch Console</button>
+        <button role="tab" type="button" data-tab="terminal">Terminal</button>
+      </div>
+      <div class="tag" id="tag"></div>
+      <div class="pane" id="pane-chat">
+        <div class="mm">
+          <div class="mm-top"><div class="mm-search">Search</div><div class="mm-me" id="me"></div></div>
+          <div class="mm-body">
+            <nav class="mm-side" aria-label="Rooms">
+              <div class="mm-team">Acme</div>
+              <div class="mm-group">CHANNELS</div>
+              <div id="rooms" style="display:contents"></div>
+            </nav>
+            <div class="mm-main">
+              <div class="mm-head"><b id="room-name"></b><label><input type="checkbox" id="showvia" checked> <span>Show what Switch did</span></label></div>
+              <div class="mm-posts" id="posts" aria-live="polite"></div>
+              <form class="mm-compose" id="compose">
+                <div class="mm-as" id="as"></div>
+                <div class="mm-box" id="box">
+                  <input id="input" autocomplete="off" aria-label="Message">
+                  <button type="submit" aria-label="Send"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M2 21 23 12 2 3v7l15 2-15 2z"/></svg></button>
+                </div>
+                <div class="mm-hint" id="hint" role="status" hidden></div>
+              </form>
+            </div>
           </div>
         </div>
       </div>
+      <div class="pane" id="pane-github" hidden></div>
+      <div class="pane" id="pane-console" hidden></div>
+      <div class="pane" id="pane-switch" hidden></div>
+      <div class="pane" id="pane-terminal" hidden><div class="term" id="term" tabindex="0"></div></div>
     </div>
-    <div class="pane" id="pane-github" hidden></div>
-    <div class="pane" id="pane-console" hidden></div>
-    <div class="pane" id="pane-switch" hidden></div>
-    <div class="pane" id="pane-terminal" hidden><div class="term" id="term" tabindex="0"></div></div>
   </div>
+  <div class="mbar" id="mbar"><span id="mbar-text"></span><button class="btn primary small" id="mbar-go" type="button"></button></div>
 </div>
 
 <div class="read" data-chapter="without" hidden>
   <section>
-    <h1 style="font-size:clamp(24px,3.4vw,34px)">Why it stops working without Switch</h1>
-    <p class="lede">Every person, agent and permission in Loopback reaches the gate through Switch. Turn it off and follow the path.</p>
-    <div class="actions">
-      <button class="btn primary" id="toggle2" type="button"></button>
-      <a class="btn" href="#run" id="try-off">Try the run in this state</a>
-    </div>
+    <div class="eyebrow">The test judges care about</div>
+    <h1>Why it stops working without Switch</h1>
+    <p class="prose" style="font-size:16px">Every person, agent and permission in Loopback reaches the gate through Switch. Press the button in the middle and follow the wires.</p>
   </section>
-  <section>
-    <div class="path" id="path">
-      <div class="node"><b>People in chat</b><span>Report, accept, approve, merge</span></div>
-      <div class="node hub"><b>Switch rooms</b><span>Delivery, sender identity, addressing rules</span></div>
-      <div class="node"><b>The gate</b><span>Rules, audit log, merge</span></div>
-      <div class="node"><b>Fixer and verifier</b><span>Tasked only by Switch message</span></div>
-      <div class="node"><b>GitHub merge</b><span>Needs the gate's status</span></div>
-    </div>
+  <section><div id="dgm-without"></div></section>
+  <section class="actions">
+    <button class="btn" id="toggle2" type="button"></button>
+    <a class="btn primary" href="#run" id="try-off">Try the run in this state →</a>
   </section>
-  <section class="refusal" id="refusal" hidden>
-    <div class="eyebrow">What the real gate prints when it can't reach Switch</div>
-    <pre>Refusing to start: the gate's Switch addressing policy is not the expected one (could not read the policy (TypeError)).</pre>
+  <section id="refusal" hidden>
+    <div class="eyebrow" style="color:var(--bad)">What the real gate prints when it can't reach Switch</div>
+    <div class="refusal" data-refusal></div>
   </section>
   <section>
     <h2>What each part of Switch does here</h2>
-    <div class="scroll">
-      <table class="wide">
-        <thead><tr><th scope="col">What Switch provides</th><th scope="col">What Loopback does with it</th><th scope="col">Without it</th></tr></thead>
-        <tbody>
-          <tr><td>Rooms on a chat app</td><td>A public room for reports, and a maintainers' room where people and agents work</td><td>Nobody can report, accept, approve or merge. The gate has no other way to hear a person</td></tr>
-          <tr><td>The agent connection</td><td>The gate receives every command over its connection to each room</td><td>Nothing reaches the gate</td></tr>
-          <tr><td>Agents in the room</td><td>The gate tasks the fixer and verifier with a message everyone can see</td><td>The gate can't reach its agents, so no fix is written or checked</td></tr>
-          <tr><td>Who sent it</td><td>An approval only counts from an exact Switch participant id on the maintainers' list</td><td>Nothing can tell a maintainer from anyone typing their name</td></tr>
-          <tr><td>Addressing rules</td><td>The gate checks its rules at startup and every minute, and stops if they change</td><td>The gate refuses to start</td></tr>
-          <tr><td>Room documents</td><td>A case board and decision log that every person and agent reads</td><td>The team needs a separate tool to see where work stands</td></tr>
-          <tr><td>Room status</td><td><code>team</code> shows whether each agent is really connected, and the gate warns when it tasks one that isn't</td><td>A task to an absent agent waits in silence</td></tr>
-          <tr><td>Templates</td><td>One file creates both agents and both rooms</td><td>Each room and agent is set up by hand</td></tr>
-        </tbody>
-      </table>
-    </div>
+    <div class="scroll"><table class="wide"><thead><tr><th scope="col">What Switch provides</th><th scope="col">What Loopback does with it</th><th scope="col">Without it</th></tr></thead><tbody id="jobs-table"></tbody></table></div>
   </section>
-  <section>
-    <p class="prose">GitHub is the source of truth for code. Switch is the source of truth for who said what, and where. The button on this page doesn't stop a server, because nothing here is running. It shows what you would see, and the refusal above is the gate's own wording, from starting it with Switch unreachable.</p>
-  </section>
+  <section><p class="prose">GitHub is the source of truth for code. Switch is the source of truth for who said what, and where. The button on this page doesn't stop a server, because nothing here is running. It shows what you would see, and the refusal above is the gate's own wording, from starting it with Switch unreachable.</p></section>
 </div>
 
 <div class="read" data-chapter="built" hidden>
   <section>
-    <h1 style="font-size:clamp(24px,3.4vw,34px)">How it's built</h1>
-    <p class="lede">A Node 22 and TypeScript service connects to Switch as an agent, keeps its state and audit log in SQLite, and is the only identity allowed to merge on GitHub.</p>
+    <div class="eyebrow">Implementation</div>
+    <h1>How it's built</h1>
+    <p class="prose" style="font-size:16px">A Node 22 and TypeScript service connects to Switch as an agent, keeps its state and audit log in SQLite, and is the only identity allowed to merge on GitHub.</p>
   </section>
   <section>
     <h2>The parts, and where they are</h2>
-    <div class="scroll">
-      <table class="wide">
-        <thead><tr><th scope="col">Part</th><th scope="col">What it does</th><th scope="col">Code</th></tr></thead>
-        <tbody id="parts"></tbody>
-      </table>
-    </div>
+    <div class="scroll"><table class="wide"><thead><tr><th scope="col">Part</th><th scope="col">What it does</th><th scope="col">Code</th></tr></thead><tbody id="parts"></tbody></table></div>
   </section>
   <section><h2>Real code from the gate</h2><p class="prose">These excerpts are cut from the source each time this page is built.</p><div id="excerpts" style="display:grid;gap:18px"></div></section>
   <section>
     <h2>How this page works</h2>
-    <div class="scroll">
-      <table class="wide">
-        <thead><tr><th scope="col">On this page</th><th scope="col">How it's made</th></tr></thead>
-        <tbody>
-          <tr><td>Chat replies from the gate</td><td>Recorded from the gate's real router, permissions, state machine and merge policy (<code>apps/switch-gate/src/demo/rehearsal.ts</code>), which check 16 outcomes as they run.</td></tr>
-          <tr><td>Evidence console</td><td>The real React app from <code>apps/console</code>. It reads responses recorded from the real API in <code>apps/console-api</code>, taken at each step of that run. Its settings panel is filled in from the rehearsal's own settings, because the API doesn't serve them yet.</td></tr>
-          <tr><td>Terminal</td><td>What <code>npm run demo</code> printed during that run. Setup commands come from <code>docs/setup.md</code>.</td></tr>
-          <tr><td>Team chat layout</td><td>Rebuilt from a running Mattermost 11.9. It's a copy of the layout, and only the recorded messages get answers.</td></tr>
-          <tr><td>Switch Console screens</td><td>Illustrations unless marked as screenshots. Field labels come from the real template file.</td></tr>
-          <tr><td>The Switch button</td><td>Switches this page to what happens with no Switch: messages aren't delivered, no step can run, and the console shows no case. The refusal text is the gate's real wording, and a test fails if it changes in the code.</td></tr>
-          <tr><td>The build</td><td><code>npm run demo:page</code> (<code>scripts/build-demo-page.mjs</code>). It writes nothing if the rehearsal fails.</td></tr>
-        </tbody>
-      </table>
-    </div>
+    <div class="scroll"><table class="wide"><thead><tr><th scope="col">On this page</th><th scope="col">How it's made</th></tr></thead><tbody>
+      <tr><td>Chat replies from the gate</td><td>Recorded from the gate's real router, permissions, state machine and merge policy (<code>apps/switch-gate/src/demo/rehearsal.ts</code>), which check 16 outcomes as they run.</td></tr>
+      <tr><td>Evidence console</td><td>The real React app from <code>apps/console</code>. It reads responses recorded from the real API in <code>apps/console-api</code>, taken at each step of that run. Its settings panel is filled in from the rehearsal's own settings, because the API doesn't serve them yet.</td></tr>
+      <tr><td>Terminal</td><td>What <code>npm run demo</code> printed during that run. Setup commands come from <code>docs/setup.md</code>.</td></tr>
+      <tr><td>Team chat layout</td><td>Rebuilt from a running Mattermost 11.9. It's a copy of the layout, and only the recorded messages get answers.</td></tr>
+      <tr><td>Switch Console screens</td><td>Illustrations unless marked as screenshots. Field labels come from the real template file.</td></tr>
+      <tr><td>The Switch button</td><td>Switches this page to what happens with no Switch: messages aren't delivered, no step can run, and the console shows no case. The refusal text is the gate's real wording, and a test fails if it changes in the code.</td></tr>
+      <tr><td>The build</td><td><code>npm run demo:page</code> (<code>scripts/build-demo-page.mjs</code>). It writes nothing if the rehearsal fails.</td></tr>
+    </tbody></table></div>
   </section>
 </div>
 
 <div class="read" data-chapter="proof" hidden>
   <section>
-    <h1 style="font-size:clamp(24px,3.4vw,34px)">What's proven, and what isn't</h1>
-    <p class="lede" id="outcomes"></p>
+    <div class="eyebrow">Evidence</div>
+    <h1>What's proven, and what isn't</h1>
+    <p class="prose" style="font-size:16px" id="outcomes"></p>
   </section>
   <section>
     <h2>On this page</h2>
-    <div class="scroll">
-      <table class="wide">
-        <thead><tr><th scope="col">Real</th><th scope="col">Simulated</th></tr></thead>
-        <tbody><tr><td>The gate's commands, permissions, state machine, merge policy, audit log and signatures. The evidence console and its API.</td><td>Switch's delivery, GitHub, the two agents' work, the people, and the moving clock.</td></tr></tbody>
-      </table>
-    </div>
+    <div class="scroll"><table class="wide"><thead><tr><th scope="col">Real</th><th scope="col">Simulated</th></tr></thead><tbody><tr><td>The gate's commands, permissions, state machine, merge policy, audit log and signatures. The evidence console and its API.</td><td>Switch's delivery, GitHub, the two agents' work, the people, and the moving clock.</td></tr></tbody></table></div>
   </section>
   <section>
     <h2>Proven live, on Switch, Mattermost and GitHub</h2>
-    <div class="scroll">
-      <table class="wide">
-        <thead><tr><th scope="col">Claim</th><th scope="col">Evidence</th></tr></thead>
-        <tbody>
-          <tr><td>A real bug went from a chat report to a merge by the gate</td><td><a href="https://github.com/puneetnith28/loopback-demo-target/pull/3">Merged pull request</a> and <a href="https://github.com/puneetnith28/loopback-demo-target/issues/1">the bug it fixed</a></td></tr>
-          <tr><td>GitHub refuses a merge without the gate's own status, even from the maintainer's account with green CI</td><td><a href="https://github.com/puneetnith28/Loopback/blob/main/docs/evidence/phase-06-ruleset-proof.md">Ruleset proof</a></td></tr>
-          <tr><td>A wrong-commit approval, and a merge while merging was disabled, were refused live</td><td><a href="https://github.com/puneetnith28/Loopback/blob/main/docs/evidence/phase-08-day2.md">Live run evidence</a></td></tr>
-          <tr><td>The Switch template is valid</td><td>The live Switch 0.31 server accepted it with no warnings</td></tr>
-        </tbody>
-      </table>
-    </div>
+    <div class="scroll"><table class="wide"><thead><tr><th scope="col">Claim</th><th scope="col">Evidence</th></tr></thead><tbody>
+      <tr><td>A real bug went from a chat report to a merge by the gate</td><td><a href="https://github.com/puneetnith28/loopback-demo-target/pull/3">Merged pull request</a> and <a href="https://github.com/puneetnith28/loopback-demo-target/issues/1">the bug it fixed</a></td></tr>
+      <tr><td>GitHub refuses a merge without the gate's own status, even from the maintainer's account with green CI</td><td><a href="https://github.com/puneetnith28/Loopback/blob/main/docs/evidence/phase-06-ruleset-proof.md">Ruleset proof</a></td></tr>
+      <tr><td>A wrong-commit approval, and a merge while merging was disabled, were refused live</td><td><a href="https://github.com/puneetnith28/Loopback/blob/main/docs/evidence/phase-08-day2.md">Live run evidence</a></td></tr>
+      <tr><td>The Switch template is valid</td><td>The live Switch 0.31 server accepted it with no warnings</td></tr>
+    </tbody></table></div>
     <a id="video" class="btn primary" href="#" hidden style="justify-self:start">Watch the demo video</a>
   </section>
   <section>
@@ -537,13 +855,27 @@ npm run demo</pre>
   var data = JSON.parse(document.getElementById("data").textContent);
   var steps = data.steps, scenes = data.scenes, guide = data.guide;
   var $ = function (id) { return document.getElementById(id); };
+  var all = function (sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); };
   var el = function (tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text !== undefined) n.textContent = text; return n; };
+  var SVG = "http://www.w3.org/2000/svg";
+  var svgEl = function (tag, cls) { var n = document.createElementNS(SVG, tag); if (cls) n.setAttribute("class", cls); return n; };
+  var calm = !!(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches);
   var REFUSAL = "Refusing to start: the gate's Switch addressing policy is not the expected one (could not read the policy (TypeError)).";
   var CHAPTERS = ["what", "setup", "run", "without", "built", "proof"];
   var ROOMS = ["loopback-intake", "loopback-maintainers"];
-  var PEOPLE = { "Sam (contributor)": "#2f8f83", "Priya (maintainer)": "#a2438f", "Mallory (not a maintainer)": "#b4632a", "loopback-fixer (agent)": "#6b3fa0", "loopback-verifier (agent)": "#3b6fb5", "loopback-gate": "#0b6f76" };
+  var PEOPLE = { "Prashant (contributor)": "#2f8f83", "Puneet (maintainer)": "#a2438f", "Mallory (not a maintainer)": "#b4632a", "loopback-fixer (agent)": "#6b3fa0", "loopback-verifier (agent)": "#3b6fb5", "loopback-gate": "#0b6f76" };
+  var JOBS = [
+    { name: "Rooms", hint: "on a chat app", does: "A public room for reports, and a maintainers' room where people and agents work.", without: "Nobody can report, accept, approve or merge. The gate has no other way to hear a person." },
+    { name: "Agent connection", hint: "WebSocket protocol", does: "The gate receives every command over its connection to each room.", without: "Nothing reaches the gate." },
+    { name: "Agents in the room", hint: "fixer and verifier", does: "The gate tasks the fixer and verifier with a message everyone can see.", without: "The gate can't reach its agents, so no fix is written or checked." },
+    { name: "Who sent it", hint: "exact sender id", does: "An approval only counts from an exact Switch participant id on the maintainers' list.", without: "Nothing can tell a maintainer from anyone typing their name." },
+    { name: "Addressing rules", hint: "checked every minute", does: "The gate checks its rules at startup and every minute, and stops if they change.", without: "The gate refuses to start." },
+    { name: "Room documents", hint: "board and log", does: "A case board and decision log that every person and agent reads.", without: "The team needs a separate tool to see where work stands." },
+    { name: "Room status", hint: "who's really there", does: "`team` shows whether each agent is really connected, and the gate warns when it tasks one that isn't.", without: "A task to an absent agent waits in silence." },
+    { name: "Templates", hint: "one file", does: "One file creates both agents and both rooms.", without: "Each room and agent is set up by hand." },
+  ];
 
-  var S = { chapter: "what", i: 0, done: false, on: true, tab: "chat", room: ROOMS[0], fresh: false, setup: 0, setupDone: false, sc: "home", tpl: 0, undelivered: [], timer: null, seen: {}, route: null };
+  var S = { chapter: "what", i: 0, done: false, on: true, tab: "chat", room: ROOMS[0], fresh: false, setup: 0, setupDone: false, sc: "home", tpl: 0, undelivered: [], timer: null, seen: {}, route: null, job: 0, jobAuto: true };
   var POINT = steps.findIndex(function (s) { return scenes[s.scene].title.indexOf("THE POINT") === 0 && s.kind === "person"; });
 
   // ---- Text helpers ----
@@ -570,7 +902,242 @@ npm run demo</pre>
     return wrap;
   }
 
-  /** What Switch did for this message, in a line under it. */
+  // ---- Wires: curves drawn between real element positions, so they fit any screen ----
+  function curve(box, a, b, vertical) {
+    var ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect();
+    if (vertical) {
+      var x1 = ra.left + ra.width / 2 - box.left, y1 = ra.bottom - box.top, x2 = rb.left + rb.width / 2 - box.left, y2 = rb.top - box.top, my = (y1 + y2) / 2;
+      return "M" + x1 + " " + y1 + " C" + x1 + " " + my + " " + x2 + " " + my + " " + x2 + " " + y2;
+    }
+    var hx1 = ra.right - box.left, hy1 = ra.top + ra.height / 2 - box.top, hx2 = rb.left - box.left, hy2 = rb.top + rb.height / 2 - box.top, mx = (hx1 + hx2) / 2;
+    return "M" + hx1 + " " + hy1 + " C" + mx + " " + hy1 + " " + mx + " " + hy2 + " " + hx2 + " " + hy2;
+  }
+  /** Draw the wires into an svg. Each wire: {key, from, to, reverse}. Keeps one looping pulse and one on-demand pulse each. */
+  function drawWires(svg, wires, vertical, loop) {
+    var box = svg.getBoundingClientRect();
+    if (box.width === 0) return;
+    svg.replaceChildren();
+    wires.forEach(function (w, n) {
+      var d = curve(box, w.from, w.to, vertical);
+      var base = svgEl("path", "w-base" + (w.cls ? " " + w.cls : "")); base.setAttribute("d", d); base.setAttribute("pathLength", "100");
+      if (w.key) base.setAttribute("data-base", w.key);
+      svg.append(base);
+      if (loop) {
+        var flow = svgEl("path", "w-flow"); flow.setAttribute("d", d); flow.setAttribute("pathLength", "100");
+        flow.style.animationDelay = (n * 0.55) + "s";
+        svg.append(flow);
+      }
+      var one = svgEl("path", "w-one"); one.setAttribute("d", d); one.setAttribute("pathLength", "100"); one.setAttribute("data-wire", w.key || "");
+      svg.append(one);
+    });
+  }
+  function fire(svg, key, opts) {
+    opts = opts || {};
+    var p = svg.querySelector('[data-wire="' + key + '"]');
+    if (!p || calm || !S.on || !p.animate) return;
+    p.classList.toggle("alarm", !!opts.alarm);
+    var from = opts.reverse ? -100 : 9, to = opts.reverse ? 9 : -100;
+    p.animate([{ strokeDashoffset: from, opacity: 1 }, { strokeDashoffset: to, opacity: 1 }], { duration: opts.ms || 520, delay: opts.delay || 0, easing: "ease-in-out" });
+  }
+
+  // ---- The circuit (hero and Without Switch) ----
+  var circuits = [];
+  function feedFromRecording() {
+    var at = steps[POINT], before = steps[POINT - 2];
+    var cut = function (t) { return t.split("\n")[0].replace(/([0-9a-f]{12})[0-9a-f]{28}/g, "$1…").replace(/ by @\S+/, ""); };
+    var feed = [];
+    var approved = before && before.replies[0];
+    if (approved) feed.push({ who: "loopback-gate", bot: true, wire: "gate", text: cut(approved.text) });
+    var gh = steps[POINT - 1];
+    if (gh && gh.kind === "github") feed.push({ event: "On GitHub (simulated): " + gh.text });
+    feed.push({ who: shortName(at.who), text: at.text, wire: "room", reverse: true });
+    at.replies.forEach(function (r) { feed.push({ who: "loopback-gate", bot: true, wire: "gate", block: r.refused, text: cut(r.text) }); });
+    return feed;
+  }
+  var FEED = feedFromRecording();
+  function feedNode(m) {
+    if (m.event) return el("div", "mevent", m.event);
+    var p = el("article", "mpost" + (m.block ? " block" : ""));
+    var body = el("div"), h = el("div", "h"), t = el("p");
+    h.append(m.who);
+    if (m.bot) h.append(el("span", "badge-agent", "AGENT"));
+    m.text.split(/(@loopback-[a-z]+)/).forEach(function (bit, i) { t.append(i % 2 ? el("span", "at", bit) : bit); });
+    body.append(h, t);
+    p.append(el("span", "av", m.who.replace("loopback-", "").charAt(0).toUpperCase()), body);
+    return p;
+  }
+  function makeCircuit(host) {
+    host.append($("dgm-tpl").content.cloneNode(true));
+    var root = host.querySelector(".dgm");
+    var c = { root: root, svg: root.querySelector(".dgm-wires"), posts: root.querySelector(".mposts"), knob: root.querySelector(".knob"), label: root.querySelector(".knob-label"), gate: root.querySelector(".gate-line"), timers: [] };
+    c.draw = function () {
+      var w = root.clientWidth;
+      if (w === 0) return;
+      var vertical = w < 820;
+      root.classList.toggle("vertical", vertical);
+      var ag = function (k) { return root.querySelector('[data-agent="' + k + '"]'); };
+      var hub = c.knob, room = root.querySelector(".dgm-room");
+      drawWires(c.svg, [
+        { key: "fixer", from: ag("fixer"), to: hub }, { key: "verifier", from: ag("verifier"), to: hub }, { key: "gate", from: ag("gate"), to: hub }, { key: "room", from: hub, to: room },
+      ], vertical, true);
+    };
+    c.clear = function () { c.timers.forEach(clearTimeout); c.timers = []; };
+    c.showAll = function () { c.clear(); c.posts.replaceChildren.apply(c.posts, FEED.map(feedNode)); };
+    c.replay = function () {
+      c.clear();
+      if (calm) { c.showAll(); return; }
+      c.posts.replaceChildren();
+      FEED.forEach(function (m, i) {
+        c.timers.push(setTimeout(function () {
+          c.posts.append(feedNode(m));
+          if (m.wire === "gate") { fire(c.svg, "gate"); fire(c.svg, "room", { delay: 430 }); }
+          if (m.wire === "room") { fire(c.svg, "room", { reverse: true }); fire(c.svg, "gate", { reverse: true, delay: 430 }); }
+        }, 200 + i * 620));
+      });
+    };
+    c.knob.addEventListener("click", function () { setSwitch(!S.on, c.knob); });
+    root.querySelector(".replay").addEventListener("click", c.replay);
+    circuits.push(c);
+    return c;
+  }
+  var heroCircuit = makeCircuit($("dgm-hero"));
+  var withoutCircuit = makeCircuit($("dgm-without"));
+
+  // ---- Eight jobs around Switch ----
+  function buildRing() {
+    var ring = $("ring");
+    var wires = svgEl("svg", "jobs-wires"); wires.setAttribute("aria-hidden", "true"); ring.append(wires);
+    JOBS.forEach(function (j, n) {
+      if (n === 4) {
+        var core = el("div", "ring-core");
+        var k = el("button", "knob"); k.type = "button"; k.setAttribute("role", "switch"); k.setAttribute("aria-checked", "true"); k.setAttribute("aria-label", "Switch");
+        k.addEventListener("click", function () { setSwitch(!S.on, k); });
+        core.append(k, el("div", "knob-label", "SWITCH ON"));
+        ring.append(core);
+      }
+      var b = el("button", "job"); b.type = "button"; b.dataset.job = String(n);
+      b.append(j.name, el("span", null, j.hint));
+      b.addEventListener("click", function () { S.jobAuto = false; pickJob(n); });
+      b.addEventListener("mouseenter", function () { S.jobAuto = false; pickJob(n); });
+      ring.append(b);
+      var tr = el("tr"), d1 = el("td");
+      richInto(d1, j.does);
+      tr.append(el("td", null, j.name + ", " + j.hint), d1, el("td", null, j.without));
+      $("jobs-table").append(tr);
+    });
+  }
+  function drawRing() {
+    var ring = $("ring"), svg = ring.querySelector(".jobs-wires");
+    if (!ring.clientWidth || ring.clientWidth < 400) return;
+    var core = ring.querySelector(".knob");
+    var box = svg.getBoundingClientRect();
+    svg.replaceChildren();
+    all(".job", ring).forEach(function (b) {
+      var ra = b.getBoundingClientRect(), rc = core.getBoundingClientRect();
+      var ax = ra.left + ra.width / 2 - box.left, ay = ra.top + ra.height / 2 - box.top, cx = rc.left + rc.width / 2 - box.left, cy = rc.top + rc.height / 2 - box.top;
+      var d = "M" + cx + " " + cy + " C" + ((ax + cx) / 2) + " " + cy + " " + ((ax + cx) / 2) + " " + ay + " " + ax + " " + ay;
+      var base = svgEl("path", "w-base"); base.setAttribute("d", d); base.setAttribute("pathLength", "100"); base.setAttribute("data-job-base", b.dataset.job);
+      var one = svgEl("path", "w-one"); one.setAttribute("d", d); one.setAttribute("pathLength", "100"); one.setAttribute("data-wire", "job" + b.dataset.job);
+      svg.append(base, one);
+    });
+    markJob();
+  }
+  function markJob() {
+    all(".job").forEach(function (b) { b.setAttribute("aria-pressed", String(Number(b.dataset.job) === S.job)); });
+    all("[data-job-base]").forEach(function (p) { p.classList.toggle("on", Number(p.getAttribute("data-job-base")) === S.job); });
+  }
+  function pickJob(n) {
+    var changed = n !== S.job;
+    S.job = n;
+    markJob();
+    renderJob();
+    var svg = $("ring").querySelector(".jobs-wires");
+    if (changed && svg) fire(svg, "job" + n, { ms: 500 });
+  }
+  function renderJob() {
+    var j = JOBS[S.job], box = $("job-detail");
+    box.replaceChildren();
+    box.append(el("h3", null, j.name));
+    if (S.on) {
+      var a = el("div", "pair"); a.append(el("div", "eyebrow", "What Loopback does with it"), richInto(el("p"), j.does)); box.append(a);
+    }
+    var b = el("div", "pair gone"); b.append(el("div", "eyebrow", S.on ? "Without it" : "Right now, with Switch off"), el("p", null, j.without)); box.append(b);
+  }
+
+  // ---- The late commit, as a motion graphic ----
+  var STATIONS = ["Report", "Accept", "Fix", "Verify", "Approve", "Merge"];
+  var A = "a1f4c2e9d07b", B = "c7d92e41b6a0";
+  var LATE = [
+    { at: 0, sha: "No commit yet", lit: 0, text: "Prashant reports a bug in the public room. Switch delivers it to the gate, and no agent starts." },
+    { at: 1, sha: "No commit yet", lit: 0, text: "Puneet accepts it in the maintainers' room. Switch tells the gate who really sent it." },
+    { at: 2, sha: A, lit: 0, text: "The gate tasks the fixer through Switch. A pull request appears, and the gate records its commit from GitHub." },
+    { at: 3, sha: A, lit: 2, text: "CI passes. The verifier signs a report for exactly this commit." },
+    { at: 4, sha: A, lit: 3, text: "Puneet approves this commit by its full id. The evidence is complete." },
+    { at: 5, sha: B, lit: 3, alarm: true, stale: true, text: "A new commit lands, then someone says merge. The gate re-reads GitHub and refuses." },
+    { at: 3, sha: B, lit: 0, back: true, alarm: true, text: "The old evidence is thrown away. Back to Verify, for the new commit." },
+    { at: 3, sha: B, lit: 2, text: "CI and the verifier run again, on the new commit only." },
+    { at: 4, sha: B, lit: 3, text: "Puneet approves the new commit." },
+    { at: 5, sha: B, lit: 3, won: true, text: "The gate checks everything one last time and merges that exact commit. Nothing else gets through." },
+  ];
+  var lateAt = 0, lateTimer = null, lateVisible = false;
+  function buildLate() {
+    var track = $("track");
+    STATIONS.forEach(function (n) { track.append(el("div", "station", n)); });
+    ["CI", "Verifier", "Approval"].forEach(function (n) { $("lights").append(el("span", "light", n)); });
+    $("late-next").addEventListener("click", function () { stopLate(); showLate(lateAt + 1); });
+    if ("IntersectionObserver" in window) {
+      new IntersectionObserver(function (es) { lateVisible = es[0].isIntersecting; if (lateVisible) startLate(); else stopLate(); }, { threshold: .3 }).observe($("late"));
+    }
+  }
+  function showLate(n) {
+    lateAt = (n + LATE.length) % LATE.length;
+    var m = S.on ? LATE[lateAt] : { at: 0, sha: "No commit yet", lit: 0, text: "With Switch off, the report never reaches the gate. Nothing moves." };
+    var late = $("late");
+    late.classList.toggle("alarm", !!m.alarm);
+    late.classList.toggle("back", !!m.back);
+    late.classList.toggle("won", !!m.won);
+    $("bead").style.left = "calc(100% / 12 * " + (m.at * 2 + 1) + ")";
+    all(".station", $("track")).forEach(function (s, i) { s.classList.toggle("past", i < m.at || (m.won && i === m.at)); s.classList.toggle("now", i === m.at && !m.won); });
+    $("late-sha").textContent = m.sha;
+    all(".light", $("lights")).forEach(function (l, i) { l.classList.toggle("lit", i < m.lit && !m.stale); });
+    var cap = $("late-caption");
+    var fresh = cap.cloneNode(false); fresh.textContent = m.text; cap.replaceWith(fresh);
+    $("late-next").disabled = !S.on;
+  }
+  function startLate() {
+    if (lateTimer !== null || calm || !S.on || S.chapter !== "what") return;
+    lateTimer = setInterval(function () { showLate(lateAt + 1); }, 2700);
+  }
+  function stopLate() { if (lateTimer !== null) { clearInterval(lateTimer); lateTimer = null; } }
+
+  // ---- Signals on the background grid. They stop when Switch stops. ----
+  var cv = $("signals"), ctx = cv.getContext && cv.getContext("2d"), sparks = [], raf = null;
+  function fit() { cv.width = innerWidth; cv.height = innerHeight; }
+  function spark() {
+    var G = 64, ox = (innerWidth / 2) % G, across = Math.random() < .5;
+    var line = across ? Math.floor(Math.random() * (innerHeight / G)) * G : Math.floor(Math.random() * (innerWidth / G)) * G + ox;
+    return { across: across, line: line, p: -80, speed: 1.2 + Math.random() * 1.6, len: 50 + Math.random() * 70 };
+  }
+  function frame() {
+    raf = null;
+    if (!ctx || calm) return;
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    if (S.on && sparks.length < 9 && Math.random() < .03) sparks.push(spark());
+    sparks = sparks.filter(function (s) { return s.p - s.len < (s.across ? innerWidth : innerHeight); });
+    sparks.forEach(function (s) {
+      s.p += s.speed;
+      var x1 = s.across ? s.p - s.len : s.line + .5, y1 = s.across ? s.line + .5 : s.p - s.len, x2 = s.across ? s.p : s.line + .5, y2 = s.across ? s.line + .5 : s.p;
+      var g = ctx.createLinearGradient(x1, y1, x2, y2);
+      g.addColorStop(0, "rgba(143,208,208,0)"); g.addColorStop(1, "rgba(143,208,208,.32)");
+      ctx.strokeStyle = g; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    });
+    if (S.chapter !== "run" && S.chapter !== "setup") raf = requestAnimationFrame(frame);
+    else ctx.clearRect(0, 0, cv.width, cv.height);
+  }
+  function wakeSignals() { if (raf === null && !calm && ctx && S.chapter !== "run" && S.chapter !== "setup") raf = requestAnimationFrame(frame); }
+  fit();
+
+  // ---- What Switch did, for a message ----
   function viaSwitch(kind, text, room, senderId) {
     if (kind === "gate") {
       var agent = /^@(loopback-fixer|loopback-verifier)\b/.exec(text);
@@ -578,10 +1145,25 @@ npm run demo</pre>
     }
     return "Through Switch: delivered to the gate, addressed to it, from sender id " + String(senderId || "").replace(/^@/, "") + ".";
   }
+  function switchSays() {
+    if (!S.on) return "Off. No rooms, no agents and no delivery. The gate refuses to start.";
+    var s = steps[S.i];
+    if (!S.done) {
+      if (s.kind === "person") return "Waiting in #" + s.room + ". It will deliver your message to the gate, with your exact sender id.";
+      if (s.kind === "agent") return s.who.replace(" (agent)", "") + " is about to post. It will tell the gate exactly which agent this is.";
+      if (s.kind === "github") return "Watching. GitHub events don't pass through Switch, but the gate's reply to them will.";
+      return "It holds the gate's documents in the room.";
+    }
+    if (s.kind === "person") return "Delivered to the gate from " + s.senderId.replace(/^@/, "") + ". " + (s.replies.length ? "It carried the gate's reply back to the room." : "");
+    if (s.kind === "agent") return "Delivered from " + s.senderId.replace(/^@/, "") + ", so the gate knows which agent spoke. " + (s.replies.length ? "It carried the gate's reply back." : "");
+    if (s.kind === "github") return s.replies.length ? "The gate read GitHub itself, then used Switch to tell the room and task the verifier." : "Nothing to carry yet. The gate acts on this when someone next asks.";
+    return "Holding the gate's board and log as room documents. Only the gate can rewrite them.";
+  }
 
   function post(j, who, kind, text, room, opts) {
     opts = opts || {};
     var p = el("article", "post" + (opts.refused ? " refused" : "") + (opts.undelivered ? " undelivered" : "") + (opts.fresh ? " fresh" : ""));
+    if (opts.fresh) p.style.setProperty("--i", String(opts.order || 0));
     var av = el("div", "av", shortName(who).replace(/^loopback-/, "").charAt(0).toUpperCase());
     av.style.background = PEOPLE[who] || "#52626f";
     var main = el("div"), h = el("div", "h");
@@ -599,17 +1181,23 @@ npm run demo</pre>
   function reached(j) { return j < S.i || (j === S.i && S.done); }
   function stateNow() {
     var st = null, prev = null;
-    for (var j = 0; j < steps.length && reached(j); j++) { if (steps[j].state) { prev = st; st = steps[j].state; } }
+    for (var j = 0; j < steps.length && reached(j); j++) { if (steps[j].state) { if (!st || st.commit !== steps[j].state.commit || st.approvals !== steps[j].state.approvals || st.state !== steps[j].state.state) prev = st; st = steps[j].state; } }
     return { st: st, prev: prev };
   }
   function postsFor(room) {
-    var out = [];
+    var out = [], order = 0;
     steps.forEach(function (s, j) {
       if (!reached(j)) return;
       var isNew = S.fresh && j === S.i;
-      if (s.room === room && (s.kind === "person" || s.kind === "agent")) out.push(post(j, s.who, s.kind, s.text, room, { senderId: s.senderId, fresh: isNew }));
-      s.replies.forEach(function (r) { if (r.room === room) out.push(post(j, "loopback-gate", "gate", r.text, room, { refused: r.refused, fresh: isNew })); });
+      if (s.room === room && (s.kind === "person" || s.kind === "agent")) { out.push(post(j, s.who, s.kind, s.text, room, { senderId: s.senderId, fresh: isNew, order: order })); if (isNew) order++; }
+      s.replies.forEach(function (r) { if (r.room === room) { out.push(post(j, "loopback-gate", "gate", r.text, room, { refused: r.refused, fresh: isNew, order: order })); if (isNew) order++; } });
     });
+    if (S.fresh && order > 1 && !calm) {
+      var t = el("div", "typing");
+      t.style.setProperty("--until", (order - 1) * 520 + "ms");
+      t.append(el("i"), el("i"), el("i"), "loopback-gate is replying");
+      out.push(t);
+    }
     return out;
   }
   function unreadIn(room) {
@@ -618,7 +1206,6 @@ npm run demo</pre>
     steps.forEach(function (s, j) { if (!reached(j) || j < seen) return; s.replies.forEach(function (r) { if (r.room === room) n++; }); if (s.room === room && (s.kind === "person" || s.kind === "agent")) n++; });
     return n;
   }
-
   function renderChat() {
     S.seen[S.room] = S.i + (S.done ? 1 : 0);
     var rooms = $("rooms");
@@ -628,7 +1215,7 @@ npm run demo</pre>
       var n = S.on ? unreadIn(r) : 0;
       if (n > 0) b.classList.add("unread");
       b.setAttribute("aria-current", String(r === S.room));
-      var icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      var icon = svgEl("svg");
       icon.setAttribute("width", "16"); icon.setAttribute("height", "16"); icon.setAttribute("viewBox", "0 0 24 24"); icon.setAttribute("fill", "none"); icon.setAttribute("stroke", "currentColor"); icon.setAttribute("stroke-width", "2"); icon.setAttribute("aria-hidden", "true");
       icon.innerHTML = r === "loopback-maintainers" ? '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>' : '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>';
       b.append(icon, el("span", null, r));
@@ -637,6 +1224,7 @@ npm run demo</pre>
       return b;
     }));
     $("room-name").textContent = S.room;
+    $("rr-room").textContent = "#" + S.room;
     var list = S.on ? postsFor(S.room) : [];
     S.undelivered.forEach(function (u) { if (u.room === S.room) list.push(post(S.i, u.who, "person", u.text, S.room, { undelivered: true, fresh: true })); });
     if (list.length === 0) {
@@ -656,35 +1244,46 @@ npm run demo</pre>
     var typing = !S.done && s.kind === "person" && (s.room === S.room);
     input.disabled = S.on && !typing;
     input.placeholder = !S.on ? "Write something. It has nowhere to go." : typing ? "Write to " + S.room : S.done ? "Use Continue in the guide" : s.kind === "person" ? "This step happens in " + s.room : "Watch this step, using the button in the guide";
-    $("as").textContent = typing || !S.on ? "Sending as " + (s.kind === "person" ? s.who : "Priya (maintainer)") : "";
+    $("as").textContent = typing || !S.on ? "Sending as " + (s.kind === "person" ? s.who : "Puneet (maintainer)") : "";
     $("as").hidden = !$("as").textContent;
-    var me = $("me");
-    me.replaceChildren(el("span", null, s.kind === "person" ? "You are " + s.who : "You are watching"));
+    $("me").replaceChildren(el("span", null, s.kind === "person" ? "You are " + s.who : "You are watching"));
     $("box").classList.toggle("ready", typing && input.value.trim() !== "");
   }
 
   // ---- Run: guide ----
   function isLastOfScene(i) { return i === steps.length - 1 || steps[i + 1].scene !== steps[i].scene; }
+  function renderTicks() {
+    var t = $("ticks");
+    if (!t.children.length) steps.forEach(function () { t.append(el("i")); });
+    Array.prototype.forEach.call(t.children, function (n, j) {
+      n.classList.toggle("past", j < S.i || (j === S.i && S.done));
+      n.classList.toggle("now", j === S.i && !S.done);
+      n.classList.toggle("point", j === POINT && !(j < S.i || (j === S.i && S.done)) && j !== S.i);
+    });
+  }
   function renderGuide() {
     var s = steps[S.i], scene = scenes[s.scene], g = guide[s.scene] || {};
     $("count").textContent = "Step " + (S.i + 1) + " of " + steps.length;
-    $("bar").style.width = (100 * (S.i + (S.done ? 1 : 0)) / steps.length) + "%";
+    renderTicks();
     $("jump").value = String(S.i);
-    var isPoint = scene.title.indexOf("THE POINT") === 0;
-    $("point-badge").hidden = !isPoint;
+    $("point-badge").hidden = scene.title.indexOf("THE POINT") !== 0;
     $("title").textContent = scene.title.replace(/^THE POINT OF LOOPBACK\.\s*/, "");
     $("back").disabled = S.i === 0 && !S.done;
     $("play").disabled = !S.on;
     $("point").disabled = !S.on;
-    var action = $("action"), after = $("after");
-    action.replaceChildren(); after.replaceChildren();
+    var says = $("switch-says"), freshSays = says.cloneNode(false);
+    freshSays.textContent = switchSays(); says.replaceWith(freshSays);
+    var action = $("action"), after = el("div"); after.id = "after";
+    $("after").replaceWith(after);
+    action.replaceChildren();
+    renderMbar();
 
     if (!S.on) {
       var off = el("div", "offnote");
       off.append(el("p", null, "Switch is off. Send the message anyway if you like: it goes nowhere, no case exists, no agent is tasked, and nobody can approve or merge."), el("div", "eyebrow", "The real gate, started with Switch unreachable"), el("pre", null, REFUSAL));
       var again = el("button", "btn primary", "Turn Switch back on");
       again.type = "button";
-      again.addEventListener("click", function () { setSwitch(true); });
+      again.addEventListener("click", function () { setSwitch(true, again); });
       off.append(again);
       action.append(off);
       return;
@@ -696,11 +1295,11 @@ npm run demo</pre>
         todo.append(p, el("div", "cmd", s.text));
         var fill = el("button", "btn primary small", "Fill it in for me");
         fill.type = "button";
-        fill.addEventListener("click", function () { stopPlay(); showTab("chat"); S.room = s.room; S.fresh = false; renderChat(); $("input").value = s.text; renderComposer(); $("input").focus({ preventScroll: true }); $("compose").scrollIntoView({ block: "nearest" }); });
+        fill.addEventListener("click", function () { stopPlay(); showTab("chat"); S.room = s.room; S.fresh = false; renderChat(); $("input").value = s.text; renderComposer(); $("input").focus({ preventScroll: true }); $("compose").scrollIntoView({ block: "nearest", behavior: calm ? "auto" : "smooth" }); });
         todo.append(fill);
       } else {
-        var says = s.kind === "agent" ? s.who + " posts in #" + s.room + "." : s.kind === "github" ? "On GitHub (simulated): " + s.text + "." : "The gate keeps two documents in the room. Open them.";
-        todo.append(el("p", null, says));
+        var saying = s.kind === "agent" ? s.who + " posts in #" + s.room + "." : s.kind === "github" ? "On GitHub (simulated): " + s.text + "." : "The gate keeps two documents in the room. Open them.";
+        todo.append(el("p", null, saying));
         if (s.kind === "agent") todo.append(el("div", "cmd", s.text));
         var go = el("button", "btn primary small", s.kind === "documents" ? "Open the documents" : "Let it happen");
         go.type = "button";
@@ -710,6 +1309,14 @@ npm run demo</pre>
       }
       action.append(todo);
       return;
+    }
+    var nowState = stateNow().st;
+    if (s.kind !== "documents" && nowState && nowState.state === "Merged" && isLastOfScene(S.i)) {
+      var seal = el("div", "sealed");
+      seal.innerHTML = '<svg viewBox="0 0 54 54" aria-hidden="true"><circle cx="27" cy="27" r="23" pathLength="100"/><path d="M16 28 l8 8 l15 -17" pathLength="100"/></svg>';
+      var words = el("div"); words.append(el("b", null, "Merged"), el("span", null, "One commit, every check passed on it, and a person approved it."));
+      seal.append(words);
+      after.append(seal);
     }
     if (isLastOfScene(S.i)) {
       var what = el("div", "said"); what.append(el("div", "eyebrow", "What just happened"), richInto(el("p"), g.what || ""));
@@ -730,7 +1337,7 @@ npm run demo</pre>
       next.addEventListener("click", function () { stopPlay(); advance(); });
       row.append(next);
     } else {
-      var a = el("a", "btn primary", "See what's proven"); a.href = "#proof"; row.append(a);
+      var a = el("a", "btn primary", "See what's proven →"); a.href = "#proof"; row.append(a);
     }
     if (isLastOfScene(S.i) && g.console) {
       var c = el("button", "btn", g.console[0]);
@@ -740,12 +1347,24 @@ npm run demo</pre>
     }
     after.append(row);
   }
+  function renderMbar() {
+    var s = steps[S.i], go = $("mbar-go");
+    go.disabled = !S.on;
+    $("mbar-text").textContent = !S.on ? "Switch is off" : "Step " + (S.i + 1) + " of " + steps.length;
+    go.textContent = !S.on ? "Nothing can run" : S.done ? (S.i < steps.length - 1 ? "Continue" : "See what's proven") : s.kind === "person" ? "Send it for me" : s.kind === "documents" ? "Open the documents" : "Let it happen";
+  }
+  $("mbar-go").addEventListener("click", function () {
+    stopPlay();
+    if (!S.done) { complete(); return; }
+    if (S.i < steps.length - 1) { advance(); return; }
+    location.hash = "#proof"; route();
+  });
 
   var MARK = { pass: "✓", wait: "…", none: "–", void: "✕" };
   function evRow(label, kind, value) { var r = el("div", "row " + kind); r.append(el("span", "mark", MARK[kind]), el("span", null, label), el("b", null, value)); return r; }
   function renderEvidence() {
     var now = S.on ? stateNow() : { st: null, prev: null }, c = now.st || {}, prev = now.prev;
-    var moved = !!(prev && prev.commit && c.commit && prev.commit !== c.commit);
+    var moved = !!(prev && prev.commit && c.commit && prev.commit !== c.commit && c.approvals === 0);
     var merged = c.state === "Merged";
     $("sha").textContent = c.commit ? c.commit + " · " + c.state : (c.state || "No case yet");
     $("voided").hidden = !moved;
@@ -753,8 +1372,34 @@ npm run demo</pre>
       evRow("CI", c.ci === "passed" ? "pass" : c.ci === null || c.ci === undefined ? "none" : c.ci === "failed" ? "void" : "wait", c.ci || "-"),
       evRow("Verifier", c.verifier === "pass" ? "pass" : c.verifier === null || c.verifier === undefined ? "none" : c.verifier === "fail" || c.verifier === "invalid" ? "void" : "wait", c.verifier === "requested" ? "working" : c.verifier || "-"),
       evRow("Approval", c.approvals > 0 ? "pass" : moved ? "void" : c.commit ? "wait" : "none", c.commit ? c.approvals + " of 1" : "-"),
-      evRow("Merged by the gate", merged ? "pass" : "none", merged ? "yes" : "no")
+      evRow("Merged", merged ? "pass" : "none", merged ? "yes" : "no")
     );
+  }
+
+  // ---- Run: wires above the workspace ----
+  function drawRunWires() {
+    var rr = $("rr");
+    if (!rr.clientWidth) return;
+    var knob = rr.querySelector(".knob"), ag = function (k) { return rr.querySelector('[data-agent="' + k + '"]'); };
+    drawWires(rr.querySelector(".rr-wires"), [
+      { key: "fixer", from: ag("fixer"), to: knob }, { key: "verifier", from: ag("verifier"), to: knob }, { key: "gate", from: ag("gate"), to: knob }, { key: "room", from: knob, to: $("rr-room") },
+    ], false, false);
+  }
+  function lightUp(node, ms, delay) {
+    setTimeout(function () { node.classList.add("lit"); setTimeout(function () { node.classList.remove("lit"); }, ms); }, delay);
+  }
+  function animateStep(s) {
+    var svg = $("rr").querySelector(".rr-wires");
+    var ag = function (k) { return $("rr").querySelector('[data-agent="' + k + '"]'); };
+    var alarm = s.replies.some(function (r) { return r.refused; });
+    var t = 0;
+    if (s.kind === "person") { fire(svg, "room", { reverse: true }); lightUp($("rr-room"), 500, 0); fire(svg, "gate", { reverse: true, delay: 420 }); lightUp(ag("gate"), 600, 700); t = 950; }
+    if (s.kind === "agent") { var key = /fixer/.test(s.who) ? "fixer" : "verifier"; lightUp(ag(key), 600, 0); fire(svg, key); fire(svg, "room", { delay: 420 }); lightUp($("rr-room"), 500, 800); fire(svg, "gate", { reverse: true, delay: 760 }); lightUp(ag("gate"), 600, 1100); t = 1300; }
+    if (s.replies.length) {
+      fire(svg, "gate", { delay: t, alarm: alarm }); fire(svg, "room", { delay: t + 420, alarm: alarm }); lightUp($("rr-room"), 600, t + 800);
+      if (s.replies.some(function (r) { return /^@loopback-verifier/.test(r.text); })) { fire(svg, "verifier", { reverse: true, delay: t + 420 }); lightUp(ag("verifier"), 600, t + 800); }
+      if (s.replies.some(function (r) { return /^@loopback-fixer/.test(r.text); })) { fire(svg, "fixer", { reverse: true, delay: t + 420 }); lightUp(ag("fixer"), 600, t + 800); }
+    }
   }
 
   // ---- Run: other panes ----
@@ -782,7 +1427,6 @@ npm run demo</pre>
     }
     pane.replaceChildren(wrap);
   }
-
   function printLines(node, lines) {
     lines.forEach(function (l) {
       var cls = /^\s*✗|REFUSED|BLOCKED/.test(l) ? "bad" : /^\s*✓|Rehearsal passed/.test(l) ? "good" : /^\d+\. /.test(l) ? null : "dim";
@@ -857,20 +1501,20 @@ npm run demo</pre>
   }
 
   // ---- Console frame ----
-  var frame = null, frameReady = false;
+  var frame_ = null, frameReady = false;
   function consoleStep() { var at = S.i; if (S.done) return steps[at].snapshot; return at > 0 ? steps[at - 1].snapshot : 0; }
   function syncConsole() {
     if (!frameReady) return;
     var msg = { type: "lb-console", step: consoleStep(), off: !S.on };
     if (S.route !== null) { msg.route = S.route; S.route = null; }
-    frame.contentWindow.postMessage(msg, "*");
+    frame_.contentWindow.postMessage(msg, "*");
   }
   function ensureFrame() {
-    if (frame) return;
-    frame = el("iframe", "frame");
-    frame.title = "Loopback evidence console";
-    frame.srcdoc = JSON.parse($("console-doc").textContent);
-    $("pane-console").append(frame);
+    if (frame_) return;
+    frame_ = el("iframe", "frame");
+    frame_.title = "Loopback evidence console";
+    frame_.srcdoc = JSON.parse($("console-doc").textContent);
+    $("pane-console").append(frame_);
   }
   window.addEventListener("message", function (e) { if (e.data && e.data.type === "lb-console-ready") { frameReady = true; syncConsole(); } });
   function showConsole(route) { S.route = route; showTab("console"); }
@@ -895,7 +1539,11 @@ npm run demo</pre>
       var dot = b.querySelector(".dot");
       if (on && dot) dot.remove();
     });
-    ["chat", "github", "console", "switch", "terminal"].forEach(function (t) { $("pane-" + t).hidden = t !== tab; });
+    ["chat", "github", "console", "switch", "terminal"].forEach(function (t) {
+      var p = $("pane-" + t);
+      p.hidden = t !== tab;
+      p.classList.toggle("show", t === tab);
+    });
     if (tab === "console") ensureFrame();
     renderTag();
     if (tab === "chat") { S.fresh = false; renderChat(); }
@@ -923,6 +1571,7 @@ npm run demo</pre>
       else if (s.kind === "github") { if (S.tab !== "github") showTab("github"); }
     }
     renderRun();
+    drawRunWires();
   }
   function complete() {
     var s = steps[S.i];
@@ -931,10 +1580,14 @@ npm run demo</pre>
     var inRoom = s.replies.filter(function (r) { return r.room === S.room; }).length;
     if (!s.room && s.replies.length) { S.room = s.replies[s.replies.length - 1].room; markTab("chat"); }
     if (s.room && !inRoom && s.replies.length) markTab("chat");
-    if (s.kind === "documents") { S.sc = "documents"; showTab("switch"); }
+    if (s.kind === "documents") { S.sc = "documents"; showTab("switch"); S.fresh = true; }
     renderRun();
     S.fresh = false;
-    if (s.kind === "person" || s.kind === "agent") { markTab("console"); }
+    if (s.kind === "person" || s.kind === "agent") markTab("console");
+    animateStep(s);
+    var ev = $("evidence");
+    if (s.replies.some(function (r) { return /HEAD_MOVED/.test(r.text); })) { ev.classList.remove("alarm"); void ev.offsetWidth; ev.classList.add("alarm"); sweep("alarm"); }
+    else ev.classList.remove("alarm");
   }
   function advance() { enter(S.i + 1, false); $("title").focus({ preventScroll: true }); }
   function stopPlay() { if (S.timer !== null) { clearInterval(S.timer); S.timer = null; $("play").textContent = "Play the rest"; } }
@@ -946,27 +1599,22 @@ npm run demo</pre>
       if (!S.done) { complete(); return; }
       if (S.i >= steps.length - 1) { stopPlay(); return; }
       enter(S.i + 1, false);
-    }, 2600);
+    }, 2800);
   });
   $("back").addEventListener("click", function () { stopPlay(); if (S.done) enter(S.i, false); else enter(S.i - 1, false); });
   $("point").addEventListener("click", function () { stopPlay(); enter(POINT, false); });
   $("jump").addEventListener("change", function () { stopPlay(); enter(Number($("jump").value), false); });
-  scenes.forEach(function (sc, n) {
-    var first = steps.findIndex(function (s) { return s.scene === n; });
-    if (first < 0) return;
-    steps.forEach(function (s, j) {
-      if (s.scene !== n) return;
-      var o = el("option", null, (j + 1) + ". " + (s.kind === "person" ? shortName(s.who) + " sends a message" : s.kind === "agent" ? shortName(s.who) + " posts" : s.kind === "github" ? "GitHub event" : "Room documents"));
-      o.value = String(j);
-      $("jump").append(o);
-    });
+  steps.forEach(function (s, j) {
+    var o = el("option", null, (j + 1) + ". " + (s.kind === "person" ? shortName(s.who) + " sends a message" : s.kind === "agent" ? shortName(s.who) + " posts" : s.kind === "github" ? "GitHub event" : "Room documents"));
+    o.value = String(j);
+    $("jump").append(o);
   });
   $("compose").addEventListener("submit", function (e) {
     e.preventDefault();
     var s = steps[S.i], input = $("input"), typed = input.value.trim(), hint = $("hint");
     if (!typed) return;
     if (!S.on) {
-      S.undelivered.push({ room: S.room, who: s.kind === "person" ? s.who : "Priya (maintainer)", text: typed });
+      S.undelivered.push({ room: S.room, who: s.kind === "person" ? s.who : "Puneet (maintainer)", text: typed });
       input.value = "";
       renderChat();
       return;
@@ -989,14 +1637,12 @@ npm run demo</pre>
     } else {
       (st.lines || []).forEach(function (l) {
         if (!ran) return;
-        if (l === "" ) { t.append("\n"); return; }
-        var comment = /^#/.test(l);
-        var isCommand = /^(git|cd|npm|cp)\b/.test(l);
-        var hash = l.indexOf("    #");
-        if (isCommand) { t.append(el("span", "p", "$ ")); }
-        if (hash > 0) { t.append(l.slice(0, hash), el("span", "dim", l.slice(hash))); }
-        else if (comment) { t.append(el("span", "dim", l)); }
-        else { t.append(l); }
+        if (l === "") { t.append("\n"); return; }
+        var comment = /^#/.test(l), isCommand = /^(git|cd|npm|cp)\b/.test(l), hash = l.indexOf("    #");
+        if (isCommand) t.append(el("span", "p", "$ "));
+        if (hash > 0) t.append(l.slice(0, hash), el("span", "dim", l.slice(hash)));
+        else if (comment) t.append(el("span", "dim", l));
+        else t.append(l);
         t.append("\n");
       });
       if (!ran) t.append(el("span", "p", "$ "), el("span", "dim", "use the button in the guide"));
@@ -1008,9 +1654,10 @@ npm run demo</pre>
     var st = data.setup[S.setup], list = $("setup-list");
     list.replaceChildren.apply(list, data.setup.map(function (x, n) {
       var li = el("li"), b = el("button"); b.type = "button";
+      if (n < S.setup) b.className = "past";
       b.append(el("span", "mono", String(n + 1)), el("span", null, x.title));
       if (n === S.setup) b.setAttribute("aria-current", "step");
-      b.addEventListener("click", function () { S.setup = n; S.setupDone = false; S.tpl = 0; renderSetup(); });
+      b.addEventListener("click", function () { S.setup = n; S.setupDone = false; S.tpl = 0; S.setupView = null; renderSetup(); });
       li.append(b); return li;
     }));
     $("setup-title").textContent = st.title;
@@ -1047,28 +1694,58 @@ npm run demo</pre>
   $("setup-next").addEventListener("click", function () { S.setup += 1; S.setupDone = false; S.setupView = null; S.tpl = 0; renderSetup(); });
   $("setup-back").addEventListener("click", function () { S.setup -= 1; S.setupDone = false; S.setupView = null; S.tpl = 0; renderSetup(); });
 
-  // ---- The Switch button ----
-  function setSwitch(on) {
+  // ---- The Switch button: the whole page answers to it ----
+  function sweep(kind, from) {
+    var node = $("sweep");
+    if (calm || !node.animate) return;
+    var r = from ? from.getBoundingClientRect() : { left: innerWidth / 2, top: innerHeight / 2, width: 0, height: 0 };
+    var x = r.left + r.width / 2, y = r.top + r.height / 2;
+    var size = 2.2 * Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y)) / 10;
+    var base = "translate(" + (x - 5) + "px," + (y - 5) + "px) ";
+    node.style.background = kind === "on" ? "radial-gradient(circle, rgba(169,223,220,0) 62%, rgba(169,223,220,.5) 70%, rgba(169,223,220,0) 72%)" : kind === "alarm" ? "radial-gradient(circle, rgba(255,154,154,0) 62%, rgba(255,154,154,.42) 70%, rgba(255,154,154,0) 72%)" : "radial-gradient(circle, rgba(0,0,0,.72) 0%, rgba(0,0,0,.72) 66%, rgba(0,0,0,0) 72%)";
+    node.animate([{ transform: base + "scale(.2)", opacity: 1 }, { transform: base + "scale(" + size + ")", opacity: kind === "off" ? .85 : .6, offset: .8 }, { transform: base + "scale(" + size + ")", opacity: 0 }], { duration: kind === "alarm" ? 700 : 850, easing: "cubic-bezier(.2,.7,.2,1)" });
+  }
+  function setSwitch(on, from) {
+    var changed = on !== S.on;
     stopPlay();
     S.on = on;
     S.undelivered = [];
-    $("toggle").setAttribute("aria-checked", String(on));
-    $("toggle-label").textContent = on ? "Switch is on" : "Switch is off";
+    document.body.classList.toggle("off", !on);
+    all('[role="switch"]').forEach(function (k) { k.setAttribute("aria-checked", String(on)); });
+    all(".knob-label").forEach(function (l) { l.textContent = on ? "SWITCH ON" : "SWITCH OFF"; });
+    all(".gate-line").forEach(function (l) { l.textContent = on ? "$ npm run gate" : "exited: refusing to start"; });
+    $("toggle-label").textContent = on ? "SWITCH ON" : "SWITCH OFF";
     $("sim").classList.toggle("off", !on);
     $("sim-title").textContent = on ? "Simulated rehearsal." : "Switch is off.";
     $("sim-text").textContent = on
       ? "The gate's decisions, permissions, signatures and evidence console are its real code, recorded from an actual run. Switch's delivery, GitHub and the agents are simulated."
       : "This is the same workflow with no Switch. The gate won't start, no message reaches anyone, and no step can happen. Still a simulated rehearsal.";
+    $("sim-short").textContent = on ? "The gate's code is real. Delivery, GitHub and agents are simulated." : "No message reaches anyone. No step can happen.";
+    $("hero-lede").textContent = on
+      ? "Loopback is a merge gate that runs as a Switch agent. A maintainer approves one exact commit in the room. If the code changes after that, the approval stops counting."
+      : "With no Switch, the gate refuses to start and the agents can't be reached. The people are still there, with nothing to work with.";
+    $("hero-hint").textContent = on ? "PRESS THE SWITCH AND WATCH WHAT'S LEFT" : "NOTHING RUNS WITHOUT SWITCH";
     $("toggle2").textContent = on ? "Turn Switch off" : "Turn Switch back on";
+    all("[data-refusal]").forEach(function (r) { r.textContent = REFUSAL; if (r.closest("#refusal") === null) r.hidden = on; });
     $("refusal").hidden = on;
-    Array.prototype.forEach.call($("path").children, function (n, i) { n.classList.toggle("dead", !on); });
+    circuits.forEach(function (c) {
+      c.clear();
+      if (on) c.showAll();
+      else c.posts.replaceChildren(el("div", "mempty", "No messages reach this room. No agent is in it, and nothing can be approved or merged."));
+    });
+    renderJob();
+    if (on) { showLate(lateAt); if (lateVisible) startLate(); } else { stopLate(); showLate(0); }
     renderRun();
     renderSetup();
+    wakeSignals();
+    if (changed) sweep(on ? "on" : "off", from);
+    requestAnimationFrame(redraw);
   }
-  $("toggle").addEventListener("click", function () { setSwitch(!S.on); });
-  $("toggle2").addEventListener("click", function () { setSwitch(!S.on); });
+  $("toggle").addEventListener("click", function () { setSwitch(!S.on, $("toggle")); });
+  $("toggle2").addEventListener("click", function () { setSwitch(!S.on, $("toggle2")); });
+  all(".rr .knob").forEach(function (k) { k.addEventListener("click", function () { setSwitch(!S.on, k); }); });
 
-  // ---- How it's built: parts table and excerpts ----
+  // ---- How it's built ----
   var REPO = "https://github.com/puneetnith28/Loopback/blob/main/";
   var TREE = "https://github.com/puneetnith28/Loopback/tree/main/";
   [
@@ -1103,22 +1780,72 @@ npm run demo</pre>
   if (data.videoUrl) { $("video").href = data.videoUrl; $("video").hidden = false; }
 
   // ---- Chapters ----
+  var ind = el("span", "ind");
+  ind.setAttribute("aria-hidden", "true");
+  $("chapters").prepend(ind);
+  function currentLink() { return $("chapters").querySelector('a[aria-current="page"]'); }
+  function moveInd(a) {
+    if (!a) { ind.style.opacity = "0"; return; }
+    ind.style.opacity = "1";
+    ind.style.left = a.offsetLeft + "px";
+    ind.style.width = a.offsetWidth + "px";
+  }
+  all("a", $("chapters")).forEach(function (a) {
+    a.addEventListener("mouseenter", function () { moveInd(a); });
+    a.addEventListener("focus", function () { moveInd(a); });
+  });
+  $("chapters").addEventListener("mouseleave", function () { moveInd(currentLink()); });
+  $("chapters").addEventListener("focusout", function () { setTimeout(function () { if (!$("chapters").contains(document.activeElement)) moveInd(currentLink()); }, 0); });
+  window.addEventListener("scroll", function () { document.body.classList.toggle("scrolled", window.scrollY > 24); }, { passive: true });
+  /** The loop around the name: a rounded track through the Switch button, with signals running around it. */
+  function drawIntro() {
+    var svg = $("track-svg"), wrap = $("mark-wrap");
+    var w = wrap.clientWidth, h = wrap.clientHeight;
+    if (!w) return;
+    svg.setAttribute("viewBox", "0 0 " + w + " " + h);
+    svg.replaceChildren();
+    ["w-base", "w-flow", "w-flow"].forEach(function (cls, n) {
+      var r = svgEl("rect", cls);
+      r.setAttribute("x", "1"); r.setAttribute("y", "1"); r.setAttribute("width", String(w - 2)); r.setAttribute("height", String(h - 2));
+      r.setAttribute("rx", String((h - 2) / 2)); r.setAttribute("pathLength", "100");
+      if (n === 2) r.style.animationDelay = "-1.4s";
+      if (cls === "w-flow") r.style.animationDuration = "5.6s";
+      svg.append(r);
+    });
+  }
+  function redraw() {
+    moveInd(currentLink());
+    drawIntro();
+    circuits.forEach(function (c) { c.draw(); });
+    drawRing();
+    drawRunWires();
+  }
+  var booted = false;
   function showChapter(name) {
+    var firstEntry = S.chapter !== name;
     S.chapter = name;
-    Array.prototype.forEach.call(document.querySelectorAll("[data-chapter]"), function (n) { n.hidden = n.dataset.chapter !== name; });
-    Array.prototype.forEach.call($("chapters").children, function (a) {
-      if (a.getAttribute("href") === "#" + name) { a.setAttribute("aria-current", "page"); if (a.scrollIntoView && innerWidth <= 940) a.scrollIntoView({ block: "nearest", inline: "center" }); }
+    document.body.dataset.at = name;
+    all("[data-chapter]").forEach(function (n) {
+      n.hidden = n.dataset.chapter !== name;
+      if (n.dataset.chapter === name && firstEntry && !calm && n.animate) n.animate([{ opacity: 0, transform: "translateY(8px)" }, { opacity: 1, transform: "none" }], { duration: 280, easing: "ease-out" });
+    });
+    all("a", $("chapters")).forEach(function (a) {
+      if (a.getAttribute("href") === "#" + name) { a.setAttribute("aria-current", "page"); if (a.scrollIntoView && innerWidth <= 760) a.scrollIntoView({ block: "nearest", inline: "center" }); }
       else a.removeAttribute("aria-current");
     });
-    window.scrollTo(0, 0);
+    moveInd(currentLink());
+    window.scrollTo({ top: 0, behavior: "auto" });
     if (name === "run") renderRun();
     if (name === "setup") renderSetup();
+    if (name === "what") { if (lateVisible) startLate(); } else stopLate();
+    wakeSignals();
+    requestAnimationFrame(redraw);
   }
   function route() {
     var h = location.hash.replace(/^#/, "");
-    if (h === "step-late") { enter(POINT, false); showChapter("run"); return; }
+    if (h === "step-late") { showChapter("run"); enter(POINT, false); return; }
     var m = /^step-(\d+)$/.exec(h);
-    if (m) { enter(Number(m[1]) - 1, false); showChapter("run"); return; }
+    if (m) { showChapter("run"); enter(Number(m[1]) - 1, false); return; }
     showChapter(CHAPTERS.indexOf(h) >= 0 ? h : "what");
   }
   // A frame may refuse hash navigation, so links change the chapter directly as well.
@@ -1131,8 +1858,38 @@ npm run demo</pre>
     route();
   });
   window.addEventListener("hashchange", route);
+  var resizeTimer = null;
+  window.addEventListener("resize", function () { clearTimeout(resizeTimer); resizeTimer = setTimeout(function () { fit(); redraw(); }, 80); });
+  if ("ResizeObserver" in window) { var ro = new ResizeObserver(function () { redraw(); }); [$("mark-wrap"), $("dgm-hero"), $("dgm-without"), $("ring"), $("rr")].forEach(function (n) { ro.observe(n); }); }
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(redraw);
+
+  // ---- Boot ----
+  "Loopback".split("").forEach(function (ch, i) {
+    var s = el("span", i === 1 || i === 2 ? "oo" : null, ch);
+    s.setAttribute("aria-hidden", "true");
+    s.style.setProperty("--i", String(i));
+    $("mark").append(s);
+  });
+  all(".intro-knob .knob").forEach(function (k) { k.addEventListener("click", function () { setSwitch(!S.on, k); }); });
+  $("cue").addEventListener("click", function () { $("circuit").scrollIntoView({ behavior: calm ? "auto" : "smooth", block: "start" }); });
+  buildRing();
+  buildLate();
   showTab("chat");
   setSwitch(true);
   route();
+  S.jobAuto = true;
+  setInterval(function () { if (S.jobAuto && S.on && S.chapter === "what" && !calm) pickJob((S.job + 1) % JOBS.length); }, 3200);
+  // The circuit plays its start-up when it first scrolls into view.
+  function bootCircuit() {
+    if (booted || calm) return;
+    booted = true;
+    var r = heroCircuit.root;
+    r.classList.add("boot");
+    requestAnimationFrame(function () { heroCircuit.draw(); if (S.on) heroCircuit.replay(); setTimeout(function () { r.classList.remove("boot"); heroCircuit.draw(); }, 1300); });
+  }
+  if ("IntersectionObserver" in window) {
+    new IntersectionObserver(function (es, obs) { if (es[0].isIntersecting && S.chapter === "what") { bootCircuit(); obs.disconnect(); } }, { threshold: .35 }).observe($("dgm-hero"));
+  } else bootCircuit();
+  showLate(0);
 })();
 </script>

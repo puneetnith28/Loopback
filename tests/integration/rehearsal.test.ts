@@ -111,7 +111,7 @@ describe("the public click-through page", () => {
   it("shows people's names in the decision log, not raw participant ids", async () => {
     const { tables } = await pageData();
     const who = tables?.decisions.rows.map((r) => r[1]) ?? [];
-    expect(who).toContain("Priya (maintainer)");
+    expect(who).toContain("Puneet (maintainer)");
     expect(who.some((w) => w?.includes("switch-"))).toBe(false);
   });
 
