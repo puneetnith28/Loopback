@@ -29,7 +29,12 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run lint
+      - run: npm run release:check
       - run: npm run test:coverage
+      - name: Build packages (tsc -b)
+        run: npm run build
+      - name: Build console frontend (vite build)
+        run: npm --prefix apps/console run build
       # Secret scan of the full history with the gitleaks release binary, pinned by version and
       # SHA-256 (from the release's checksums file). Running the binary directly avoids the
       # action's own Node deprecation warnings and needs no token.
@@ -64,3 +69,5 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test
+      - name: Build packages (tsc -b)
+        run: npm run build
