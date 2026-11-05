@@ -9,6 +9,7 @@
     "packages/contracts",
     "packages/console-contracts",
     "apps/switch-gate",
+    "apps/console",
     "apps/console-api"
   ],
   "engines": {
@@ -16,7 +17,7 @@
   },
   "scripts": {
     "build": "tsc -b",
-    "typecheck": "tsc -b && tsc -p tsconfig.tests.json",
+    "typecheck": "tsc -b && tsc -p tsconfig.tests.json && tsc -p apps/console/tsconfig.json",
     "lint": "eslint .",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",

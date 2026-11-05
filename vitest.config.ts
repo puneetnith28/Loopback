@@ -21,6 +21,8 @@ export default defineConfig({
       { ...shared, test: { name: "integration", testTimeout, include: ["tests/integration/**/*.test.ts"] } },
       { ...shared, test: { name: "security", testTimeout, include: ["tests/security/**/*.test.ts"] } },
       { ...shared, test: { name: "e2e", testTimeout, include: ["tests/e2e/**/*.test.ts"] } },
+      // Frontend (jsdom) — its own config: apps/console/vitest.config.ts.
+      "apps/console/vitest.config.ts",
     ],
     coverage: {
       provider: "v8",

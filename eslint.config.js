@@ -1,15 +1,23 @@
 import js from "@eslint/js";
 import tseslint from "typescript-eslint";
+import reactHooks from "eslint-plugin-react-hooks";
 import { boundaryConfigs } from "./eslint.config.boundaries.js";
 
 export default tseslint.config(
-  { ignores: ["**/dist/**", "**/node_modules/**", "coverage/**"] },
+  { ignores: ["**/dist/**", "**/dist-design/**", "**/node_modules/**", "coverage/**"] },
   js.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
   {
     languageOptions: {
       parserOptions: {
-        project: ["./apps/switch-gate/tsconfig.json", "./apps/console-api/tsconfig.json", "./packages/contracts/tsconfig.json", "./packages/console-contracts/tsconfig.json", "./tsconfig.tests.json"],
+        project: [
+          "./apps/switch-gate/tsconfig.json",
+          "./apps/console-api/tsconfig.json",
+          "./apps/console/tsconfig.json",
+          "./packages/contracts/tsconfig.json",
+          "./packages/console-contracts/tsconfig.json",
+          "./tsconfig.tests.json",
+        ],
         tsconfigRootDir: import.meta.dirname,
       },
     },
@@ -21,6 +29,22 @@ export default tseslint.config(
       "no-console": "error",
       eqeqeq: ["error", "always"],
     },
+  },
+  {
+    // Console (frontend): React hooks rules; untrusted data is never rendered as HTML.
+    files: ["apps/console/**/*.{ts,tsx}"],
+    plugins: { "react-hooks": reactHooks },
+    rules: {
+      ...reactHooks.configs.recommended.rules,
+      "no-restricted-syntax": ["error", {
+        selector: "JSXAttribute[name.name='dangerouslySetInnerHTML']",
+        message: "The console renders untrusted data as text only (DESIGN.md §5).",
+      }],
+    },
+  },
+  {
+    files: ["apps/console/public/**/*.js"],
+    languageOptions: { globals: { window: "readonly", document: "readonly" } },
   },
   {
     files: ["**/*.js", "**/*.mjs"],

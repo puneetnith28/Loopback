@@ -44,6 +44,22 @@ const CONSOLE_API_PURITY = {
   message: "apps/console-api may import only the contracts, zod, better-sqlite3, node:http, node:crypto and its sibling modules.",
 };
 
+// Console (frontend): shares vocabulary through @loopback/contracts only — never the gate implementation.
+const CONSOLE_NO_GATE = {
+  regex: "(^|/)(switch-gate|apps/switch-gate)(/|$)",
+  message: "apps/console may import @loopback/contracts only, never the gatekeeper implementation.",
+};
+// Demonstration fixtures are reachable only from the design reference (and tests).
+const CONSOLE_NO_DEMO = {
+  regex: "(^|/)demo(/|$)",
+  message: "Only src/features/design-reference may import demo fixtures (DESIGN.md §5).",
+};
+// Test fixtures (API response builders, mocks) must never be reachable from application code.
+const CONSOLE_NO_TEST_CODE = {
+  regex: "(^|/)(tests|e2e|test-fixtures)(/|$)",
+  message: "apps/console/src may not import tests, e2e or test-fixtures: no fixture may reach a build.",
+};
+
 function restrict(files, patterns, ignores = []) {
   return {
     files,
@@ -63,6 +79,11 @@ export const boundaryConfigs = [
   restrict([`${SRC}/cases/service.ts`], [AUDIT, TRANSPORT]),
   restrict([`${SRC}/github/**/*.ts`], [AUDIT]),
   restrict([`${SRC}/audit/**/*.ts`], [MERGE, TRANSPORT]),
+  // Console groups do not overlap: a later no-restricted-imports block would replace, not extend, an earlier one.
+  restrict(["apps/console/src/**/*.{ts,tsx}"], [CONSOLE_NO_GATE, CONSOLE_NO_DEMO, CONSOLE_NO_TEST_CODE], ["apps/console/src/features/design-reference/**"]),
+  restrict(["apps/console/src/features/design-reference/**/*.{ts,tsx}"], [CONSOLE_NO_GATE, CONSOLE_NO_TEST_CODE]),
+  restrict(["apps/console/*.ts"], [CONSOLE_NO_GATE, CONSOLE_NO_DEMO]),
+  restrict(["apps/console/{tests,e2e,test-fixtures}/**/*.{ts,tsx}"], [CONSOLE_NO_GATE]),
   // Composition root: builds and injects the merge capability; holds no audit internals.
   restrict([`${SRC}/main.ts`, `${SRC}/app.ts`], [AUDIT]),
   restrict(["apps/console-api/src/**/*.ts"], [CONSOLE_API_PURITY]),

@@ -142,7 +142,7 @@ export function startConsoleServer(cfg: ConsoleConfig, opts: ConsoleServerOption
       // The path only, never the query or headers.
       opts.log?.({ method: req.method, path: (req.url ?? "").split("?")[0], status, ms: Date.now() - started, requestId });
     };
-    const refuse = (code: ApiErrorCode, message: string) => send(STATUS[code], ApiError.parse({ error: { code, message, requestId } }));
+    const refuse = (code: ApiErrorCode, message: string) => send(STATUS[code] ?? 500, ApiError.parse({ error: { code, message, requestId } }));
 
     try {
       if (!hosts.has(req.headers.host ?? "")) return refuse("FORBIDDEN", "Unexpected Host header.");
