@@ -14,6 +14,7 @@ import { VerificationWorkflow, type WorkflowDeps } from "../../apps/switch-gate/
 import { HaltSwitch } from "../../apps/switch-gate/src/cases/halt.js";
 import { generateKeyPairSync, type KeyObject } from "node:crypto";
 import { signReport } from "../../apps/switch-gate/src/agents/signature.js";
+import { renderTeam, type RoomStatuses } from "../../apps/switch-gate/src/switch/team.js";
 
 /** Test-only verifier signing key, generated per test process (D28). Never persisted. */
 export const TEST_VERIFIER_KEYS = generateKeyPairSync("ed25519");
@@ -151,7 +152,7 @@ export interface Harness {
   state(id?: string): string | undefined;
 }
 
-export function createHarness(opts: { db?: Db; gh?: FakeGitHub; runIssuerKey?: KeyObject | null; verifierPublicKey?: KeyObject | null; verificationAdvisory?: boolean; intakeMaxReportsPerHour?: number; mergeEnabled?: boolean; expectedBase?: string | null; quorum?: number; retryLimit?: number; maxAttempts?: number; privilegedEnabled?: boolean } = {}): Harness {
+export function createHarness(opts: { db?: Db; gh?: FakeGitHub; runIssuerKey?: KeyObject | null; verifierPublicKey?: KeyObject | null; verificationAdvisory?: boolean; intakeMaxReportsPerHour?: number; mergeEnabled?: boolean; expectedBase?: string | null; quorum?: number; retryLimit?: number; maxAttempts?: number; privilegedEnabled?: boolean; roomStatuses?: RoomStatuses } = {}): Harness {
   const db = opts.db ?? openDatabase(":memory:");
   migrate(db);
   const gh = opts.gh ?? new FakeGitHub();
@@ -179,6 +180,7 @@ export function createHarness(opts: { db?: Db; gh?: FakeGitHub; runIssuerKey?: K
     verifierPublicKey: opts.verifierPublicKey === undefined ? TEST_VERIFIER_KEYS.publicKey : opts.verifierPublicKey,
     expectedBaseSha: () => opts.expectedBase ?? null,
     runIssuerKey: opts.runIssuerKey === undefined ? TEST_ISSUER_KEYS.privateKey : opts.runIssuerKey,
+    ...(opts.roomStatuses === undefined ? {} : { roomStatuses: opts.roomStatuses }),
   };
   const wf = new VerificationWorkflow(wfDeps);
   const poller = new Poller(wfDeps, wf, { warn: () => undefined });
@@ -200,6 +202,7 @@ export function createHarness(opts: { db?: Db; gh?: FakeGitHub; runIssuerKey?: K
     },
     requestVerification: (id) => wf.requestVerificationLocked(id, "system", false),
     onMergeConfirmed: (sha) => kvSet(db, "expected_base_sha", sha),
+    gateMention: G, verificationAdvisory: opts.verificationAdvisory ?? false,
   });
   const router = new Router({
     db, chat, repo: REPO, quorum: opts.quorum ?? 1, requiredChecks: ["test"],
@@ -212,6 +215,10 @@ export function createHarness(opts: { db?: Db; gh?: FakeGitHub; runIssuerKey?: K
       reject: (ctx, id, reason) => wf.reject(ctx, id, reason),
       retask: (ctx, id, note) => wf.retask(ctx, id, note),
       merge: (ctx, id) => exec.merge(ctx.msg.sender, id),
+    },
+    views: {
+      why: (id) => exec.why(id),
+      team: async () => ({ text: renderTeam(["loopback-fixer", "loopback-verifier", "loopback-gate"], opts.roomStatuses === undefined ? null : await opts.roomStatuses()), caseId: null }),
     },
     handoff: wf, agents: wf, now,
   });

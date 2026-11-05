@@ -4,326 +4,229 @@
 [![CodeQL](https://github.com/puneetnith28/Loopback/actions/workflows/codeql.yml/badge.svg)](https://github.com/puneetnith28/Loopback/actions/workflows/codeql.yml)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D22.12.0-brightgreen.svg)](.nvmrc)
-[![Version](https://img.shields.io/badge/version-0.1.0--dev-orange.svg)](CHANGELOG.md)
 
-Loopback is a commit-bound, auditable verification gate and human-governed AI bug maintenance system. It receives bug reports in a team chat room, tasks an AI fixer to investigate and open a pull request, gathers independent verification and CI evidence, and merges only when a human maintainer's approval, cryptographic verification, and CI are all bound to the exact same 40-character commit SHA.
+**AI agents fix bugs in your team chat. Nothing merges unless a person approved that exact commit.**
 
-> **Development Status: Pre-release (`v0.1.0`) — One real bug has completed the live lifecycle.**
-> Case `LB-001` transitioned from public chat report to fixer PR, signed verifier evaluation, maintainer approval of the exact commit SHA, and a gate-executed merge on GitHub:
-> [Evidence & Analysis](docs/evidence/phase-08-day2.md). Safety invariants remain default-off (`MERGE_ENABLED=false`, `LOOPBACK_PRIVILEGED_ENABLED=false`).
+Your team reports a bug in a chat room. An AI agent reproduces it and opens a pull request, and a second
+agent checks the fix. A maintainer approves one exact commit, in the same chat. If anything changes after
+that, even one new commit, the approval no longer counts and the gate refuses to merge.
 
----
+Built on [Switch](https://github.com/sandbox-quantum/switch) for the Flip the Switch hackathon, Best Business Workflow track.
 
-## Table of Contents
+**Demo video:** *link added at submission* · **[Click through a rehearsal in your browser](https://claude.ai/artifact/JWwtrnBgQ6UjhvpymQp5Nf)** · **Run it yourself, no accounts:** [two minutes, below](#try-it-in-two-minutes)
 
-- [1. What Loopback Is](#1-what-loopback-is)
-- [2. The Problem It Solves](#2-the-problem-it-solves)
-- [3. Why Human-Controlled AI Maintenance Matters](#3-why-human-controlled-ai-maintenance-matters)
-- [4. How the Workflow Operates](#4-how-the-workflow-operates)
-- [5. Architecture Overview](#5-architecture-overview)
-- [6. Core Capabilities](#6-core-capabilities)
-- [7. Security and Trust Model](#7-security-and-trust-model)
-- [8. Technology Stack](#8-technology-stack)
-- [9. Local Development Setup](#9-local-development-setup)
-- [10. Configuration & Environment](#10-configuration--environment)
-- [11. Running Tests](#11-running-tests)
-- [12. GitHub Actions and CI/CD](#12-github-actions-and-cicd)
-- [13. Release & Versioning Process](#13-release--versioning-process)
-- [14. Current Limitations & Known Boundaries](#14-current-limitations--known-boundaries)
-- [15. Contribution & Community](#15-contribution--community)
-- [16. Honesty Notes](#16-honesty-notes)
-- [17. License](#17-license)
+## The problem
 
----
+Coding agents can write a fix in minutes. The hard part is trusting what lands. A maintainer reads the
+pull request, says "looks good", and someone or something pushes one more commit before the merge. Or
+an agent reports that its tests passed when they never ran. Or a public bug report carries instructions
+aimed at the agent. Chat approvals say "this PR is fine", when what they need to say is "this commit is fine".
 
-## 1. What Loopback Is
+Loopback makes that the rule: an approval names a full 40-character commit, and the gate re-reads GitHub
+before it merges.
 
-Loopback connects open-source bug intake in team chat (via [Switch](https://switch.chat)) with autonomous coding agents (fixer and verifier) and GitHub pull request workflows. Unlike completely autonomous maintenance bots that auto-merge PRs or post spam, Loopback enforces an infallible cryptographic and commit-bound policy: **nothing merges without human review of the exact commit SHA**.
+## How Switch is used
 
-The system comprises:
-- **Switch Gate (`@loopback/switch-gate`)**: Daemon managing intake and maintainer chat rooms, agent tasking, poller tracking, SQLite persistence, and fail-closed merge execution.
-- **Evidence Signer**: Cryptographic service generating and verifying Ed25519 signatures over verifier test results.
-- **Console API (`@loopback/console-api`)**: Read-only, unprivileged HTTP server exposing case lifecycles, full commit histories, verification runs, and audit feeds.
-- **Evidence Console (`@loopback/console`)**: Zero-trust React frontend presenting auditable proof, timeline inspections, and exact approval commands to maintainers.
+Switch is where the whole workflow happens. People and agents work in the same two rooms, and the gate is
+a custom agent connected through [Switch's agent protocol](https://docs.switchagents.ai/switch-rooms/internals/agent-protocol.md).
 
----
+| Switch feature | What Loopback does with it | Without it |
+|---|---|---|
+| **Rooms** on a real chat app (Mattermost here) | A public room for reports, and a maintainers' room where people and agents work | Nobody could report, triage, approve or merge: the gate has no other way to hear a person |
+| **Custom agent** over the WebSocket protocol | The gate holds one connection per room, with reconnect and takeover fencing | The gate receives no messages |
+| **Provider agents** run by Switch Console | The fixer and verifier are OpenCode sessions, each with its own identity | There is no way to reach the agents: the gate tasks them only by message |
+| **Addressing policy** | Switch decides who may address the gate. The gate refuses to start unless the policy is the expected restrictive one, and stops if it changes | The gate's authorization would have nothing to stand on |
+| **Sender identity** | Every approval is checked against the exact Switch participant id, never a display name | Anyone could type a maintainer's name |
+| **Threads** | A case raised in a thread keeps its replies there. A public report, which has no thread in the maintainers' room, is tagged `[LB-001]` instead | Cases would blur together in the room |
+| **Room documents** | The gate keeps a live case board and decision log in the room. Switch lets only their author change them through the agent API, so agents can read them but not rewrite them | Everyone would need a separate tool to see where work stands |
+| **Room status** | `team` shows whether each agent is really connected, and the gate warns when it tasks one that isn't | A task to an absent agent waits in silence, as it did in our early runs |
+| **Templates** | [One file](templates/loopback.template.yaml) creates both agents and both rooms | Each room and agent is set up by hand |
 
-## 2. The Problem It Solves
+So the answer to "would it stop working without Switch?" is yes, completely. Without Switch the gate has no
+people, no agents and no authority to act on. GitHub is the source of truth for code. Switch is the source
+of truth for who said what, and where.
 
-AI coding assistants can generate code fixes quickly, but deploying autonomous agents to open-source repositories introduces severe risks:
-1. **Hallucinated or Flaky Fixes**: Agents claim a test passes when it was never executed or when it introduced silent regressions.
-2. **Race Conditions & SHA Drift**: A maintainer reviews commit `A`, but a force-push or new commit `B` is pushed before merge, causing unintended code execution.
-3. **Privilege Creep**: Autonomous bots granted broad write or admin permissions can be tricked via prompt injection in public bug reports.
-4. **Lack of Verifiable Audit Trails**: Teams cannot discern whether tests ran in isolation or what evidence justified a merge.
+Tested on Mattermost, which comes with Switch. The gate speaks only to Switch, so other chat apps Switch
+connects (Slack, Teams, Discord, Telegram) should work the same way, but we have not tried them.
 
-Loopback eliminates these vulnerabilities through cryptographic verification, strict role separation, and fail-closed commit binding.
+## Try it in two minutes
 
----
-
-## 3. Why Human-Controlled AI Maintenance Matters
-
-Loopback treats AI agents as untrusted proposal generators, not decision makers:
-- **Maintainers Retain Total Authority**: Only a designated human maintainer can authorize a merge by approving the explicit full 40-character commit SHA in chat.
-- **Independent Verification**: A verifier agent distinct from the fixer independently validates that a reproducer test failed *before* the fix and passes *after* the fix, without high-severity findings.
-- **Evidence Bound to Commit**: Approvals and evidence apply strictly to one git commit SHA. If a single commit is added or amended, all prior evidence and approvals are immediately invalidated.
-
----
-
-## 4. How the Workflow Operates
-
-```
-[Developer / User]
-       │  !report <bug>
-       ▼
-[Public Intake Room] ───► [Switch Gate] ───► [Maintainers Room]
-                                                   │
-                                            !triage accept
-                                                   ▼
-                                         [Fixer Agent Tasked]
-                                                   │
-                                            Branch & PR Opened
-                                                   ▼
-[Verifier Agent] ◄── Verification Request ◄─ [GitHub Poller]
-       │
-Signed Report
-       ▼
-[Switch Gate] ───► Validates Signature & Regression Test
-       │
-       ├─► Maintainer reviews evidence in Read-Only Console
-       │
-[Maintainer] ─────► !approve LB-042 <40-char-sha>
-       │
-[Maintainer] ─────► !merge LB-042
-       │
-       ▼
-[Gatekeeper] ─────► Re-verifies live PR head on GitHub
-                    Checks CI green & approval quorum
-                    Merges PR via GitHub API with sha precondition
-                    Updates append-only audit log
-```
-
-1. **Intake & Triage**: Anyone writes `!report <bug>` in the public intake room. The gate creates case `LB-001` in state `Reported`. A maintainer reviews and executes `!triage accept LB-001` in the private maintainers' room.
-2. **Investigation & PR**: The fixer agent investigates in a restricted sandbox, writes a regression test, implements the fix, and opens a GitHub PR.
-3. **GitHub Poller**: Loopback observes the PR, records the branch, base commit, and head commit SHA, and tracks CI checks.
-4. **Verification**: The gate dispatches an isolated verification request. The verifier checks that the regression test reproduces on the base and passes on the head. A cryptographic evidence report is signed.
-5. **Human Approval**: The maintainer reviews the case in the Console or chat and executes:
-   ```text
-   @loopback-gate approve LB-001 <40-character-sha>
-   ```
-6. **Commit-Bound Merge**: On `@loopback-gate merge LB-001`, the gate re-evaluates all evidence against the live GitHub PR head. If unchanged, it executes GitHub's merge API with the commit SHA precondition.
-7. **Refusal on Discrepancy**: If the head SHA changed, CI failed, or the signature is invalid, merge is refused with an auditable reason code.
-
----
-
-## 5. Architecture Overview
-
-```
-                               ┌────────────────────────────────────────────────────────┐
-                               │                    GitHub Platform                     │
-                               │  - Pull Requests  - CI Status Checks  - Rulesets       │
-                               └───────────────────────────▲────────────────────────────┘
-                                                           │
-                                        GitHub API Poller  │  Merge with SHA Precondition
-                                                           │
-┌──────────────────────────────┐                ┌──────────┴──────────┐                ┌──────────────────────────────┐
-│         Switch Chat          │                │    Loopback Gate    │                │      Console Read-Only       │
-│  - Public Intake Room        │◄──────────────►│  - State Machine    │◄──────────────►│  - React 19 Frontend         │
-│  - Maintainers Room          │  WebSocket     │  - Policy Evaluator │  HTTP / SSE    │  - Audit Timeline & Badges   │
-│  - Agent Task Dispatch       │  JSON Frames   │  - SQLite Audit Log │                │  - Zero Write Authority      │
-└──────────────────────────────┘                └──────────┬──────────┘                └──────────────────────────────┘
-                                                           │
-                                                           │ Ed25519 Signature Verification
-                                                           ▼
-                                                ┌─────────────────────┐
-                                                │   Evidence Signer   │
-                                                │  - Independent Key  │
-                                                │  - Report Attest    │
-                                                └─────────────────────┘
-```
-
-Detailed architectural specifications and boundary rules are documented in [`docs/architecture.md`](docs/architecture.md).
-
----
-
-## 6. Core Capabilities
-
-- **Zero-Write Read-Only Console**: Complete visual transparency into case states, evidence seals, agent claims, and audit logs without exposing merge or mutation capabilities to the browser.
-- **Fail-Closed Gatekeeper**: The gate merges with GitHub's `sha` precondition. If the commit changes by even one bit, the merge fails instantly.
-- **Tamper-Evident Audit Logging**: All actions, transitions, check runs, and decisions append to an SQLite database with trigger-enforced `NO UPDATE` and `NO DELETE` rules.
-- **Actionable Diagnostic Guidance**: Built-in operator explanations for all failure modes (`FIXER_TIMEOUT`, `HEAD_MOVED`, `CI_FAILED`, `PROTECTED_PATH_CHANGED`, etc.) and system dependency health checks (`/readyz`).
-- **Multi-Platform Support**: Linux container isolation reference harness with full support for native Windows NTFS ACLs and console control handlers.
-
----
-
-## 7. Security and Trust Model
-
-Loopback enforces five fundamental security invariants:
-1. **`MERGE_ENABLED=false` by default**: Autonomous merging is disabled until the repository owner explicitly opts in.
-2. **`LOOPBACK_PRIVILEGED_ENABLED=false` by default**: Maintainer commands like `!approve` and `!merge` are refused until explicitly enabled.
-3. **Exact Commit SHA Binding**: Approvals require the full 40-character hexadecimal SHA. Short SHAs or branch names are rejected.
-4. **Principle of Least Privilege**:
-   - Fixer & Verifier agents possess narrow fine-grained tokens (pull request creation only, no merge permission).
-   - Only the Loopback Gate's GitHub App has merge permissions.
-5. **Input Sanitization**: Untrusted user reports and agent summaries are strictly sanitized, text-clipped, and stripped of bi-directional control characters.
-
-Detailed threat modeling and mitigations are in [`docs/threat-model.md`](docs/threat-model.md) and [`SECURITY.md`](SECURITY.md).
-
----
-
-## 8. Technology Stack
-
-- **Runtime**: Node.js `>=22.12.0 <23`
-- **Languages**: TypeScript 6, Modern ESM JavaScript
-- **Frontend**: React 19, Vite 8, IBM Plex typography
-- **Data Persistence**: SQLite (via `better-sqlite3`) with trigger-level immutability
-- **Validation**: Zod 4 for runtime schema enforcement
-- **Cryptography**: Ed25519 asymmetric signatures via Node.js `crypto`
-- **Testing**: Vitest 5, Playwright 1.64, Axe-core accessibility auditing
-- **Security & CI**: Gitleaks 8.24.3, GitHub CodeQL, Dependency Review
-
----
-
-## 9. Local Development Setup
-
-### Prerequisites
-
-- Node.js 22.12+ (managed via `.nvmrc`)
-- npm 10+
-- Git with LF line ending configuration
-
-### Quickstart (Mock Environment — No External Accounts Needed)
+You need Node 22 and a clone of this repository. No accounts, tokens or Docker.
 
 ```bash
-# 1. Clone repository
-git clone https://github.com/puneetnith28/Loopback.git
-cd Loopback
-
-# 2. Install dependencies
 npm ci
-
-# 3. Build workspace packages
 npm run build
-
-# 4. Run tests
-npm test
-
-# 5. Start read-only Console API mock (Terminal 1)
-npm run console-api:mock
-
-# 6. Start Evidence Console frontend (Terminal 2)
-npm run dev --workspace apps/console
-```
-Open [http://localhost:5173](http://localhost:5173) to view the console with pre-seeded demo evidence.
-
----
-
-## 10. Configuration & Environment
-
-Copy `.env.example` to `.env` to configure a live environment:
-```bash
-cp .env.example .env
+npm run demo
 ```
 
-Key environment settings (see [`docs/operations.md`](docs/operations.md) for full descriptions):
-- `GH_APP_ID`, `GH_APP_INSTALLATION_ID`, `GH_APP_PRIVATE_KEY_PATH`: GitHub App credentials for the gate.
-- `SWITCH_SERVER_URL`, `SWITCH_BEARER_TOKEN`: Switch room connection configuration.
-- `SWITCH_INTAKE_ROOM_ID`, `SWITCH_MAINTAINERS_ROOM_ID`: Target room identifiers.
-- `LOOPBACK_RUN_ISSUER_KEY_PATH`: Ed25519 private key for issuing verification runs.
-- `MERGE_ENABLED`: Set to `true` only when ready to allow merges.
-- `LOOPBACK_PRIVILEGED_ENABLED`: Set to `true` to enable maintainer chat commands.
+This walks one bug from a public report to a merge, in your terminal, and **checks itself**: 16 outcomes
+must happen, or it exits with an error. Along the way it shows:
 
-> **CRITICAL**: Never commit `.env`, `*.pem`, or database files. These are ignored by `.gitignore`.
+- a contributor trying to approve from the public room
+- a forged verifier report, signed with the wrong key
+- an agent trying to merge its own work
+- a maintainer approving the wrong commit by mistake
+- **a commit landing after approval**, and the gate refusing to merge it
 
----
+> **What's real in the demo and what isn't.** The router, permissions, state machine, merge policy, audit
+> log and signatures are the same code the live gate runs. Switch's delivery, GitHub and the agents are
+> simulated, and the demo says so. For the real thing, see [what has been proven live](#what-has-been-proven-live).
 
-## 11. Running Tests
+To see that same case in the evidence console:
 
 ```bash
-# Typecheck all packages, tests, and console
+npm run demo:console                    # terminal 1
+npm run dev --workspace apps/console    # terminal 2, then open http://localhost:5173
+```
+
+![The evidence console showing a merged case](docs/evidence/phase-11-console-case.png)
+
+## How it works
+
+```mermaid
+sequenceDiagram
+    actor R as Contributor
+    actor M as Maintainer
+    participant S as Switch rooms
+    participant G as Loopback gate
+    participant F as Fixer agent
+    participant V as Verifier agent
+    participant H as GitHub
+
+    R->>S: @loopback-gate report <bug> (public room)
+    S->>G: delivered, addressed to the gate
+    G->>S: triage notice (maintainers' room)
+    M->>S: @loopback-gate accept LB-001
+    G->>F: task, with the report fenced as untrusted data
+    F->>H: failing test, fix, pull request
+    G->>H: reads the PR and records the full commit
+    G->>V: verify this exact commit
+    V->>G: signed report, bound to this run and commit
+    G->>S: ready for approval, with the full commit
+    M->>S: @loopback-gate approve LB-001 <full sha>
+    M->>S: @loopback-gate merge LB-001
+    G->>H: re-read everything live
+    alt Anything changed
+        G->>S: BLOCKED, old evidence thrown away, re-verifying
+    else Same commit, all evidence holds
+        G->>H: post gate status, merge with the sha as a precondition
+        H-->>G: confirmed
+        G->>S: MERGED
+    end
+```
+
+### Talking to the gate
+
+Type these in the room. Every message starts with `@loopback-gate`.
+
+| Command | Who | What it does |
+|---|---|---|
+| `report <bug>` | Anyone, in the public room | Files a case. No agent starts until a maintainer accepts it |
+| `accept LB-001` / `decline LB-001 <reason>` | Maintainer | Tasks the fixer, or closes the report |
+| `why LB-001` | Maintainer, reporter | **Every merge requirement, read live from GitHub, and what to do next** |
+| `board` | Maintainer, reporter | Every case and who acts next |
+| `team` | Maintainer, reporter | Whether each agent is really connected, according to Switch |
+| `status LB-001` / `audit LB-001` | Maintainer, reporter | One line of state, or the case's audit log |
+| `approve LB-001 <full sha>` / `reject LB-001 <reason>` | Maintainer | Approves or rejects one exact commit |
+| `merge LB-001` | Maintainer | Re-checks everything live, then merges |
+| `verify LB-001` / `retask LB-001 <note>` | Maintainer | Retries a timed-out check, or sends the case back to the fixer |
+
+Here is `why`, after a commit landed on an approved PR:
+
+```text
+[LB-001] Merge check, state Verifying, read from GitHub just now:
+    ✅ Pull request #7: open, mergeable, targets main
+    ✅ Commit: c7d92e41b6a0 is still the PR's head
+    ⏳ CI test: no run yet on c7d92e41b6a0
+    ⏳ Verifier: working on c7d92e41b6a0
+    ❌ Maintainer approval: the approval was for an older commit and does not count for c7d92e41b6a0
+    ✅ Changed files: no CI, dependency or test-configuration files changed
+```
+
+## What has been proven live
+
+| Claim | Evidence |
+|---|---|
+| A real bug went from a chat report to a merge by the gate | [Case LB-001](docs/evidence/phase-08-day2.md): PR #3 of the [demo repository](https://github.com/puneetnith28/loopback-demo-target), merged at `02445c3` |
+| GitHub refuses a merge without the gate's own status, even from the maintainer's account with green CI | [Ruleset proof](docs/evidence/phase-06-ruleset-proof.md): every outcome passed |
+| A wrong-commit approval, and a merge while merging was disabled, were refused live | [Same evidence](docs/evidence/phase-08-day2.md) |
+| The Switch template is valid | The live Switch 0.31 server accepted it with no warnings. Running it end to end is still to do |
+
+**Not proven yet**, and we'd rather say so:
+
+- **Human help:** on the live run a person guided the verifier step by step. It has not yet completed its brief alone.
+- **Advisory verification:** the agents ran on the host, not in their isolated containers, so verification is labelled advisory in chat. A signature proves a report wasn't altered, not that its tests ran. **A person should review the diff before approving.**
+- **Not seen live:** a commit landing after approval (the demo and tests cover it), and the new `why`, `board`, `team` and room documents, which are tested against stand-ins for Switch.
+- **Fresh setup:** nobody else has done the live setup from a clean clone.
+
+The item-by-item audit is in [docs/release-readiness.md](docs/release-readiness.md).
+
+## Run it on your own repository
+
+Expect this to take a few hours the first time, because each role gets its own credentials. You need:
+
+- A GitHub repository you own, with CI and permission to add rulesets
+- A GitHub App for the gate (the only identity that can merge), and fine-grained tokens for the fixer and verifier
+- [Switch Console](https://docs.switchagents.ai/switch-rooms/getting-started/index.md) with Docker (tested with Console 0.40.1, switch-core 0.31.0, Mattermost 11.9.0)
+- An AI coding agent. We used OpenCode. Free models work, but they hit usage limits and need close supervision
+
+Then:
+
+1. Follow [docs/setup.md](docs/setup.md) for GitHub and Switch. On Windows, also read [docs/windows.md](docs/windows.md).
+2. Register the gate, then import [templates/loopback.template.yaml](templates/loopback.template.yaml) in Switch Console (Templates, Import template).
+3. Copy `.env.example` to `.env` and fill it in. Keep keys outside any synced folder, and never commit them.
+4. Prepare and start:
+   ```bash
+   npm ci
+   npm run build
+   npm run migrate
+   npm run readiness    # lists anything still missing
+   npm run gate
+   ```
+5. In the public room: `@loopback-gate report <the bug>`.
+
+Merging stays off until you set `LOOPBACK_PRIVILEGED_ENABLED=true` and `MERGE_ENABLED=true`.
+[docs/operations.md](docs/operations.md) explains every setting.
+
+## Architecture and security
+
+Details are in [docs/architecture.md](docs/architecture.md) and the [threat model](docs/threat-model.md). The main rules:
+
+- **One identity can merge.** Only the gate's GitHub App can, and GitHub's rulesets enforce it. The agents' tokens can't merge.
+- **Agents have no commands.** A message from an agent is only ever read as a report. Agents can't approve or merge, whatever they write.
+- **Reports are data.** Public report text is fenced as untrusted, kept out of room documents, and only reaches the fixer after a maintainer accepts it.
+- **Evidence binds to one commit.** CI, the verifier's report and the approval must all name the same full SHA, and GitHub's own `sha` precondition guards the merge call.
+- **It fails closed.** If GitHub can't be read, nothing merges on cached evidence. An unclear merge result is confirmed with GitHub before anything else happens.
+- **The audit log is append-only.** SQLite triggers reject updates and deletes.
+
+| Part | What it is |
+|---|---|
+| [`apps/switch-gate`](apps/switch-gate) | The gate: Switch connection, commands, state machine, merge policy, audit log, evidence signer |
+| [`apps/console-api`](apps/console-api), [`apps/console`](apps/console) | A read-only API and a React console for reviewing evidence. Neither can change anything |
+| [`deploy/isolation`](deploy/isolation) | Containers for the agents, with separate credentials and limited network access |
+| [`prompts`](prompts), [`templates`](templates) | The agents' briefs and the Switch template |
+
+Built with Node 22, TypeScript, SQLite (`better-sqlite3`), Zod, Ed25519 from Node's `crypto`, React 19 and Vite.
+
+## Tests
+
+```bash
 npm run typecheck
-
-# Lint with module boundary rules
-npm run lint
-
-# Run all unit, integration, and security tests
-npm test
-
-# Run tests with coverage thresholds (authoritative CI check)
-npm run test:coverage
-
-# Verify version consistency across all workspace packages
-npm run release:check
-
-# Run end-to-end console accessibility and browser tests
-npm --prefix apps/console run test:e2e
+npm run lint      # type-aware ESLint, with module-boundary rules
+npm test          # unit, integration and security suites
 ```
 
----
+Run them on Linux or native Windows; [docs/windows.md](docs/windows.md) covers what is weaker there. CI runs
+these on both, plus a secret scan over the full history and CodeQL. Contributing is covered in
+[CONTRIBUTING.md](CONTRIBUTING.md), versions in [CHANGELOG.md](CHANGELOG.md), and reporting a vulnerability in [SECURITY.md](SECURITY.md).
 
-## 12. GitHub Actions and CI/CD
+## Honesty notes
 
-Loopback maintains a strict GitHub Actions pipeline:
+- The code was written with Claude Code, with its review agents.
+- The demo repository is a small, dedicated utility with a deliberately seeded, reproducible bug.
+- Demo merges are designed to land on disposable `demo/<run-id>` branches. The one live merge so far landed on the demo repository's `main`.
+- The agents' GitHub tokens belong to a maintainer's account, so their pushes appear under that account on GitHub. Loopback's audit log records which agent acted.
 
-- **`.github/workflows/ci.yml`**:
-  - `check`: Runs on Ubuntu Latest with Node 22; executes `typecheck`, `lint`, `release:check`, `test:coverage`, production builds, and full-history `gitleaks` secret scanning.
-  - `windows-portable`: Runs natively on Windows 2022; validates NTFS ACL verification, Windows console signals, and cross-platform builds.
-- **`.github/workflows/codeql.yml`**: Scheduled and PR-triggered CodeQL security analysis for JavaScript and TypeScript.
-- **`.github/workflows/dependency-review.yml`**: Scans PRs for vulnerable dependencies and invalid licenses.
-- **`.github/workflows/release.yml`**: Automated packaging and release verification triggered on tags (`v*`).
+## Licence
 
----
-
-## 13. Release & Versioning Process
-
-Loopback adheres to [Semantic Versioning](https://semver.org/).
-
-### Versioning Rules
-- `0.x.y`: Pre-release development. Breaking changes may occur between minor versions.
-- `1.0.0`: Production stability milestone (requires proven verifier isolation and production gate deployment).
-
-### Release Automation
-Releases are triggered exclusively by pushing an authorized git tag:
-```bash
-# 1. Verify all workspace manifests match
-npm run release:check -- v0.1.0
-
-# 2. Tag and push (maintainers only)
-git tag -a v0.1.0 -m "Release v0.1.0"
-git push origin v0.1.0
-```
-The [Release Workflow](.github/workflows/release.yml) validates dependencies, tests, builds, packages compiled console distributions with SHA-256 checksums, and publishes a GitHub Release.
-
----
-
-## 14. Current Limitations & Known Boundaries
-
-- **Single Instance**: The per-case lock is currently in-process; horizontal multi-node scaling is not yet supported.
-- **Advisory Verification**: Until the verifier agent runs in its own isolated Docker container (`deploy/isolation/`) with dedicated credentials, verification remains marked **advisory**.
-- **Local Health Endpoints**: Diagnostic and readiness endpoints (`/healthz`, `/readyz`) bind strictly to `127.0.0.1` and must not be exposed to public networks without authentication.
-- **Direct GitHub Admin Bypasses**: Repository administrators can still bypass branch rules directly on GitHub; Loopback detects, alerts, and records such merges, but cannot restrict organization owners.
-
----
-
-## 15. Contribution & Community
-
-We welcome contributions aligned with Loopback's security invariants!
-
-- Please review [CONTRIBUTING.md](CONTRIBUTING.md) for branch naming, coding style, and testing requirements.
-- Review our [Code of Conduct](CODE_OF_CONDUCT.md).
-- To report vulnerabilities privately, see [SECURITY.md](SECURITY.md).
-- For help or feature ideas, see [SUPPORT.md](SUPPORT.md).
-
----
-
-## 16. Honesty Notes
-
-- Initial code scaffolding was developed with Claude Code assistance.
-- Core development started on 3 November 2026.
-- The demo target repository is an independent repository (`loopback-demo-target`) containing a reproducible bug (Issue #1).
-- The fixer's and verifier's GitHub tokens are fine-grained tokens owned by the maintainer's account; Loopback's durable audit log records which agent acted.
-
----
-
-## 17. License
-
-Distributed under the **Apache License 2.0**. See [`LICENSE`](LICENSE) for full details.
+[Apache License 2.0](LICENSE).

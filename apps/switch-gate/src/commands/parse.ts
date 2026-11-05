@@ -10,6 +10,9 @@ export const USAGE_LINES: Readonly<Record<CommandKind, string>> = {
   whoami: "whoami",
   report: "report <description of the bug>",
   status: "status <LB-nnn>",
+  why: "why <LB-nnn>",
+  board: "board",
+  team: "team",
   audit: "audit <LB-nnn>",
   accept: "accept <LB-nnn>",
   decline: "decline <LB-nnn> <reason>",
@@ -66,6 +69,8 @@ export function parseCommand(body: string, gateMention: string): ParseResult {
   switch (verb as CommandKind) {
     case "help":
     case "whoami":
+    case "board":
+    case "team":
       if (tokens.length > 0) return fail(`${verb} takes no arguments`);
       candidate = { kind: verb };
       break;
@@ -73,6 +78,7 @@ export function parseCommand(body: string, gateMention: string): ParseResult {
       candidate = { kind: "report", text: args };
       break;
     case "status":
+    case "why":
     case "verify":
     case "merge":
     case "audit":

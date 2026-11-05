@@ -11,6 +11,7 @@ import { verifyReportSignature } from "../agents/signature.js";
 import { CAPABILITY_MAX_TTL_MS, issueCapability } from "../agents/capability.js";
 import type { AgentInbox, CommandContext, FixerHandoff, Reply } from "../commands/router.js";
 import { RateLimited, type GitHubReader } from "../github/client.js";
+import { absenceNotice, agentName, type RoomStatuses } from "../switch/team.js";
 import type { Db } from "../persistence/db.js";
 import {
   baseShaForCommit, completeRun, getCase, getRun, insertApproval, insertRun, kvGet, kvSet, supersedeOpenRuns, latestCi, latestRunForHead, listApprovals, listCasesInStates,
@@ -57,6 +58,8 @@ export interface WorkflowDeps {
    * timeout; the verifier signer signs only reports bound to such a capability.
    */
   readonly runIssuerKey?: KeyObject | null;
+  /** D34: what Switch says about the agents in the maintainers' room, for advice to people. */
+  readonly roomStatuses?: RoomStatuses;
   readonly log?: { error(obj: Record<string, unknown>, msg: string): void };
 }
 
@@ -71,6 +74,8 @@ export function fenceSafe(text: string): string {
  * points take the per-case lock; `*Locked` helpers assume it is held.
  */
 export class VerificationWorkflow implements AgentInbox, FixerHandoff {
+  private readonly notices = new Set<Promise<void>>();
+
   constructor(private readonly d: WorkflowDeps) {}
 
   private async announce(c: CaseRecord, text: string): Promise<void> {
@@ -106,6 +111,18 @@ export class VerificationWorkflow implements AgentInbox, FixerHandoff {
       ...(note ? ["Maintainer note (trusted):", fenceSafe(note)] : []),
       "Reply in this thread with a short summary and exactly one loopback-report block.",
     ].join("\n");
+  }
+
+  /** D34: a task sent to an agent with no session waits in silence, so say so at once. */
+  async noticeIfAbsent(c: CaseRecord, agent: "fixer" | "verifier"): Promise<void> {
+    const statuses = this.d.roomStatuses;
+    if (statuses === undefined) return;
+    try {
+      const notice = absenceNotice(agentName(agent === "fixer" ? this.d.fixerAlias : this.d.verifierAlias), await statuses());
+      if (notice !== null) await this.announce(c, notice);
+    } catch (e) {
+      this.d.log?.error({ caseId: c.id, op: "team.notice", err: e instanceof Error ? e.name : "unknown" }, "could not check or announce the agent's presence");
+    }
   }
 
   // --- verification requests (7.5, 7.7) ---------------------------------------------------
@@ -146,6 +163,15 @@ export class VerificationWorkflow implements AgentInbox, FixerHandoff {
       `Run id: ${run.id}. Inspect exactly that commit. Reply with one loopback-report block whose "runId" is "${run.id}".`,
       ...(capability === null ? [] : [`Signing capability: ${capability}`]),
     ].join("\n"), c.threadId);
+    // The caller holds the case lock, which merges and the poller wait on: never make them wait for
+    // Switch just to give advice. noticesSettled() lets shutdown finish it.
+    const notice: Promise<void> = this.noticeIfAbsent(c, "verifier").finally(() => this.notices.delete(notice));
+    this.notices.add(notice);
+  }
+
+  /** Wait for presence notices still on their way. */
+  async noticesSettled(): Promise<void> {
+    await Promise.allSettled([...this.notices]);
   }
 
   async verifyCommand(ctx: CommandContext, caseId: string): Promise<Reply> {

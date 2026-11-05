@@ -75,11 +75,15 @@ export const Command = z.discriminatedUnion("kind", [
   // Maintainer triage of a public intake report (D26): only `accept` may task the fixer.
   z.object({ kind: z.literal("accept"), caseId: CaseId }),
   z.object({ kind: z.literal("decline"), caseId: CaseId, reason: z.string().min(3).max(500) }),
+  // Read-only views (D34): they change nothing and authorize nothing.
+  z.object({ kind: z.literal("why"), caseId: CaseId }),
+  z.object({ kind: z.literal("board") }),
+  z.object({ kind: z.literal("team") }),
 ]);
 export type Command = z.infer<typeof Command>;
 export type CommandKind = Command["kind"];
 export const COMMAND_KINDS: readonly CommandKind[] = [
-  "help", "whoami", "report", "status", "verify", "approve", "reject", "merge", "audit", "retask", "accept", "decline",
+  "help", "whoami", "report", "status", "verify", "approve", "reject", "merge", "audit", "retask", "accept", "decline", "why", "board", "team",
 ];
 
 // ---------------------------------------------------------------------------

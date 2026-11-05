@@ -50,7 +50,8 @@ beforeEach(() => {
     intakeMaxReportsPerHour: 3,
     identity: { maintainers: new Set([MAINT]), reporters: new Set([REP]), privilegedEnabled: true },
     privileged,
-    handoff: { check: async () => baseProblem, message: (c) => `@loopback-fixer fix ${c.id}` },
+    views: { why: vi.fn(reply("why")), team: vi.fn(reply("team")) },
+    handoff: { check: async () => baseProblem, message: (c) => `@loopback-fixer fix ${c.id}`, noticeIfAbsent: async () => undefined },
     agents: { onAgentMessage: vi.fn(async () => undefined) },
     now: () => new Date("2026-11-04T10:00:00Z"),
   };

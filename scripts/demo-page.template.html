@@ -1,0 +1,293 @@
+<title>Loopback Rehearsal</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Click through one bug going from a chat report to a merge, including the attacks and mistakes the Loopback gate stops.">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: a step rail, the chat room for the current step, and the commit's evidence panel beside it.
+   Type and colour follow the project's evidence console: IBM Plex, cool slate, a teal seal. */
+:root {
+  --bg: #f3f6f8; --surface: #ffffff; --sunk: #e9eef2; --line: #cfd8df; --fg: #14202a; --muted: #52626f;
+  --accent: #0b6f76; --accent-soft: #d9eff0; --ok: #17693a; --ok-soft: #dcf1e3; --wait: #7a5600; --wait-soft: #f7ecd0;
+  --bad: #a4262c; --bad-soft: #fbe4e4; --person: #1f5fa8; --agent: #6b3fa0; --gate: #0b6f76;
+  --sans: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif; --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0e141a; --surface: #161e26; --sunk: #0a0f14; --line: #2b3742; --fg: #e6edf2; --muted: #9aaab7;
+  --accent: #4fc4cc; --accent-soft: #123338; --ok: #6fd795; --ok-soft: #12301f; --wait: #e9c063; --wait-soft: #33290f;
+  --bad: #ff9a9a; --bad-soft: #3a1619; --person: #84b8f2; --agent: #c0a2ec; --gate: #4fc4cc; color-scheme: dark;
+} }
+:root[data-theme="dark"] {
+  --bg: #0e141a; --surface: #161e26; --sunk: #0a0f14; --line: #2b3742; --fg: #e6edf2; --muted: #9aaab7;
+  --accent: #4fc4cc; --accent-soft: #123338; --ok: #6fd795; --ok-soft: #12301f; --wait: #e9c063; --wait-soft: #33290f;
+  --bad: #ff9a9a; --bad-soft: #3a1619; --person: #84b8f2; --agent: #c0a2ec; --gate: #4fc4cc; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font: 15px/1.5 var(--sans); }
+.wrap { max-width: 1240px; margin: 0 auto; padding-block: 28px 56px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 20px; }
+a { color: var(--accent); }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+code, .mono { font-family: var(--mono); }
+header { display: grid; gap: 8px; }
+.brand { font: 600 14px var(--mono); color: var(--accent); }
+h1 { margin: 0; font-size: clamp(25px, 3.6vw, 38px); line-height: 1.15; font-weight: 700; text-wrap: balance; max-width: 26em; }
+.lede { margin: 0; color: var(--muted); max-width: 68ch; font-size: 16px; }
+.notice { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; padding: 10px 14px; background: var(--wait-soft); border: 1px solid var(--line); border-radius: 6px; }
+.notice strong { color: var(--wait); }
+.player { display: grid; grid-template-columns: 250px minmax(0, 1fr) 280px; gap: 16px; align-items: start; }
+.rail { display: grid; gap: 2px; list-style: none; margin: 0; padding: 0; counter-reset: step; }
+.rail button { width: 100%; display: grid; grid-template-columns: 24px 1fr; gap: 6px; padding: 7px 8px; border: 0; border-radius: 5px; background: none; color: var(--muted); font: 13px/1.35 var(--sans); text-align: left; cursor: pointer; }
+.rail button:hover { background: var(--sunk); color: var(--fg); }
+.rail button[aria-current="step"] { background: var(--accent-soft); color: var(--fg); font-weight: 600; }
+.rail .n { font: 500 12px/1.5 var(--mono); }
+.stage { display: grid; gap: 12px; min-width: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 18px; }
+.stage h2 { margin: 0; font-size: 19px; line-height: 1.3; text-wrap: balance; }
+.controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+button.btn { font: 500 14px var(--sans); padding: 7px 14px; border-radius: 5px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); cursor: pointer; }
+button.btn:hover:not(:disabled) { border-color: var(--accent); }
+button.btn:disabled { opacity: .45; cursor: default; }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+.count { margin-left: auto; color: var(--muted); font: 13px var(--mono); }
+.log { display: grid; gap: 8px; min-width: 0; }
+.msg { display: grid; gap: 3px; padding: 9px 12px; border-radius: 6px; background: var(--sunk); min-width: 0; }
+.msg.refused { background: var(--bad-soft); }
+.meta { display: flex; flex-wrap: wrap; gap: 2px 8px; align-items: baseline; font-size: 13px; }
+.who { font-weight: 600; }
+.person { color: var(--person); } .agent { color: var(--agent); } .gate { color: var(--gate); }
+.room { color: var(--muted); font: 12px var(--mono); }
+.text { margin: 0; font: 13px/1.5 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+.refused .text { color: var(--bad); font-weight: 500; }
+.gh { font-size: 13px; color: var(--wait); font-weight: 500; padding: 2px 12px; overflow-wrap: anywhere; }
+.checks { list-style: none; margin: 0; padding: 12px 0 0; border-top: 1px solid var(--line); display: grid; gap: 4px; font-size: 14px; }
+.checks li { display: grid; grid-template-columns: 20px 1fr; }
+.checks .yes { color: var(--ok); font-weight: 700; } .checks .no { color: var(--bad); font-weight: 700; }
+.evidence { display: grid; gap: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 16px; position: sticky; top: calc(12px + env(safe-area-inset-top, 0px)); }
+.eyebrow { font-size: 12px; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.sha { font: 600 17px var(--mono); overflow-wrap: anywhere; }
+.state { font-weight: 600; }
+.rows { display: grid; gap: 6px; }
+.row { display: grid; grid-template-columns: 24px 1fr auto; gap: 4px; align-items: baseline; padding: 6px 8px; border-radius: 5px; font-size: 14px; transition: background-color .5s; }
+.row b { font-weight: 500; font-family: var(--mono); font-size: 13px; }
+.row.pass { background: var(--ok-soft); } .row.pass .mark { color: var(--ok); }
+.row.wait { background: var(--wait-soft); } .row.wait .mark { color: var(--wait); }
+.row.none { background: var(--sunk); color: var(--muted); }
+.row.void { background: var(--bad-soft); } .row.void .mark, .voided { color: var(--bad); }
+.voided { font-size: 13px; font-weight: 600; margin: 0; }
+.tables { display: grid; gap: 14px; min-width: 0; }
+.tables h3 { margin: 0 0 6px; font-size: 14px; }
+.scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { text-align: left; padding: 6px 9px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { color: var(--muted); font-weight: 600; background: var(--sunk); }
+tr:last-child td { border-bottom: 0; }
+.result { margin: 0; font-weight: 600; color: var(--ok); }
+.after { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; padding-top: 8px; }
+.after section { display: grid; gap: 6px; align-content: start; min-width: 0; }
+.after h2 { margin: 0; font-size: 15px; }
+.after p { margin: 0; color: var(--muted); font-size: 14px; }
+pre.cmd { margin: 0; padding: 10px 12px; background: var(--sunk); border-radius: 6px; font: 13px/1.5 var(--mono); overflow-x: auto; }
+.links { display: grid; gap: 3px; }
+@media (max-width: 1040px) {
+  .player { grid-template-columns: minmax(0, 1fr); }
+  .rail { display: flex; overflow-x: auto; gap: 4px; padding-bottom: 4px; }
+  .rail li { flex: none; }
+  .rail button { display: block; width: auto; padding: 5px 10px; background: var(--sunk); }
+  .rail .t { display: none; }
+  .evidence { position: static; order: -1; }
+  .after { grid-template-columns: minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) { .row { transition: none; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="brand">Loopback</div>
+    <h1>AI agents fix bugs in your team chat. Nothing merges unless a person approved that exact commit.</h1>
+    <p class="lede">Step through one bug, from a report in a Switch room to a merge. Along the way, people and agents try the things the gate exists to stop.</p>
+  </header>
+
+  <div class="notice"><strong>Simulated rehearsal.</strong> <span>The gate's decisions, permissions and signatures here are its real code, and this page is recorded from an actual run. Switch's delivery, GitHub and the agents are simulated.</span></div>
+
+  <div class="player">
+    <nav aria-label="Steps"><ol class="rail" id="rail"></ol></nav>
+    <main class="stage">
+      <h2 id="title" tabindex="-1"></h2>
+      <div class="controls">
+        <button class="btn" id="back" type="button">Back</button>
+        <button class="btn primary" id="next" type="button">Next step</button>
+        <button class="btn" id="play" type="button">Play</button>
+        <button class="btn" id="point" type="button">Skip to the late commit</button>
+        <span class="count" id="count"></span>
+      </div>
+      <div class="log" id="log" aria-live="polite"></div>
+      <div class="tables" id="tables" hidden></div>
+      <ul class="checks" id="checks"></ul>
+    </main>
+    <aside class="evidence" aria-label="Evidence for the current commit">
+      <div><div class="eyebrow">Commit under review</div><div class="sha" id="sha"></div></div>
+      <div><div class="eyebrow">Case LB-001</div><div class="state" id="state"></div></div>
+      <div class="rows" id="rows"></div>
+      <p class="voided" id="voided" hidden>New commit. All earlier evidence for this case no longer counts.</p>
+    </aside>
+  </div>
+
+  <div class="after">
+    <section>
+      <h2>See the real thing</h2>
+      <p>A real bug went through this flow on live Switch and GitHub. An agent wrote the fix, a person guided the verifier, and the gate merged it after a maintainer approved the exact commit.</p>
+      <div class="links">
+        <a href="https://github.com/puneetnith28/loopback-demo-target/pull/3">The merged pull request</a>
+        <a href="https://github.com/puneetnith28/loopback-demo-target/issues/1">The bug it fixed</a>
+        <a id="video" href="#" hidden>The demo video</a>
+      </div>
+    </section>
+    <section>
+      <h2>Run it yourself</h2>
+      <p>This same rehearsal runs on your machine in about two minutes. You need Node 22 and no accounts.</p>
+      <pre class="cmd">git clone https://github.com/puneetnith28/Loopback.git
+cd Loopback
+npm ci
+npm run build
+npm run demo</pre>
+    </section>
+    <section>
+      <h2>Where Switch fits</h2>
+      <p>In real use, all of this happens in Switch rooms. Switch delivers every command, tells the gate who really sent it, and is the only way the gate reaches its agents.</p>
+      <div class="links">
+        <a href="https://github.com/puneetnith28/Loopback">The code and README</a>
+        <a href="https://github.com/sandbox-quantum/switch">Switch</a>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script id="data" type="application/json">__REHEARSAL_DATA__</script>
+<script>
+(function () {
+  var data = JSON.parse(document.getElementById("data").textContent);
+  var scenes = data.scenes;
+  var $ = function (id) { return document.getElementById(id); };
+  var el = function (tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text !== undefined) n.textContent = text;
+    return n;
+  };
+  var at = 0;
+  var timer = null;
+  var POINT = scenes.findIndex(function (s) { return s.title.indexOf("THE POINT") === 0; });
+  var MARK = { pass: "✓", wait: "…", none: "–", void: "✕" };
+
+  scenes.forEach(function (s, i) {
+    var b = el("button");
+    b.type = "button";
+    b.append(el("span", "n", String(i + 1)), el("span", "t", s.title.replace(/^THE POINT OF LOOPBACK\.\s*/, "")));
+    b.setAttribute("aria-label", "Step " + (i + 1) + ": " + s.title);
+    b.addEventListener("click", function () { stop(); show(i); });
+    var li = el("li");
+    li.append(b);
+    $("rail").append(li);
+  });
+
+  function row(label, kind, value) {
+    var r = el("div", "row " + kind);
+    r.append(el("span", "mark", MARK[kind]), el("span", null, label), el("b", null, value));
+    return r;
+  }
+
+  function renderEvidence(s, prev) {
+    var c = s.state || {};
+    var merged = c.state === "Merged";
+    var moved = !!(prev && prev.commit && c.commit && prev.commit !== c.commit);
+    $("sha").textContent = c.commit || "none yet";
+    $("state").textContent = c.state || "No case yet";
+    $("voided").hidden = !moved;
+    $("rows").replaceChildren(
+      row("CI", c.ci === "passed" ? "pass" : c.ci === null || c.ci === undefined ? "none" : c.ci === "failed" ? "void" : "wait", c.ci || "-"),
+      row("Verifier", c.verifier === "pass" ? "pass" : c.verifier === null || c.verifier === undefined ? "none" : c.verifier === "fail" || c.verifier === "invalid" ? "void" : "wait", c.verifier === "requested" ? "working" : c.verifier || "-"),
+      row("Maintainer approval", c.approvals > 0 ? "pass" : moved ? "void" : c.commit ? "wait" : "none", c.commit ? c.approvals + " of 1" : "-"),
+      row("Merged by the gate", merged ? "pass" : "none", merged ? "yes" : "no")
+    );
+  }
+
+  function renderTable(t) {
+    var wrap = el("div", "scroll");
+    var table = el("table");
+    var head = el("tr");
+    t.header.forEach(function (h) { var th = el("th", null, h); th.scope = "col"; head.append(th); });
+    var thead = el("thead");
+    thead.append(head);
+    var body = el("tbody");
+    t.rows.forEach(function (r) {
+      var tr = el("tr");
+      r.forEach(function (c) { tr.append(el("td", null, c)); });
+      body.append(tr);
+    });
+    table.append(thead, body);
+    wrap.append(table);
+    return wrap;
+  }
+
+  function show(i) {
+    at = Math.max(0, Math.min(scenes.length - 1, i));
+    var s = scenes[at];
+    $("title").textContent = s.title;
+    $("count").textContent = "Step " + (at + 1) + " of " + scenes.length;
+    $("back").disabled = at === 0;
+    $("next").disabled = at === scenes.length - 1;
+    Array.prototype.forEach.call($("rail").querySelectorAll("button"), function (b, n) {
+      if (n === at) { b.setAttribute("aria-current", "step"); if (b.scrollIntoView && window.innerWidth <= 1040) b.scrollIntoView({ block: "nearest", inline: "center" }); }
+      else b.removeAttribute("aria-current");
+    });
+    $("log").replaceChildren.apply($("log"), s.items.map(function (m) {
+      if (m.kind === "github") return el("div", "gh", "On GitHub (simulated): " + m.text);
+      var box = el("div", "msg" + (m.refused ? " refused" : ""));
+      var meta = el("div", "meta");
+      meta.append(el("span", "who " + m.role, m.who), el("span", "room", "#" + m.room));
+      box.append(meta, el("p", "text", m.text));
+      return box;
+    }));
+    $("checks").replaceChildren.apply($("checks"), s.checks.map(function (c) {
+      var li = el("li");
+      li.append(el("span", c.held ? "yes" : "no", c.held ? "✓" : "✕"), el("span", null, c.claim));
+      return li;
+    }));
+    $("checks").hidden = s.checks.length === 0;
+    var last = at === scenes.length - 1 && data.tables;
+    $("tables").hidden = !last;
+    if (last) {
+      var a = el("div"), b = el("div");
+      a.append(el("h3", null, "Loopback case board"), renderTable(data.tables.board));
+      b.append(el("h3", null, "Loopback decision log, newest first"), renderTable(data.tables.decisions));
+      $("tables").replaceChildren(a, b, el("p", "result", data.held + " of " + data.total + " expected outcomes observed in this run."));
+    }
+    renderEvidence(s, at > 0 ? scenes[at - 1].state : null);
+    try { history.replaceState(null, "", "#step-" + (at + 1)); } catch (e) { /* a frame may refuse this */ }
+  }
+
+  function stop() {
+    if (timer !== null) { clearInterval(timer); timer = null; $("play").textContent = "Play"; }
+  }
+  $("next").addEventListener("click", function () { stop(); show(at + 1); });
+  $("back").addEventListener("click", function () { stop(); show(at - 1); });
+  $("point").addEventListener("click", function () { stop(); show(POINT); $("title").focus({ preventScroll: true }); });
+  $("point").hidden = POINT < 0;
+  $("play").addEventListener("click", function () {
+    if (timer !== null) { stop(); return; }
+    if (at === scenes.length - 1) show(0);
+    $("play").textContent = "Pause";
+    timer = setInterval(function () {
+      if (at >= scenes.length - 1) { stop(); return; }
+      show(at + 1);
+    }, 5000);
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.altKey || e.ctrlKey || e.metaKey) return;
+    if (e.key === "ArrowRight") { stop(); show(at + 1); }
+    if (e.key === "ArrowLeft") { stop(); show(at - 1); }
+  });
+  if (data.videoUrl) { $("video").href = data.videoUrl; $("video").hidden = false; }
+
+  var hash = /^#step-(\d+)$/.exec(location.hash);
+  show(hash ? Number(hash[1]) - 1 : 0);
+})();
+</script>

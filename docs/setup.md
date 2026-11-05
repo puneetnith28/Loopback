@@ -6,9 +6,10 @@ or key directory others can read or write. On Linux it uses rootless Docker for 
 ACLs; **read [windows.md](windows.md) first**, including what is weaker there. The commands below are
 written for Linux.
 
-Everything here is a manual step for the maintainer. None of it has been performed or
-verified yet; each section ends with the checks that turn it from "configured" into
-"verified". Record the evidence for each check before relying on it.
+Everything here is a manual step for the maintainer. It was done once, on one Windows machine
+([evidence](evidence/phase-05.md)); nobody else has done it from a clean clone yet. Each section ends
+with the checks that turn it from "configured" into "verified". Record the evidence for each check
+before relying on it.
 
 ## 1. GitHub
 
@@ -191,11 +192,14 @@ Verified against Switch Console 0.40.1 / switch-core 0.31.0 (agent bridge on
    the deployment bootstrap key, which makes the non-admin "Agent Bootstrap" account the owner).
    Store the returned `id` and `api_key` in `.env` as `SWITCH_AGENT_ID` / `SWITCH_AGENT_API_KEY`
    without printing them, then remove the registration key from `.env`.
-3. Two rooms (D26): the private maintainers' room (`SWITCH_ROOM_ID`) and a public bug-intake room
-   (`SWITCH_INTAKE_ROOM_ID`, a different room). Make the gate a member of both. The gate opens one
-   connection per room (`scope=single`, `rooms=<that room>`) and posts in each room only through
-   that room's connection. **The intake room does not exist yet on the live install; creating it is
-   a manual step.**
+3. Create the team from the template: in Switch Console, **Templates**, **Import template**, choose
+   [`templates/loopback.template.yaml`](../templates/loopback.template.yaml), then **Use**. It creates
+   the fixer and verifier agents, a private maintainers' room and a public intake room, with the gate in
+   both and each agent's brief from `prompts/`. Switch 0.31 accepts the file with no warnings; running
+   it end to end has not been tried yet, and our live rooms were made by hand. Put the rooms' ids in
+   `.env` as `SWITCH_ROOM_ID` and `SWITCH_INTAKE_ROOM_ID`. After changing `prompts/`, run
+   `npm run switch-template`. Two rooms is decision D26: the gate opens one connection per room
+   (`scope=single`, `rooms=<that room>`) and posts in each room only through that room's connection.
 4. New agents only accept addressing from their owner and the owner's agents
    (`who_can_talk: owner_and_owner_agents`). The gate needs exactly two rules instead:
    - `rooms: [SWITCH_ROOM_ID]`, `room_groups: "*"`, `users: [maintainer ExternalUser ids]`,
@@ -206,11 +210,10 @@ Verified against Switch Console 0.40.1 / switch-core 0.31.0 (agent bridge on
    A workspace admin sets it with `PUT /gateway/agents/{id}/addressing-policy` (Console shows the
    control only for agents you own). Put the maintainers' ids in `SWITCH_POLICY_USER_IDS` and the
    agents' ids in `SWITCH_POLICY_AGENT_IDS`; the gate checks the live policy at startup and every
-   60 s and exits with code 4 if it differs. The live policy applied on 2026-11-03 is the earlier
-   one-rule policy (maintainers' room only, no agents), so this build exits with code 4 until both
-   rules are in place.
+   60 s and exits with code 4 if it differs.
 5. The gate lists its Switch operations at startup (`GET /agents/{id}/ops`) and exits with code 5
-   unless `post_message` and `read_context` are available.
+   unless `post_message` and `read_context` are available. It keeps its documents in the maintainers'
+   room only if `create_room_document` and `update_room_document` are available too.
 
 ### Authorization
 - A message reaches a handler only if Switch addressed it to the gate (its policy admitted the

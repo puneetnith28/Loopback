@@ -5,7 +5,7 @@ import type { GitHubClient } from "./github/client.js";
 import { startHealthServer } from "./observability/health.js";
 import { policyExpectationOf, preflight, readinessChecks, watchPolicy } from "./startup.js";
 import type { OpenSocket, StopReason } from "./switch/connection.js";
-import { discoverOperations } from "./switch/ops.js";
+import { callOperation, discoverOperations, readRoomStatuses } from "./switch/ops.js";
 import { verifyAddressingPolicy } from "./switch/policy-check.js";
 import { Rooms } from "./switch/rooms.js";
 import { StoredConnectionError } from "./switch/store.js";
@@ -173,7 +173,19 @@ export async function runGate(d: RunDeps): Promise<number> {
     };
 
     try {
-      gate = createGate(cfg, rooms.chat, log, d.github ? { github: d.github } : {});
+      // D34: the room documents are optional. A Switch without these operations still runs the gate.
+      const hasRoomDocs = ops.operations.has("create_room_document") && ops.operations.has("update_room_document");
+      gate = createGate(cfg, rooms.chat, log, {
+        ...(d.github ? { github: d.github } : {}),
+        // Advice only, so it never waits long.
+        roomStatuses: () => readRoomStatuses({ ...switchHttp, timeoutMs: 3_000 }, sw.roomId),
+        ...(hasRoomDocs ? {
+          roomDocs: {
+            connectionId: () => rooms.rooms.find((r) => r.spec.roomId === sw.roomId)?.connection.connection?.connectionId ?? null,
+            call: (operation: string, body: Record<string, unknown>, connectionId: string) => callOperation(switchHttp, operation, body, connectionId),
+          },
+        } : {}),
+      });
       const g = gate;
       rooms.bind({
         db: g.db,

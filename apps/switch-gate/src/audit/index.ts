@@ -85,6 +85,15 @@ export function listRecent(db: Db, caseId: string, limit = 15): AuditRow[] {
   return rows.map(toRow);
 }
 
+/** Newest-first events of these types across all cases (for the room's decision log). */
+export function listDecisions(db: Db, types: readonly string[], limit: number): AuditRow[] {
+  if (types.length === 0) return [];
+  const rows = db
+    .prepare(`SELECT * FROM audit_events WHERE case_id IS NOT NULL AND event_type IN (${types.map(() => "?").join(",")}) ORDER BY id DESC LIMIT ?`)
+    .all(...types, limit) as RawRow[];
+  return rows.map(toRow);
+}
+
 export function countEvents(db: Db, caseId: string, type: AuditEventType, targetSha?: string): number {
   const row = (targetSha === undefined
     ? db.prepare("SELECT count(*) AS n FROM audit_events WHERE case_id = ? AND event_type = ?").get(caseId, type)

@@ -53,6 +53,46 @@ export async function discoverOperations(o: OpsClientOptions): Promise<OpsDiscov
   return { ok: true, operations };
 }
 
+export type OpResult =
+  | { readonly ok: true; readonly result: unknown }
+  | { readonly ok: false; readonly status: number | null; readonly reason: string };
+
+/**
+ * Run one operation. A room-bound operation names the connection that claimed the room. A failure
+ * is reported by status only: Switch's answer is not echoed into logs.
+ */
+export async function callOperation(o: OpsClientOptions, operation: string, body: Record<string, unknown>, connectionId?: string): Promise<OpResult> {
+  let res: Response;
+  try {
+    res = await o.fetch(`${base(o)}/ops/${encodeURIComponent(operation)}`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${o.apiKey}`, "Content-Type": "application/json", ...(connectionId === undefined ? {} : { "X-Switch-Connection-Id": connectionId }) },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(o.timeoutMs ?? 10_000),
+    });
+  } catch (e) {
+    return { ok: false, status: null, reason: `no answer (${e instanceof Error ? e.name : "unknown"})` };
+  }
+  const text = await res.text().catch(() => "");
+  if (!res.ok) return { ok: false, status: res.status, reason: `HTTP ${res.status}` };
+  try {
+    return { ok: true, result: (JSON.parse(text) as { result?: unknown }).result ?? null };
+  } catch {
+    return { ok: false, status: res.status, reason: "the answer is not JSON" };
+  }
+}
+
+const RoomStatuses = z.object({ agent_statuses: z.record(z.string(), z.string().nullable()) });
+
+/** Each agent's status in a room, as Switch reports it (`get_room_detail`). Null when unavailable. */
+export async function readRoomStatuses(o: OpsClientOptions, roomId: string): Promise<ReadonlyMap<string, string> | null> {
+  const res = await callOperation(o, "get_room_detail", { room_id: roomId });
+  if (!res.ok) return null;
+  const parsed = RoomStatuses.safeParse(res.result);
+  if (!parsed.success) return null;
+  return new Map(Object.entries(parsed.data.agent_statuses).map(([name, status]) => [name, status ?? "unknown"]));
+}
+
 /** One timeline entry from `read_context` (no `addressed` flag: never usable as a command). */
 export interface ContextEntry {
   readonly id: string;

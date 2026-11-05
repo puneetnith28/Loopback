@@ -38,7 +38,8 @@ This document is the executable checklist for the 3-minute hackathon video submi
 
 1. **0:00 – 0:15 | Scene 1: Introduction & Trust Problem**
    - **Visual**: Maintainer room showing the three agents.
-   - **Narration**: *"AI coding agents can generate fixes in minutes, but how do maintainers know that what actually merges is what they approved, without trusting the agent's own word? Loopback runs inside a Switch collaboration room and enforces commit-level accountability."*
+   - **Action**: Maintainer types `@loopback-gate team`, and the gate lists each agent's status as Switch reports it.
+   - **Narration**: *"AI coding agents can generate fixes in minutes, but how do maintainers know that what actually merges is what they approved, without trusting the agent's own word? Loopback puts people and agents in the same Switch rooms, and everything happens here in chat. Switch delivers every command, tells the gate who really sent it, and is the only way the gate reaches its agents."*
 2. **0:15 – 0:35 | Scene 2: Public Bug Intake & Maintainer Triage**
    - **Visual**: Switch to `loopback-intake` room. An external contributor types:
      ```text
@@ -115,7 +116,8 @@ This document is the executable checklist for the 3-minute hackathon video submi
      [LB-001] BLOCKED (HEAD_MOVED): The PR now points to 7a1d94e820ab. Evidence for the previous commit does not apply.
      ```
    - **Note**: the gate also asks the verifier to review the new head. If the poller notices the new commit before the `merge` command, the case is already re-verifying and `merge` is refused as not ready instead.
-   - **Narration**: *"This is Loopback's critical security guarantee. An extra commit landed after approval. Even though the PR is the same, Loopback refuses to merge: human approval was bound to the exact earlier commit."*
+   - **Action**: Maintainer types `@loopback-gate why LB-001`. The gate lists every requirement, read live from GitHub, with the approval marked as being for an older commit.
+   - **Narration**: *"This is Loopback's critical security guarantee. An extra commit landed after approval. Even though the PR is the same, Loopback refuses to merge: human approval was bound to the exact earlier commit. Anyone can ask why, in chat, and see what's still needed."*
 7. **1:55 – 2:05 | Scene 7: Unauthorized Sender Refusal (D27)**
    - **Visual**: Outsider or unprivileged user tries:
      ```text
@@ -161,7 +163,8 @@ This document is the executable checklist for the 3-minute hackathon video submi
      - `merge.requested`, `gate_status.posted`, `merge.confirmed`
 
      (The table shows the newest 15 events first; `case.state_changed` rows are interleaved.)
-   - **Narration**: *"Every state transition, evidence check, refusal, and merge is recorded in an immutable, append-only SQLite audit log."*
+   - **Action**: Type `!list-documents` in the room (a Switch command), then show **Loopback case board** and **Loopback decision log** in Switch Console.
+   - **Narration**: *"Every state transition, evidence check, refusal, and merge is recorded in an append-only audit log. The gate also keeps a board and a decision log as Switch room documents, so every person and agent reads the same record, and only the gate can rewrite them through Switch's agent API."*
 
 ---
 
@@ -183,4 +186,6 @@ This document is the executable checklist for the 3-minute hackathon video submi
 | Test run failed | Run `./scripts/reset-demo.sh` to get a fresh `demo/<run-id>` branch and re-record. |
 | An agent shows "Queued" or sits idle | Look for an unanswered permission prompt in its older threads and answer it, or click **Stop current work**. Then check the OpenCode log for `Free usage limit reached`: a quota error looks like silence in chat. |
 | Verification timed out | `@loopback-gate verify <case>` starts a new run on the same commit, if the head has not moved. Anything else needs `retask`, then a new commit. |
+| Not sure why a case is stuck | `@loopback-gate why <case>` lists every requirement and the next step. `@loopback-gate team` shows whether the agents are connected. |
+| The live run can't be finished in time | Record `npm run demo` as a clearly labelled rehearsal, next to footage of the real `LB-001` run. Never present the rehearsal as live. |
 | A command gets no reply | Check the gate's log for a `switch.inbound` line. If there is none, Switch did not deliver the message: post it again. |

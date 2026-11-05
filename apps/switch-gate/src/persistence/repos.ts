@@ -78,6 +78,10 @@ export function listCasesInStates(db: Db, states: readonly CaseState[]): CaseRec
   return rows.map(toCase);
 }
 
+export function listAllCases(db: Db): CaseRecord[] {
+  return db.prepare("SELECT * FROM cases ORDER BY id").all().map(toCase);
+}
+
 export function listOpenCases(db: Db): CaseRecord[] {
   return db.prepare("SELECT * FROM cases WHERE state <> 'Merged' ORDER BY id").all().map(toCase);
 }

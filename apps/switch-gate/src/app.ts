@@ -13,6 +13,8 @@ import { createMerger } from "./github/merge.js";
 import { GitHubTransport } from "./github/transport.js";
 import { migrate, openDatabase, type Db } from "./persistence/db.js";
 import { kvGet, kvSet, listUnfinishedMergeOps } from "./persistence/repos.js";
+import { RoomBoard, type RoomBoardDeps } from "./switch/board.js";
+import { agentName, renderTeam, type RoomStatuses } from "./switch/team.js";
 import { Poller } from "./workflow/poller.js";
 import { VerificationWorkflow, type WorkflowDeps } from "./workflow/verification.js";
 
@@ -52,7 +54,14 @@ export interface Gate {
 }
 
 /** Build the gate from validated configuration and a chat transport (composition root). */
-export function createGate(cfg: GateConfig, chat: ChatPort, log: Logger, deps: { github?: GitHubClient; now?: () => Date } = {}): Gate {
+export function createGate(cfg: GateConfig, chat: ChatPort, log: Logger, deps: {
+  github?: GitHubClient;
+  now?: () => Date;
+  /** D34: Switch's view of the agents in the maintainers' room. */
+  roomStatuses?: RoomStatuses;
+  /** D34: what the gate needs to keep its documents in the maintainers' room. */
+  roomDocs?: Pick<RoomBoardDeps, "connectionId" | "call">;
+} = {}): Gate {
   const now = deps.now ?? (() => new Date());
   assertIdentityConsistency(cfg.switch, cfg.identity);
   const db = openDatabase(cfg.runtime.dbPath);
@@ -75,6 +84,7 @@ export function createGate(cfg: GateConfig, chat: ChatPort, log: Logger, deps: {
     verificationAdvisory: !cfg.identity.verifierIsolationProven,
     verifierPublicKey: cfg.identity.verifierPublicKey,
     runIssuerKey: cfg.identity.runIssuerKeyPath === null ? null : loadRunIssuerKey(cfg.identity.runIssuerKeyPath),
+    ...(deps.roomStatuses === undefined ? {} : { roomStatuses: deps.roomStatuses }),
     log: { error: (o, m) => log.error(o, m) },
   };
   const workflow = new VerificationWorkflow(wfDeps);
@@ -92,7 +102,13 @@ export function createGate(cfg: GateConfig, chat: ChatPort, log: Logger, deps: {
     },
     requestVerification: (id) => workflow.requestVerificationLocked(id, "system", false),
     onMergeConfirmed: (sha) => { if (cfg.github.demoResetSha !== null) kvSet(db, "expected_base_sha", sha); },
+    gateMention, verificationAdvisory: !cfg.identity.verifierIsolationProven,
     log: { warn: (o, m) => log.warn(o, m), error: (o, m) => log.error(o, m) },
+  });
+  const board = deps.roomDocs === undefined ? null : new RoomBoard({
+    db, requiredChecks: cfg.github.requiredChecks, quorum: cfg.runtime.quorum, maintainers: cfg.identity.maintainers,
+    gateMention, now, ...deps.roomDocs, log: { warn: (o, m) => log.warn(o, m) },
+    notify: (text) => chat.post(cfg.switch.roomId, text, null),
   });
   const router = new Router({
     db, chat, repo: cfg.github.repo, quorum: cfg.runtime.quorum, requiredChecks: cfg.github.requiredChecks,
@@ -108,6 +124,13 @@ export function createGate(cfg: GateConfig, chat: ChatPort, log: Logger, deps: {
       reject: (ctx, id, reason) => workflow.reject(ctx, id, reason),
       retask: (ctx, id, note) => workflow.retask(ctx, id, note),
       merge: (ctx, id) => executor.merge(ctx.msg.sender, id),
+    },
+    views: {
+      why: (id) => executor.why(id),
+      team: async () => ({
+        text: renderTeam([cfg.identity.fixerAlias, cfg.identity.verifierAlias, gateMention].map(agentName), deps.roomStatuses === undefined ? null : await deps.roomStatuses()),
+        caseId: null,
+      }),
     },
     handoff: workflow, agents: workflow, now,
     log: { error: (o, m) => log.error(o, m) },
@@ -179,12 +202,14 @@ export function createGate(cfg: GateConfig, chat: ChatPort, log: Logger, deps: {
       every(cfg.runtime.pollIntervalMs, "triage", () => router.announcePendingTriage());
       every(cfg.runtime.pollIntervalMs, "reconcile", () => executor.reconcileUnknown());
       every(cfg.runtime.pollIntervalMs, "base", checkBaseIntegrity);
+      if (board !== null) every(cfg.runtime.pollIntervalMs, "board", () => board.sync());
       every(Math.max(10_000, Math.floor(cfg.runtime.verifyTimeoutMs / 10)), "sweep", () => workflow.sweep());
     },
     async drain() {
       stopping = true;
       for (const t of timers) clearInterval(t);
       while (inFlight.size > 0) await Promise.allSettled([...inFlight]);
+      await workflow.noticesSettled();
     },
     stop() {
       stopping = true;

@@ -20,6 +20,7 @@ import {
 } from "../persistence/repos.js";
 import { admit, assertAdmissionPolicy, type AdmissionPolicy } from "../policy/admission.js";
 import { authorize, availableCommands, roleOf, type IdentityPolicy, type Role, type RoomKind } from "../policy/authorize.js";
+import { renderCaseTable } from "../switch/board.js";
 import { parseCommand, usageFor } from "./parse.js";
 
 /**
@@ -83,10 +84,18 @@ export interface PrivilegedHandlers {
   retask(ctx: CommandContext, caseId: string, note: string): Promise<Reply>;
 }
 
+/** Read-only views for people (D34): they change nothing and authorize nothing. */
+export interface ReadOnlyViews {
+  why(caseId: string): Promise<Reply>;
+  team(): Promise<Reply>;
+}
+
 /** Tasks the fixer for a case. check() runs before any state change (D17 base check). */
 export interface FixerHandoff {
   check(c: CaseRecord): Promise<ReasonCode | null>;
   message(c: CaseRecord): string;
+  /** Warn the room when the agent just tasked is not connected. Advice only; never throws. */
+  noticeIfAbsent(c: CaseRecord, agent: "fixer" | "verifier"): Promise<void>;
 }
 
 /** Receives messages from the configured fixer and verifier agents. */
@@ -104,6 +113,7 @@ export interface RouterDeps {
   readonly quorum: number;
   readonly requiredChecks: readonly string[];
   readonly privileged: PrivilegedHandlers;
+  readonly views: ReadOnlyViews;
   readonly handoff: FixerHandoff;
   readonly agents: AgentInbox;
   /** D26: public intake reports accepted per sender per hour. */
@@ -231,6 +241,18 @@ export class Router {
         return ctx.room === "intake" ? this.intakeStatus(ctx.msg, command.caseId) : this.status(command.caseId);
       case "audit":
         return this.audit(command.caseId);
+      case "why":
+        return this.d.views.why(command.caseId);
+      case "team":
+        return this.d.views.team();
+      case "board":
+        return {
+          text: `Case board, from the gate's own records:\n${renderCaseTable({
+            db: this.d.db, requiredChecks: this.d.requiredChecks, quorum: this.d.quorum,
+            maintainers: this.d.identity.maintainers, gateMention: this.d.admission.gateMention,
+          })}`,
+          caseId: null,
+        };
       case "accept":
         return this.accept(ctx.msg, command.caseId);
       case "decline":
@@ -398,6 +420,7 @@ export class Router {
     if (tasked === null) return null;
     // Persisted first, announced second (invariant 10).
     await this.d.chat.post(tasked.roomId, this.d.handoff.message(tasked), tasked.threadId);
+    await this.d.handoff.noticeIfAbsent(tasked, "fixer");
     return { text: `${tasked.id} ${triage ? "accepted" : "created"} · state Triaged → FixInProgress · tasked the fixer`, caseId: tasked.id };
   }
 

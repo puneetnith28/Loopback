@@ -69,7 +69,7 @@ const REASONS: Readonly<Record<ReasonCode, readonly [Prefix, (c: ReasonContext) 
   APPROVAL_SHA_MISMATCH: ["REFUSED", (c) => `You approved ${s12(c.approvedSha)} but the PR is at ${s12(c.headSha)}.`],
   NOT_AUTHORIZED: ["REFUSED", (c) =>
     `${safe(c.command)} requires the maintainer role. Your id ${safe(c.sender)} is not on the maintainer list. Recorded.`],
-  UNKNOWN_COMMAND: ["REFUSED", (c) => `Unrecognised command. ${safe(c.detail)}`],
+  UNKNOWN_COMMAND: ["REFUSED", (c) => `Unrecognised command. ${safe(c.detail, 500)}`],
   CASE_NOT_FOUND: ["REFUSED", (c) => `No case ${safe(c.caseId)} exists.`],
   INVALID_STATE: ["REFUSED", (c) => `${safe(c.command)} is not possible while ${safe(c.caseId)} is ${safe(c.state)}.`],
   PRIVILEGED_DISABLED: ["REFUSED", (c) =>

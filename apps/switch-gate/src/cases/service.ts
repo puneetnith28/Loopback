@@ -1,7 +1,7 @@
 import { isTransient, type AuditEventType, type CaseState, type ReasonCode } from "@loopback/contracts";
 import { append, countEvents } from "../audit/index.js";
 import type { ChatPort } from "../chat/port.js";
-import { formatReason, type ReasonContext } from "../chat/reasons.js";
+import { formatReason, safe, type ReasonContext } from "../chat/reasons.js";
 import { GitHubError, HeadChanged, NotMergeable, RateLimited, type GitHubReader, type PullDetails } from "../github/client.js";
 import type { Merger } from "../github/merge.js";
 import type { Db } from "../persistence/db.js";
@@ -10,6 +10,7 @@ import {
   listUnfinishedMergeOps, markProcessed, type CaseRecord,
 } from "../persistence/repos.js";
 import { evaluateMerge, type CaseEvidence, type MergeDecision, type MergePolicy } from "../policy/evaluate.js";
+import { explainReadiness, type Mark, type Readiness } from "../policy/readiness.js";
 import type { CaseLocks } from "./lock.js";
 import { assertTransition, type TransitionTrigger } from "./machine.js";
 import type { HaltGuard } from "./halt.js";
@@ -144,11 +145,20 @@ export interface MergeDeps {
   readonly requestVerification: (caseId: string) => Promise<void>;
   /** D17: remember the base commit after a merge the gate confirmed (demo runs). */
   readonly onMergeConfirmed: (mergeCommitSha: string) => void;
+  /** How people address the gate, for the commands `why` suggests. */
+  readonly gateMention: string;
+  /** D28: verification is advisory, so `why` reminds people to review the diff. */
+  readonly verificationAdvisory: boolean;
   /** Operational log; failures that are retried later are still always recorded here. */
   readonly log?: { warn(obj: Record<string, unknown>, msg: string): void; error(obj: Record<string, unknown>, msg: string): void };
 }
 
 const errName = (e: unknown) => (e instanceof Error ? e.name : "unknown");
+
+const MARKS: Readonly<Record<Mark, string>> = { pass: "✅", wait: "⏳", fail: "❌" };
+const WHY_REVERIFYING: ReadonlySet<ReasonCode> = new Set<ReasonCode>(["APPROVAL_STALE", "HEAD_MOVED", "VERIFICATION_STALE"]);
+const WHY_IN_PROGRESS: ReadonlySet<ReasonCode> = new Set<ReasonCode>(["VERIFICATION_MISSING", "VERIFICATION_PENDING", "CI_MISSING", "CI_PENDING"]);
+const WHY_RETASK: ReadonlySet<ReasonCode> = new Set<ReasonCode>(["VERIFICATION_FAILED", "VERIFICATION_INVALID", "VERIFICATION_IDENTITY", "CI_FAILED", "REJECTED", "PROTECTED_PATH_CHANGED", "NOT_MERGEABLE"]);
 
 /** How long an uncertain merge outcome is given to settle before "not merged" is believed. */
 export const UNCERTAIN_SETTLE_MS = 60_000;
@@ -215,6 +225,85 @@ export class MergeExecutor {
       transition(db, { caseId: c.id, to: "Blocked", actorId, trigger: "system", reason: decision.code, targetSha: decision.headSha }, now());
     }
     return { text: formatReason(decision.code, { caseId: c.id, headSha: decision.headSha ?? c.headSha ?? undefined, approvedSha: c.headSha ?? undefined }), caseId: c.id };
+  }
+
+  /**
+   * The `why` command (D34): every merge requirement, read live from GitHub, and what to do next.
+   * Read-only: it takes no lock, changes no state and writes nothing to GitHub or the audit log.
+   */
+  async why(caseId: string): Promise<MergeReply> {
+    const c = getCase(this.d.db, caseId);
+    if (!c) return { text: formatReason("CASE_NOT_FOUND", { caseId }), caseId: null };
+    if (c.prNumber === null || c.headSha === null) {
+      const g = this.d.gateMention;
+      const next = c.state === "Reported" ? `A maintainer can task the fixer: ${g} accept ${c.id}`
+        : c.blockedReason === "TRIAGE_DECLINED" ? "It was declined at triage."
+          : c.state === "Blocked" ? `It is on hold (${c.blockedReason ?? "no reason recorded"}). Next: ${g} retask ${c.id} <what to change>`
+            : "The fixer is working on it.";
+      return { text: `${c.state}: no pull request yet, so there is nothing to merge. ${next}`, caseId: c.id };
+    }
+    let readiness: Readiness;
+    try {
+      readiness = explainReadiness(this.evidence(c), (await this.d.github.snapshot(c.prNumber)).snapshot, this.d.policy);
+    } catch (e) {
+      return { text: `${e instanceof RateLimited ? "GitHub's rate limit was reached" : "GitHub could not be read"}, so this can't be answered now. A merge would be refused too: Loopback does not merge on cached evidence.`, caseId: c.id };
+    }
+    // Labels come from the gate and its configuration; details can hold values from GitHub.
+    const lines = readiness.items.map((i) => `${MARKS[i.mark]} ${i.label}: ${safe(i.detail, 300)}`);
+    return { text: [`Merge check, state ${c.state}, read from GitHub just now:`, ...lines, this.whyNext(c, readiness)].join("\n"), caseId: c.id };
+  }
+
+  private whyNext(c: CaseRecord, r: Readiness): string {
+    const g = this.d.gateMention;
+    const review = this.d.verificationAdvisory ? " Verification is advisory, so review the diff yourself first." : "";
+    const retask = `Next: send it back to the fixer: ${g} retask ${c.id} <what to change>`;
+    if (c.state === "Merged") return "Nothing left to do: this case is merged.";
+    if (this.isHalted()) return "This gate has halted, so it will refuse privileged commands until it is restarted. Check its log.";
+    const d = r.decision;
+    const retryable = c.state === "Blocked" && c.blockedReason !== null && isTransient(c.blockedReason);
+
+    // These two states don't move by themselves: tell people what actually gets them out.
+    if (c.state === "VerificationFailed" || (c.state === "Blocked" && !retryable)) {
+      const held = c.state === "Blocked" ? `It is blocked (${c.blockedReason ?? "no reason recorded"}). ` : "";
+      const latest = listRuns(this.d.db, c.id).filter((run) => run.headSha === c.headSha).reduce<{ seq: number; status: string } | null>((a, b) => (a === null || b.seq > a.seq ? b : a), null);
+      const retry = c.state === "VerificationFailed" && latest?.status === "timeout" && d.action !== "merge" && d.code !== "HEAD_MOVED" && d.code !== "CI_FAILED";
+      return retry ? `Next: start the verifier's session if needed, then ${g} verify ${c.id}` : `${held}${retask}`;
+    }
+    if (retryable) {
+      if (d.action !== "merge" && (d.code === "HEAD_MOVED" || WHY_RETASK.has(d.code))) return `${d.code}: a new merge attempt won't help. ${retask}`;
+      if (countEvents(this.d.db, c.id, "retry.attempted", c.headSha!) >= this.d.transientRetryLimit) return `The retry limit for this commit has been reached. ${retask}`;
+      if (!r.ready) return `Blocked for now (${c.blockedReason}). When the lines above pass: ${g} merge ${c.id}`;
+    }
+    if (r.ready) {
+      if (c.state !== "ReadyToMerge" && !retryable) return `The evidence is complete, and the case is ${c.state}: the gate moves it on by itself.`;
+      if (!this.d.mergeEnabled) return "The evidence is complete, but merging is switched off on this gate (MERGE_ENABLED).";
+      if (!this.d.configComplete) return "The evidence is complete, but this gate is not fully configured for merging.";
+      const attempts = listMergeOps(this.d.db, c.id, c.headSha!);
+      if (attempts.some((o) => o.status === "started" || o.status === "unknown")) return "An earlier merge attempt's result is still being confirmed with GitHub. Ask again shortly.";
+      if (attempts.filter((o) => o.status === "failed").length >= this.d.mergeMaxAttempts) return `The merge attempt limit for this commit has been reached. ${retask}`;
+      return `Next: ${g} merge ${c.id}`;
+    }
+    if (d.action === "merge") return "The checks above disagree, so this does not count as ready.";
+    if (d.code === "APPROVAL_MISSING") {
+      return c.state === "AwaitingApproval"
+        ? `Next, once you have reviewed it: ${g} approve ${c.id} ${c.headSha!}${review === "" ? "" : `\n${review.trim()}`}`
+        : `Waiting: the gate asks for approval once the case reaches AwaitingApproval (it is ${c.state}).`;
+    }
+    if (WHY_REVERIFYING.has(d.code)) return "Waiting: the gate re-verifies the current commit by itself. Approve again when it asks.";
+    if (WHY_IN_PROGRESS.has(d.code)) return `Still needed: ${r.items.filter((i) => i.mark !== "pass").map((i) => i.label).join(", ")}. The gate asks for approval once the rest is in. If an agent has gone quiet, check ${g} team.`;
+    if (WHY_RETASK.has(d.code)) return `A merge would be refused (${d.code}). It can be sent back to the fixer once the gate has blocked the case; it is ${c.state} now.`;
+    if (d.code === "MERGEABILITY_UNKNOWN") return "Waiting on GitHub. Ask again shortly.";
+    return `Blocked by ${d.code}. ${safe(d.message, 200)}`;
+  }
+
+  /** Whether privileged work would be refused right now. assertRunning has no side effects. */
+  private isHalted(): boolean {
+    try {
+      this.d.halt.assertRunning("why");
+      return false;
+    } catch {
+      return true;
+    }
   }
 
   /** The `merge` command. */

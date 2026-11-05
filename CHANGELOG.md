@@ -10,6 +10,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+### Added
+
+- **`why <case>`**: every merge requirement, read live from GitHub, and what to do next. It can never report ready unless the merge policy agrees.
+- **`board` and room documents**: the gate keeps a case board and a decision log in the maintainers' room. They hold only the gate's own values, never report text.
+- **`team` and absence warnings**: shows each agent's status as Switch reports it, and warns when a task goes to an agent that isn't connected.
+- **`npm run demo`**: a self-checking rehearsal of the whole flow with no accounts.
+- **`templates/loopback.template.yaml`**: a Switch template, generated from `prompts/`, that creates both agents and both rooms. It replaces `templates/loopback-room.yaml`.
+
+### Changed
+
+- **README**: rewritten around how Switch is used. Corrected its commands, setting names and Switch link, which did not match the code.
+
 ## [0.1.0] - 2026-11-05
 
 Initial pre-release of Loopback: commit-bound, auditable verification gate and human-controlled AI bug maintenance system for GitHub and Switch.
@@ -21,7 +35,7 @@ Initial pre-release of Loopback: commit-bound, auditable verification gate and h
 - **Fail-closed merge operations**: Strict precondition check prevents orphan approvals, race conditions, or merging when the PR head has moved.
 - **Cryptographic verification evidence**: Ed25519-signed verification reports proving report integrity and run identity.
 - **Append-only SQLite audit log**: Tamper-evident, SQLite trigger-enforced audit event log recording every state transition, triage decision, check run, and merge attempt.
-- **Switch room integration**: Two-room transport design separating public intake (`!report`) from maintainer commands (`!triage`, `!approve`, `!merge`, `!retask`).
+- **Switch room integration**: Two-room transport design separating public intake (`@loopback-gate report`) from maintainer commands (`accept`, `approve`, `merge`, `retask`).
 - **Isolation test harnesses & Windows portable runtime**: Reference Linux container isolation harness with Docker alongside native Windows NTFS ACL and console control signal handling.
 
 #### Console & Operational Intelligence

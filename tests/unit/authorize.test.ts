@@ -37,11 +37,12 @@ const EXPECTED: Record<CommandKind, Role[]> = {
   report: ["maintainer", "reporter"], status: ["maintainer", "reporter"], audit: ["maintainer", "reporter"],
   verify: ["maintainer"], approve: ["maintainer"], reject: ["maintainer"], merge: ["maintainer"], retask: ["maintainer"],
   accept: ["maintainer"], decline: ["maintainer"],
+  why: ["maintainer", "reporter"], board: ["maintainer", "reporter"], team: ["maintainer", "reporter"],
 };
 
-describe("authorize: 12 commands x 3 roles in the maintainers' room", () => {
+describe("authorize: 15 commands x 3 roles in the maintainers' room", () => {
   it("matches the specified matrix exactly when privileged commands are enabled", () => {
-    expect(COMMAND_KINDS).toHaveLength(12);
+    expect(COMMAND_KINDS).toHaveLength(15);
     for (const kind of COMMAND_KINDS) {
       for (const role of ROLES) {
         const d = authorize(kind, role, "maintainers", policy);

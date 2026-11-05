@@ -56,6 +56,14 @@ unchanged code such as the signer server, the router and the sandbox runner.
 **Summary:** 12 met or live (one of them only partly), 3 local, 1 not done. Every gap is listed in the
 README's known limits.
 
+## Added after this audit (decision D34)
+
+`why`, `board`, `team`, the room documents, the Switch template and `npm run demo`. All are read-only or
+outside the gate's decisions, and covered by tests with stand-ins for Switch. On live Switch so far: the
+operations they use are listed by the server, `get_room_detail` returns the agents' statuses, and the server
+accepted the template with no warnings. Not yet live: the documents being written, the commands in a room, and a
+team created from the template. A clean copy with no `.env` installs, builds and passes `npm run demo`.
+
 ## Known gaps besides the table
 
 - **Verifier reliability:** it has not yet completed a run without a person guiding it. The new

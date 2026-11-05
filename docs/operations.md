@@ -77,6 +77,25 @@ it every poll interval. A declined report cannot be retasked.
 run on the same commit. A `fail` verdict, a CI failure or a moved head needs `retask`, and then a new
 commit from the fixer. The gate reminds the room once if a run has no report after 5 minutes.
 
+## Seeing where things stand
+
+Three read-only commands for maintainers and listed reporters in the maintainers' room. They change
+nothing, write nothing to GitHub or the audit log, and work with privileged commands switched off.
+
+- `@loopback-gate why <case>`: every merge requirement, read live from GitHub, and what to do next. It
+  says ready only when the merge policy does.
+- `@loopback-gate board`: every case, its commit and evidence, and who acts next.
+- `@loopback-gate team`: each agent's status, as Switch reports it for the room. "Live" means connected:
+  it can't show that an agent's model has run out of quota. The gate also warns in the room when it tasks
+  an agent that is disconnected or not in the room. The task is still sent.
+
+The gate also keeps two documents in the maintainers' room, updated each poll interval when something
+changed: **Loopback case board** and **Loopback decision log**. Switch lets only the agent that created a room
+document change it through the agent API; people can delete one from the room, and the gate makes it again. They
+are a view of the database, never an input to it, and hold only values the gate produced, never report
+text or agent summaries, because room documents reach every agent in the room. A Switch server without
+these operations, or a failure writing them, is logged once and affects nothing else.
+
 ## Delivery gaps
 
 If Switch reports undelivered events, the maintainers' room gets a notice with a count (no
