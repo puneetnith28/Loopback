@@ -33,7 +33,7 @@ npm run test:e2e -w @loopback/console       # Playwright against the production 
 - `src/design-system/` — tokens and primitives (Phase 1). `src/lib/` — provenance, lifecycle, labels, untrusted text.
 - `src/demo/` — DEMO fixtures for `/design` only. `test-fixtures/` — API response builders for tests only.
   Neither can reach a production build (ESLint boundaries + `tests/demo-isolation.test.ts`).
-- No read API exists yet: without one, every screen shows “Cannot reach the read API”. Nothing is simulated.
+- The console reads `apps/console-api` through the Vite proxy (`docs/console-api.md`). If that API isn't running, every screen shows “Cannot reach the read API”. Nothing is simulated.
 - Rendered evidence (screenshots + checked record): `evidence/`.
 
 ## Deployment notes

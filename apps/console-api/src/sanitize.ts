@@ -5,7 +5,8 @@
 const SECRET_KEY = /token|key|secret|password|authorization|credential|cookie|capability/i;
 /** The gate records the signature's status in a field of this name, never the signature itself. */
 const SIGNATURE_STATUS = /^(valid|absent|unverified|invalid)$/;
-const SECRET_VALUE = /(gh[pousr]_[A-Za-z0-9]{10,}|github_pat_[A-Za-z0-9_]{10,}|lbcap1\.[A-Za-z0-9_.-]+|-----BEGIN [A-Z ]*PRIVATE KEY-----|sk-ant-[A-Za-z0-9_-]{10,}|Bearer\s+[A-Za-z0-9._~+/-]{16,})/g;
+/** Includes a private key's whole body, and the 64-hex shape of the signer's client token. Commit SHAs are 40 hex. */
+const SECRET_VALUE = /(gh[pousr]_[A-Za-z0-9]{10,}|github_pat_[A-Za-z0-9_]{10,}|lbcap1\.[A-Za-z0-9_.-]+|-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z ]*PRIVATE KEY-----|$)|sk-[A-Za-z0-9_-]{10,}|\b[0-9a-f]{64}\b|Bearer\s+[A-Za-z0-9._~+/-]{16,})/g;
 const MAX_DEPTH = 6;
 const MAX_STRING = 2000;
 

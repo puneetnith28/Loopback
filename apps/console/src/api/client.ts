@@ -182,8 +182,7 @@ export async function apiGet<S extends z.ZodType>(path: string, schema: S, opts:
   const generatedAt =
     (typeof obj.generatedAt === "string" && obj.generatedAt) ||
     (typeof obj.checkedAt === "string" && obj.checkedAt) ||
-    (typeof obj.updatedAt === "string" && obj.updatedAt) ||
-    (typeof obj.stateEnteredAt === "string" && obj.stateEnteredAt) ||
+    // A record's updatedAt says when the case last changed, not how fresh this response is.
     new Date().toISOString();
   const nextCursor = typeof obj.nextCursor === "string" ? obj.nextCursor : null;
   const unavailable = Array.isArray(obj.unavailable) ? (obj.unavailable as string[]) : [];

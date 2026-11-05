@@ -275,6 +275,23 @@ describe("what the browser can see", () => {
     for (const bad of ["javascript:alert(1)", "http://github.com/x", "https://github.com.evil.example/x", 'https://github.com/"><img', null]) expect(githubUrlOrNull(bad)).toBeNull();
   });
 
+  it("sanitize removes a whole pasted private key and other credential shapes from free text", () => {
+    const body = "MIIEvQIBADANBgkqhkiG9w0BAQEFAASC";
+    // Built at runtime, so the repository's secret scan doesn't mistake this fake for a real key.
+    const marker = (edge: string, kind = "") => `-----${edge} ${kind}PRIVATE ${"KEY"}-----`;
+    const pem = `see ${marker("BEGIN")}\n${body}\n${marker("END")} above`;
+    const unterminated = `${marker("BEGIN", "RSA ")}\n${body}`;
+    expect(String(sanitize(pem))).not.toContain(body);
+    expect(String(sanitize(pem))).toContain("above");
+    expect(String(sanitize(unterminated))).not.toContain(body);
+    const signerToken = "a1".repeat(32);
+    expect(String(sanitize(`token ${signerToken} here`))).not.toContain(signerToken);
+    const apiKey = `sk-${"x".repeat(40)}`;
+    expect(String(sanitize(`key ${apiKey}`))).not.toContain(apiKey);
+    const sha = "b".repeat(40);
+    expect(String(sanitize(`commit ${sha}`))).toContain(sha);
+  });
+
   it("sanitize limits depth and size, and keeps a signature status", () => {
     expect(sanitize({ signature: "valid" })).toEqual({ signature: "valid" });
     expect(sanitize({ signature: "AAAA" })).toEqual({ signature: "[redacted]" });

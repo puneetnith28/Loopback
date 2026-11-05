@@ -199,6 +199,16 @@ export const SummaryResponse = z.object({
   active: z.number().int().nonnegative(),
   /** Blocked, MergeUnknown, VerificationFailed or Stale: a person probably has to act. */
   needsAttention: z.number().int().nonnegative(),
+  /** Verification runs requested in the window, each counted once by its current status. */
+  verification: z.object({
+    windowDays: z.number().int().positive(),
+    pass: z.number().int().nonnegative(),
+    fail: z.number().int().nonnegative(),
+    invalid: z.number().int().nonnegative(),
+    timeout: z.number().int().nonnegative(),
+    requested: z.number().int().nonnegative(),
+    superseded: z.number().int().nonnegative(),
+  }).strict(),
   lastEventAt: Timestamp.nullable(),
   generatedAt: Timestamp,
 }).strict();

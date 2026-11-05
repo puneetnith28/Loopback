@@ -154,11 +154,36 @@ const CaseDetailPayload = z.union([
     evidence: w.latestVerification && w.latestVerification.status === "pass"
       ? { verifiedSha: w.latestVerification.headSha, runId: w.latestVerification.id }
       : null,
-    lastGateDecision: null,
+    lastGateDecision: gateDecisionFromWire(w),
     fixerClaim: null,
     prSnapshot: null,
   })),
 ]);
+
+/**
+ * What the API's record shows the gate decided: a merge it confirmed, or a block with its reason.
+ * Null when neither is recorded, so the console says "not evaluated" rather than guessing.
+ */
+export function gateDecisionFromWire(w: {
+  readonly headSha: string | null;
+  readonly blockedReason: string | null;
+  readonly stateEnteredAt: string;
+  readonly latestMerge: { readonly headSha: string; readonly status: string; readonly startedAt: string; readonly finishedAt: string | null } | null;
+}): { outcome: "allowed" | "blocked"; reasonCodes: string[]; headSha: string; observedAt: string; provenance: "gate" } | null {
+  if (w.latestMerge?.status === "succeeded") {
+    return { outcome: "allowed", reasonCodes: [], headSha: w.latestMerge.headSha, observedAt: w.latestMerge.finishedAt ?? w.latestMerge.startedAt, provenance: "gate" };
+  }
+  if (w.blockedReason !== null && w.headSha !== null) {
+    return { outcome: "blocked", reasonCodes: [w.blockedReason], headSha: w.headSha, observedAt: w.stateEnteredAt, provenance: "gate" };
+  }
+  return null;
+}
+
+/** A copy of the case with the gate's decision filled in, unless the API already stated one. */
+export function withGateDecision(c: CaseDetail): CaseDetail {
+  const latestMerge = [...c.mergeOperations].sort((a, b) => b.attempt - a.attempt)[0] ?? null;
+  return { ...c, lastGateDecision: c.lastGateDecision ?? gateDecisionFromWire({ ...c, latestMerge }) };
+}
 
 type Cursor = string | undefined;
 const firstPage: Cursor = undefined;
@@ -196,15 +221,9 @@ export function useOverview() {
           const overviewData: Overview = {
             countsByState: summaryRes.data.byState,
             attention,
-            verification: {
-              windowDays: 7,
-              pass: recentActivity.filter((e) => e.eventType === "verification.passed").length,
-              fail: recentActivity.filter((e) => e.eventType === "verification.failed").length,
-              invalid: recentActivity.filter((e) => e.eventType === "agent_output.invalid").length,
-              timeout: 0,
-              requested: recentActivity.filter((e) => e.eventType === "verification.started").length,
-              superseded: recentActivity.filter((e) => e.eventType === "verification.superseded").length,
-            },
+            // Counted by the API from the runs themselves. Recent audit events can't stand in for this:
+            // they cover only the latest few, and one run can log several.
+            verification: summaryRes.data.verification,
             recentActivity,
           };
 
@@ -253,7 +272,7 @@ export function useCase(id: string) {
     queryKey: queryKeys.case(id),
     queryFn: async ({ signal }) => {
       const res = await apiGet(`/cases/${id}`, CaseDetailPayload, { signal });
-      const detail: CaseDetail = { ...res.data };
+      const detail: CaseDetail = withGateDecision(res.data);
 
       if (detail.commits.length === 0) {
         try {

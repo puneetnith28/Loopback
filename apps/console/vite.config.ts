@@ -30,6 +30,8 @@ export default defineConfig(({ mode }) => ({
       "/api": {
         target: "http://127.0.0.1:8788",
         changeOrigin: true,
+        // A real token stays on the server side of the proxy, out of the browser bundle.
+        ...(process.env.CONSOLE_API_TOKEN ? { headers: { authorization: `Bearer ${process.env.CONSOLE_API_TOKEN}` } } : {}),
       },
     },
   },

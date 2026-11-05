@@ -234,6 +234,8 @@ export function listAudit(
 
 export const listActivity = (db: Db, q: { after?: string | undefined; before?: string | undefined; limit: number }) => listAudit(db, { ...q, types: AGENT_ACTIVITY_TYPES });
 
+const VERIFICATION_WINDOW_DAYS = 7;
+
 export function summary(db: Db, now: Date): SummaryResponse {
   const counts = db.prepare("SELECT state, count(*) AS n FROM cases GROUP BY state").all() as { state: string; n: number }[];
   const byState = Object.fromEntries(CASE_STATES.map((s) => [s, 0])) as Record<string, number>;
@@ -241,11 +243,19 @@ export function summary(db: Db, now: Date): SummaryResponse {
   const count = (states: readonly string[]) => states.reduce((sum, s) => sum + (byState[s] ?? 0), 0);
   const total = counts.reduce((sum, c) => sum + c.n, 0);
   const last = db.prepare("SELECT created_at FROM audit_events ORDER BY id DESC LIMIT 1").pluck().get() as string | undefined;
+  const since = new Date(now.getTime() - VERIFICATION_WINDOW_DAYS * 86_400_000).toISOString();
+  const runs = db.prepare("SELECT status, count(*) AS n FROM verification_runs WHERE requested_at >= ? GROUP BY status").all(since) as { status: string; n: number }[];
+  const runCount = (status: string) => runs.find((r) => r.status === status)?.n ?? 0;
   return {
     totalCases: total,
     byState,
     active: total - count(TERMINAL_STATES),
     needsAttention: count(ATTENTION_STATES),
+    verification: {
+      windowDays: VERIFICATION_WINDOW_DAYS,
+      pass: runCount("pass"), fail: runCount("fail"), invalid: runCount("invalid"),
+      timeout: runCount("timeout"), requested: runCount("requested"), superseded: runCount("superseded"),
+    },
     lastEventAt: last ?? null,
     generatedAt: now.toISOString(),
   };

@@ -31,25 +31,16 @@ console must handle:
 
 ## Connecting from Vite
 
-Use a dev proxy so the token stays out of the browser bundle. `changeOrigin` is required, because
-the API refuses a Host header other than its own.
+`apps/console/vite.config.ts` already proxies `/api` to this API, so `npm run dev --workspace
+apps/console` works with the mock as it is. For a real database, set `CONSOLE_API_TOKEN` in the
+console's terminal too: the proxy then adds that token on the server side, so it never reaches the
+browser bundle. `changeOrigin` is required, because the API refuses a Host header other than its own.
 
-```ts
-// vite.config.ts
-server: {
-  proxy: {
-    "/api": {
-      target: "http://127.0.0.1:8788",
-      changeOrigin: true,
-      headers: { authorization: `Bearer ${process.env.CONSOLE_API_TOKEN}` },
-    },
-  },
-},
-```
+Do not put a real token in `VITE_*` variables: Vite compiles those into the bundle. The console's
+client falls back to the mock's public token, which is harmless, because a real API refuses it.
 
-Calling the API directly from the browser also works, because the origin in
-`CONSOLE_ALLOWED_ORIGIN` gets CORS headers, but then the token is visible to the page. Do not put a
-real token in `VITE_*` variables: Vite compiles those into the bundle.
+**Not built yet:** the API does not serve the production console itself, so run it through the dev
+server, on your own machine.
 
 ## Authentication
 
@@ -73,6 +64,13 @@ CONSOLE_GATE_HTTP_PORT=8787                          # the gate's HTTP_PORT, for
 
 Then `npm run console-api`. It binds to 127.0.0.1 only. A remote console needs an SSH tunnel or a
 reverse proxy you add deliberately; it has no TLS of its own.
+
+To see the console on that data, in a second terminal (PowerShell shown):
+
+```powershell
+$env:CONSOLE_API_TOKEN = "<the same token as in .env.console>"
+npm run dev --workspace apps/console    # then open http://localhost:5173
+```
 
 ## Endpoints
 

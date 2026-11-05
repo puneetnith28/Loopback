@@ -18,6 +18,15 @@
   },
   "active": 6,
   "needsAttention": 3,
+  "verification": {
+    "windowDays": 7,
+    "pass": 4,
+    "fail": 1,
+    "invalid": 0,
+    "timeout": 0,
+    "requested": 0,
+    "superseded": 0
+  },
   "lastEventAt": "2026-11-04T12:00:00.000Z",
   "generatedAt": "2026-11-04T12:30:00.000Z"
 }
