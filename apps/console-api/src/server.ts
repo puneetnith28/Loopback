@@ -1,11 +1,11 @@
 import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import { AUDIT_EVENT_TYPES, CASE_STATES, CaseId, REASON_CODES, isTransient } from "@loopback/contracts";
+import { AUDIT_EVENT_TYPES, CASE_STATES, CaseId, REASON_CODES, isTransient } from "@puneetnith28/loopback-contracts";
 import {
   AGENT_ACTIVITY_TYPES, API_VERSION, ActivityQuery, ApiError, ApprovalListResponse, AuditPageResponse, AuditQuery, CaseDetail, CaseListQuery, CaseListResponse, CiListResponse, ConfigSummaryResponse,
   CommitListResponse, GateStatusResponse, HealthResponse, MergeListResponse, MetaResponse, NoQuery, SummaryResponse, VerificationListResponse,
   type ApiErrorCode,
-} from "@loopback/console-contracts";
+} from "@puneetnith28/loopback-console-contracts";
 import type { z } from "zod";
 import type { ConsoleConfig } from "./config.js";
 import {

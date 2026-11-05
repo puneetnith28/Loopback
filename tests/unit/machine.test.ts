@@ -1,4 +1,4 @@
-import { CASE_STATES, REASON_CODES, TRANSIENT_REASON_CODES, type CaseState, type ReasonCode } from "@loopback/contracts";
+import { CASE_STATES, REASON_CODES, TRANSIENT_REASON_CODES, type CaseState, type ReasonCode } from "@puneetnith28/loopback-contracts";
 import { describe, expect, it } from "vitest";
 import { IllegalTransition, assertTransition, isAllowedTransition, isTerminal, type TransitionTrigger } from "../../apps/switch-gate/src/cases/machine.js";
 

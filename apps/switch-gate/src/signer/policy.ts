@@ -1,5 +1,5 @@
 import { createHash, type KeyObject } from "node:crypto";
-import { VerifierReport, verdictIsConsistent } from "@loopback/contracts";
+import { VerifierReport, verdictIsConsistent } from "@puneetnith28/loopback-contracts";
 import { z } from "zod";
 import { verifyCapability } from "../agents/capability.js";
 import { signReport, signedBytes } from "../agents/signature.js";

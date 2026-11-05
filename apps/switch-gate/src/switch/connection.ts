@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { InboundMessage } from "@loopback/contracts";
+import type { InboundMessage } from "@puneetnith28/loopback-contracts";
 import { AGENT_PROTOCOL, advance, parseFrame, toInbound, type ConnectionState, type Frame, type Position } from "./frames.js";
 
 /**

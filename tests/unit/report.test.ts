@@ -1,4 +1,4 @@
-import { FixerReport, VerifierReport } from "@loopback/contracts";
+import { FixerReport, VerifierReport } from "@puneetnith28/loopback-contracts";
 import { describe, expect, it } from "vitest";
 import { MAX_REPORT_BYTES, extractReport } from "../../apps/switch-gate/src/agents/report.js";
 

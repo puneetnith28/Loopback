@@ -1,4 +1,4 @@
-import { isTransient, type CaseState, type Command, type InboundMessage, type ReasonCode } from "@loopback/contracts";
+import { isTransient, type CaseState, type Command, type InboundMessage, type ReasonCode } from "@puneetnith28/loopback-contracts";
 import { append, listRecent } from "../audit/index.js";
 import { HaltedError } from "../cases/halt.js";
 import { createCase, transitionInTx } from "../cases/service.js";

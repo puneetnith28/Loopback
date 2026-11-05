@@ -1,4 +1,4 @@
-import { AuditEventType, CaseId, CaseState, FullSha, GateSettings, ReasonCode, RepoSlug } from "@loopback/contracts";
+import { AuditEventType, CaseId, CaseState, FullSha, GateSettings, ReasonCode, RepoSlug } from "@puneetnith28/loopback-contracts";
 import { z } from "zod";
 
 // The wire contract of the read-only console API (docs/console-api.md). The server parses every

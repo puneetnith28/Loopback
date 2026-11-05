@@ -1,4 +1,4 @@
-import { CASE_STATES } from "@loopback/contracts";
+import { CASE_STATES } from "@puneetnith28/loopback-contracts";
 import { describe, expect, it } from "vitest";
 import { DETOURS, MAIN_PATH, STATE_LABELS, trackSteps } from "../src/lib/lifecycle.ts";
 

@@ -1,4 +1,4 @@
-import type { AuditEventType } from "@loopback/contracts";
+import type { AuditEventType } from "@puneetnith28/loopback-contracts";
 import type { EventKind } from "../design-system/components/Timeline.tsx";
 
 /**

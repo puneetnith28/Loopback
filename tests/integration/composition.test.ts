@@ -2,7 +2,7 @@
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { InboundMessage } from "@loopback/contracts";
+import type { InboundMessage } from "@puneetnith28/loopback-contracts";
 import type { Logger } from "pino";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createGate, type Gate } from "../../apps/switch-gate/src/app.js";

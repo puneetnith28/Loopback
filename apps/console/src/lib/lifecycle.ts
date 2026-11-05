@@ -1,4 +1,4 @@
-import { CASE_STATES, type CaseState } from "@loopback/contracts";
+import { CASE_STATES, type CaseState } from "@puneetnith28/loopback-contracts";
 
 /**
  * Presentation of the 14 contract states (CASE_STATES) as one track. Nothing is invented: the main path and the

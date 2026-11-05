@@ -1,4 +1,4 @@
-import type { ReasonCode } from "@loopback/contracts";
+import type { ReasonCode } from "@puneetnith28/loopback-contracts";
 
 // Pure merge policy (implementation §10.6, amended by D11, D12, D13, D15, D17, D19).
 // No I/O: every input is a snapshot. Anything missing or ambiguous blocks.

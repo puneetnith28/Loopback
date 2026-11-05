@@ -4,6 +4,8 @@
     "noEmit": true,
     "rootDir": ".",
     "paths": {
+      "@puneetnith28/loopback-contracts": ["./packages/contracts/src/index.ts"],
+      "@puneetnith28/loopback-console-contracts": ["./packages/console-contracts/src/index.ts"],
       "@loopback/contracts": ["./packages/contracts/src/index.ts"],
       "@loopback/console-contracts": ["./packages/console-contracts/src/index.ts"]
     }

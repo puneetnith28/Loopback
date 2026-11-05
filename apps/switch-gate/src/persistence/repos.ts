@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { CaseState, type ReasonCode } from "@loopback/contracts";
+import { CaseState, type ReasonCode } from "@puneetnith28/loopback-contracts";
 import { z } from "zod";
 import type { Db } from "./db.js";
 

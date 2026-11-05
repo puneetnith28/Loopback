@@ -21,7 +21,7 @@ const SRC = "apps/switch-gate/src";
 
 describe("module boundaries", () => {
   it("policy may import only contracts and sibling policy modules", async () => {
-    expect(await errors(`import { z } from "@loopback/contracts";\nimport { x } from "./authorize.js";`, `${SRC}/policy/evaluate.ts`)).toEqual([]);
+    expect(await errors(`import { z } from "@puneetnith28/loopback-contracts";\nimport { x } from "./authorize.js";`, `${SRC}/policy/evaluate.ts`)).toEqual([]);
     expect(await errors(`import Database from "better-sqlite3";`, `${SRC}/policy/evaluate.ts`)).toHaveLength(1);
     expect(await errors(`import { getPull } from "../github/client.js";`, `${SRC}/policy/evaluate.ts`)).toHaveLength(1);
     expect(await errors(`import { readFileSync } from "node:fs";`, `${SRC}/policy/evaluate.ts`)).toHaveLength(1);
@@ -29,7 +29,7 @@ describe("module boundaries", () => {
 
   it("signer may import only contracts, zod, node built-ins, the agents crypto modules and its siblings (D29)", async () => {
     const ok = [
-      `import { VerifierReport } from "@loopback/contracts";`, `import { z } from "zod";`, `import { createServer } from "node:http";`,
+      `import { VerifierReport } from "@puneetnith28/loopback-contracts";`, `import { z } from "zod";`, `import { createServer } from "node:http";`,
       `import { signReport } from "../agents/signature.js";`, `import { verifyCapability } from "../agents/capability.js";`, `import { x } from "./policy.js";`,
     ];
     for (const code of ok) expect(await errors(code, `${SRC}/signer/server.ts`), code).toEqual([]);
@@ -44,7 +44,7 @@ describe("module boundaries", () => {
   it("the console API may not reach the gate, GitHub, Switch, the signer, the filesystem or a child process", async () => {
     const file = "apps/console-api/src/store.ts";
     const ok = [
-      `import { CaseId } from "@loopback/contracts";`, `import { CaseDetail } from "@loopback/console-contracts";`, `import { z } from "zod";`,
+      `import { CaseId } from "@puneetnith28/loopback-contracts";`, `import { CaseDetail } from "@puneetnith28/loopback-console-contracts";`, `import { z } from "zod";`,
       `import Database from "better-sqlite3";`, `import { createServer } from "node:http";`, `import { randomUUID } from "node:crypto";`, `import { sanitize } from "./sanitize.js";`,
     ];
     for (const code of ok) expect(await errors(code, file), code).toEqual([]);

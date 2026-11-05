@@ -3,7 +3,7 @@
  * dev / `--mode design` builds. tests/demo-isolation.test.ts builds production and asserts DEMO_SENTINEL is
  * absent from every emitted file. Lint forbids importing src/demo from anywhere else.
  */
-import type { CaseState } from "@loopback/contracts";
+import type { CaseState } from "@puneetnith28/loopback-contracts";
 import type { TimelineEvent } from "../design-system/components/Timeline.tsx";
 import type { Status } from "../design-system/components/Badge.tsx";
 

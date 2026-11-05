@@ -1,4 +1,4 @@
-import { FixerReport, VerifierReport, displaySha, verdictIsConsistent, type InboundMessage, type ReasonCode } from "@loopback/contracts";
+import { FixerReport, VerifierReport, displaySha, verdictIsConsistent, type InboundMessage, type ReasonCode } from "@puneetnith28/loopback-contracts";
 import { append } from "../audit/index.js";
 import type { HaltGuard } from "../cases/halt.js";
 import type { CaseLocks } from "../cases/lock.js";

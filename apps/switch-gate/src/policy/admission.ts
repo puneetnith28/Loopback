@@ -1,4 +1,4 @@
-import type { ReasonCode } from "@loopback/contracts";
+import type { ReasonCode } from "@puneetnith28/loopback-contracts";
 import type { RoomKind } from "./authorize.js";
 
 /**

@@ -1,4 +1,4 @@
-import type { AuditEventType, ReasonCode } from "@loopback/contracts";
+import type { AuditEventType, ReasonCode } from "@puneetnith28/loopback-contracts";
 import type { Db } from "../persistence/db.js";
 
 // The audit log is append-only: this module exposes append() and read helpers,

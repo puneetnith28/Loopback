@@ -1,4 +1,4 @@
-import { GATE_SETTINGS_KEY, GateSettings } from "@loopback/contracts";
+import { GATE_SETTINGS_KEY, GateSettings } from "@puneetnith28/loopback-contracts";
 import type { Db } from "./db.js";
 import { kvSet } from "./repos.js";
 

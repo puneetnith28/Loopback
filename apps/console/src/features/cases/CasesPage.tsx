@@ -1,4 +1,4 @@
-import { CASE_STATES, type CaseState } from "@loopback/contracts";
+import { CASE_STATES, type CaseState } from "@puneetnith28/loopback-contracts";
 import { fromInfiniteQuery } from "../../api/loadable.ts";
 import { useCaseList } from "../../api/queries.ts";
 import type { CaseSummary } from "../../api/schemas.ts";

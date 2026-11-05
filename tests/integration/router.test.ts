@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/require-await -- test fakes implement async interfaces without awaiting anything */
 /* eslint-disable @typescript-eslint/unbound-method -- asserting on vi.fn() mocks, which are not bound methods */
-import type { InboundMessage, ReasonCode } from "@loopback/contracts";
+import type { InboundMessage, ReasonCode } from "@puneetnith28/loopback-contracts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { listRecent } from "../../apps/switch-gate/src/audit/index.js";
 import type { ChatPort } from "../../apps/switch-gate/src/chat/port.js";

@@ -1,5 +1,5 @@
 import { sign as cryptoSign, verify as cryptoVerify, type KeyObject } from "node:crypto";
-import { CaseId, FullSha, RepoSlug } from "@loopback/contracts";
+import { CaseId, FullSha, RepoSlug } from "@puneetnith28/loopback-contracts";
 import { z } from "zod";
 import { canonicalize } from "./signature.js";
 

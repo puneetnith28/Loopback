@@ -15,6 +15,8 @@ export default defineConfig(({ mode }) => ({
   plugins: [react()],
   resolve: {
     alias: {
+      "@puneetnith28/loopback-contracts": contracts,
+      "@puneetnith28/loopback-console-contracts": consoleContracts,
       "@loopback/contracts": contracts,
       "@loopback/console-contracts": consoleContracts,
     },

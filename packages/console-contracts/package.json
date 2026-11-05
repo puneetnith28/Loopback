@@ -1,7 +1,7 @@
 {
-  "name": "@loopback/console-contracts",
+  "name": "@puneetnith28/loopback-console-contracts",
   "version": "0.1.0",
-  "private": true,
+  "description": "HTTP wire protocol schemas, audit event payloads, and API contracts for the Loopback maintainer console",
   "license": "Apache-2.0",
   "type": "module",
   "main": "./dist/index.js",
@@ -12,9 +12,25 @@
       "default": "./dist/index.js"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/puneetnith28/Loopback.git",
+    "directory": "packages/console-contracts"
+  },
+  "bugs": {
+    "url": "https://github.com/puneetnith28/Loopback/issues"
+  },
+  "homepage": "https://github.com/puneetnith28/Loopback/tree/main/packages/console-contracts#readme",
   "dependencies": {
-    "@loopback/contracts": "0.1.0",
+    "@puneetnith28/loopback-contracts": "0.1.0",
     "zod": "4.6.7"
   }
 }

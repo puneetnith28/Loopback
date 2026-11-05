@@ -1,5 +1,5 @@
 import { QueryClient, useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import type { CaseState } from "@loopback/contracts";
+import type { CaseState } from "@puneetnith28/loopback-contracts";
 import {
   AuditPageResponse,
   CaseDetail as CaseDetailWire,
@@ -9,7 +9,7 @@ import {
   MergeListResponse,
   SummaryResponse,
   VerificationListResponse,
-} from "@loopback/console-contracts";
+} from "@puneetnith28/loopback-console-contracts";
 import { z } from "zod";
 import { apiGet, isApiError, type ApiResult } from "./client.ts";
 import {
