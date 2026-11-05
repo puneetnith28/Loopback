@@ -7,7 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { z } from "zod";
 import {
   ApiError, ApprovalListResponse, AuditPageResponse, CaseDetail, CaseListResponse, CiListResponse, CommitListResponse, ConfigSummaryResponse, GateStatusResponse, HealthResponse, MergeListResponse, MetaResponse, SummaryResponse, VerificationListResponse,
-} from "@loopback/console-contracts";
+} from "@puneetnith28/loopback-console-contracts";
 import { ConsoleConfigError, loadConsoleConfig, type ConsoleConfig } from "../../apps/console-api/src/config.js";
 import { githubUrlOrNull, sanitize } from "../../apps/console-api/src/sanitize.js";
 import { startConsoleServer } from "../../apps/console-api/src/server.js";

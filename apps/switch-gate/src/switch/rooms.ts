@@ -2,7 +2,7 @@ import type { ChatPort } from "../chat/port.js";
 import type { Db } from "../persistence/db.js";
 import { append } from "../audit/index.js";
 import { isProcessed } from "../persistence/repos.js";
-import type { InboundMessage } from "@loopback/contracts";
+import type { InboundMessage } from "@puneetnith28/loopback-contracts";
 import { RoomChats, SwitchChat } from "./chat.js";
 import { SwitchConnection, type ConnectionLog, type OpenSocket, type StopReason } from "./connection.js";
 import { recoverGap } from "./gap.js";

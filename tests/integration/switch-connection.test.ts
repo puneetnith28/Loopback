@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { InboundMessage } from "@loopback/contracts";
+import type { InboundMessage } from "@puneetnith28/loopback-contracts";
 import {
   SwitchConnection, type ConnectionRecord, type SocketLike, type StopReason,
 } from "../../apps/switch-gate/src/switch/connection.js";

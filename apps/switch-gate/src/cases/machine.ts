@@ -1,4 +1,4 @@
-import { isTransient, type CaseState, type ReasonCode } from "@loopback/contracts";
+import { isTransient, type CaseState, type ReasonCode } from "@puneetnith28/loopback-contracts";
 
 /** What caused a transition. Guards depend on it (D15, D18). */
 export type TransitionTrigger = "command" | "maintainer_merge" | "poller" | "reconcile" | "sweep" | "agent_report" | "system";

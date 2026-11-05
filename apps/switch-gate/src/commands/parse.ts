@@ -1,4 +1,4 @@
-import { Command, type CommandKind } from "@loopback/contracts";
+import { Command, type CommandKind } from "@puneetnith28/loopback-contracts";
 
 export type ParseResult =
   | { readonly ok: true; readonly command: Command }

@@ -6,7 +6,14 @@ const contractsSrc = fileURLToPath(new URL("./packages/contracts/src/index.ts", 
 const consoleContractsSrc = fileURLToPath(new URL("./packages/console-contracts/src/index.ts", import.meta.url));
 
 const shared = {
-  resolve: { alias: { "@loopback/contracts": contractsSrc, "@loopback/console-contracts": consoleContractsSrc } },
+  resolve: {
+    alias: {
+      "@puneetnith28/loopback-contracts": contractsSrc,
+      "@puneetnith28/loopback-console-contracts": consoleContractsSrc,
+      "@loopback/contracts": contractsSrc,
+      "@loopback/console-contracts": consoleContractsSrc,
+    },
+  },
 };
 
 // Windows starts PowerShell for each real ACL check, and processes start slowly there.

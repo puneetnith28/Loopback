@@ -203,8 +203,23 @@ Details are in [docs/architecture.md](docs/architecture.md) and the [threat mode
 |---|---|
 | [`apps/switch-gate`](apps/switch-gate) | The gate: Switch connection, commands, state machine, merge policy, audit log, evidence signer |
 | [`apps/console-api`](apps/console-api), [`apps/console`](apps/console) | A read-only API and a React console for reviewing evidence. Neither can change anything |
+| [`packages/contracts`](packages/contracts) | Core vocabulary, Zod schemas, state machine, and invariants ([`@puneetnith28/loopback-contracts`](https://github.com/puneetnith28/Loopback/tree/main/packages/contracts)) |
+| [`packages/console-contracts`](packages/console-contracts) | Wire response envelopes, audit models, and API schemas ([`@puneetnith28/loopback-console-contracts`](https://github.com/puneetnith28/Loopback/tree/main/packages/console-contracts)) |
 | [`deploy/isolation`](deploy/isolation) | Containers for the agents, with separate credentials and limited network access |
 | [`prompts`](prompts), [`templates`](templates) | The agents' briefs and the Switch template |
+
+### Published Packages
+
+Loopback distributes its shared contracts to the GitHub Packages npm registry for external agents, verifiers, and tools:
+
+```bash
+# In .npmrc:
+# @puneetnith28:registry=https://npm.pkg.github.com
+# //npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
+
+npm install @puneetnith28/loopback-contracts
+npm install @puneetnith28/loopback-console-contracts
+```
 
 Built with Node 22, TypeScript, SQLite (`better-sqlite3`), Zod, Ed25519 from Node's `crypto`, React 19 and Vite.
 

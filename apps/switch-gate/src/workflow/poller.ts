@@ -1,4 +1,4 @@
-import { displaySha, type CaseState } from "@loopback/contracts";
+import { displaySha, type CaseState } from "@puneetnith28/loopback-contracts";
 import { append } from "../audit/index.js";
 import { transitionInTx } from "../cases/service.js";
 import { formatReason } from "../chat/reasons.js";

@@ -10,8 +10,8 @@
 const SRC = "apps/switch-gate/src";
 
 const PURITY = {
-  regex: "^(?!@loopback/contracts$|\\./[^/]+$).*",
-  message: "policy/** is pure: import only @loopback/contracts or sibling policy modules.",
+  regex: "^(?!@puneetnith28/loopback-contracts$|\\./[^/]+$).*",
+  message: "policy/** is pure: import only @puneetnith28/loopback-contracts or sibling policy modules.",
 };
 // Regexes, not globs: gitignore-style globs do not match "../"-relative specifiers.
 const MERGE = {
@@ -33,21 +33,21 @@ const AUDIT = {
 // GitHub App credentials, merge path, chat or audit. Only contracts, zod, Node built-ins, the
 // pure agents/signature and agents/capability modules, and sibling signer modules.
 const SIGNER_PURITY = {
-  regex: "^(?!@loopback/contracts$|zod$|node:[a-z/_]+$|\\.\\./agents/(signature|capability)\\.js$|\\./[^/]+$).*",
-  message: "signer/** may import only @loopback/contracts, zod, node:*, ../agents/{signature,capability}.js and sibling signer modules.",
+  regex: "^(?!@puneetnith28/loopback-contracts$|zod$|node:[a-z/_]+$|\\.\\./agents/(signature|capability)\\.js$|\\./[^/]+$).*",
+  message: "signer/** may import only @puneetnith28/loopback-contracts, zod, node:*, ../agents/{signature,capability}.js and sibling signer modules.",
 };
 
 // The console API runs apart from the gate and holds none of its credentials. It may read the
 // database and the shared contracts; it may not reach the gate's code, GitHub, Switch or the signer.
 const CONSOLE_API_PURITY = {
-  regex: "^(?!@loopback/(contracts|console-contracts)$|zod$|better-sqlite3$|node:(http|crypto)$|\\./[^/]+$).*",
+  regex: "^(?!@puneetnith28/loopback-(contracts|console-contracts)$|zod$|better-sqlite3$|node:(http|crypto)$|\\./[^/]+$).*",
   message: "apps/console-api may import only the contracts, zod, better-sqlite3, node:http, node:crypto and its sibling modules.",
 };
 
-// Console (frontend): shares vocabulary through @loopback/contracts only — never the gate implementation.
+// Console (frontend): shares vocabulary through @puneetnith28/loopback-contracts only — never the gate implementation.
 const CONSOLE_NO_GATE = {
   regex: "(^|/)(switch-gate|apps/switch-gate)(/|$)",
-  message: "apps/console may import @loopback/contracts only, never the gatekeeper implementation.",
+  message: "apps/console may import @puneetnith28/loopback-contracts only, never the gatekeeper implementation.",
 };
 // Demonstration fixtures are reachable only from the design reference (and tests).
 const CONSOLE_NO_DEMO = {

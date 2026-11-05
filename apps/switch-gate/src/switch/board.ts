@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { displaySha } from "@loopback/contracts";
+import { displaySha } from "@puneetnith28/loopback-contracts";
 import { listDecisions } from "../audit/index.js";
 import { safe } from "../chat/reasons.js";
 import type { Db } from "../persistence/db.js";

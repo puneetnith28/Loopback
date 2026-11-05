@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/require-await -- test fakes implement async interfaces without awaiting anything */
-import type { InboundMessage } from "@loopback/contracts";
+import type { InboundMessage } from "@puneetnith28/loopback-contracts";
 import { vi } from "vitest";
 import { CaseLocks } from "../../apps/switch-gate/src/cases/lock.js";
 import { MergeExecutor } from "../../apps/switch-gate/src/cases/service.js";

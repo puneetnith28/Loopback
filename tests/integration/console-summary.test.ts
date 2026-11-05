@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SummaryResponse } from "@loopback/console-contracts";
+import { SummaryResponse } from "@puneetnith28/loopback-console-contracts";
 import { summary } from "../../apps/console-api/src/store.js";
 import { migrate, openDatabase } from "../../apps/switch-gate/src/persistence/db.js";
 

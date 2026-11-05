@@ -1,4 +1,4 @@
-import { CASE_STATES } from "@loopback/contracts";
+import { CASE_STATES } from "@puneetnith28/loopback-contracts";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { ProvenanceStamp } from "../src/design-system/components/ProvenanceStamp.tsx";

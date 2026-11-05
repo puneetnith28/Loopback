@@ -1,4 +1,4 @@
-import { COMMAND_KINDS, type CommandKind } from "@loopback/contracts";
+import { COMMAND_KINDS, type CommandKind } from "@puneetnith28/loopback-contracts";
 import { describe, expect, it } from "vitest";
 import { INTAKE_COMMANDS, PRIVILEGED, authorize, availableCommands, roleOf, type IdentityPolicy, type Role } from "../../apps/switch-gate/src/policy/authorize.js";
 

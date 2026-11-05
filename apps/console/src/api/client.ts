@@ -1,5 +1,5 @@
 import type { z } from "zod";
-import { ApiError as WireApiError } from "@loopback/console-contracts";
+import { ApiError as WireApiError } from "@puneetnith28/loopback-console-contracts";
 import { ErrorEnvelope, type ResponseMeta } from "./schemas.ts";
 
 /**
@@ -158,7 +158,7 @@ export async function apiGet<S extends z.ZodType>(path: string, schema: S, opts:
     throw new ApiError("invalid-response", "The API returned an unexpected error format.", { status: response.status });
   }
 
-  // Canonical wire response (naked JSON from @loopback/console-contracts on real API endpoints)
+  // Canonical wire response (naked JSON from @puneetnith28/loopback-console-contracts on real API endpoints)
   const isWireEndpoint = path !== "/overview" && path !== "/config/summary" && path !== "/status";
   const obj = typeof body === "object" && body !== null ? (body as Record<string, unknown>) : null;
   const isWireBody = obj !== null && (

@@ -1,4 +1,4 @@
-import type { CaseState } from "@loopback/contracts";
+import type { CaseState } from "@puneetnith28/loopback-contracts";
 import { fromQuery } from "../../api/loadable.ts";
 import { useOverview } from "../../api/queries.ts";
 import type { CaseSummary, Overview } from "../../api/schemas.ts";

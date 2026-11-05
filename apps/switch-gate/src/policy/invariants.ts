@@ -1,4 +1,4 @@
-import { FullSha } from "@loopback/contracts";
+import { FullSha } from "@puneetnith28/loopback-contracts";
 
 export class InvariantViolation extends Error {
   constructor(message: string) {

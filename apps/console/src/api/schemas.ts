@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { CASE_STATES, CaseId, FullSha, ParticipantId, RepoSlug } from "@loopback/contracts";
+import { CASE_STATES, CaseId, FullSha, ParticipantId, RepoSlug } from "@puneetnith28/loopback-contracts";
 
 /**
  * Read API v1 response models — a CONTRACT PROPOSAL owned by the console until the backend team adopts it

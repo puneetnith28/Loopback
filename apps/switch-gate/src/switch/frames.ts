@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { InboundMessage } from "@loopback/contracts";
+import { InboundMessage } from "@puneetnith28/loopback-contracts";
 
 /**
  * Frames of the Switch agent WebSocket (switch-core 0.31.0, agent-protocol 9), as

@@ -1,4 +1,4 @@
-import { CASE_STATES, type CaseState } from "@loopback/contracts";
+import { CASE_STATES, type CaseState } from "@puneetnith28/loopback-contracts";
 import { useState } from "react";
 import { Alert } from "../../design-system/components/Alert.tsx";
 import { Badge, StatusIndicator, type Status } from "../../design-system/components/Badge.tsx";
@@ -116,7 +116,7 @@ export function LifecycleSection() {
   const [state, setState] = useState<CaseState>("AwaitingApproval");
   const [moved, setMoved] = useState(false);
   return (
-    <Section id="lifecycle" num="08" title="The Loop" text="A case's lifecycle over the 14 states defined in @loopback/contracts: ten on the main path and four detours drawn where they branch. Verification evidence is sealed to a full commit SHA; when the head moves, the seal breaks and evidence-dependent steps are shown as void — never as carried over.">
+    <Section id="lifecycle" num="08" title="The Loop" text="A case's lifecycle over the 14 states defined in @puneetnith28/loopback-contracts: ten on the main path and four detours drawn where they branch. Verification evidence is sealed to a full commit SHA; when the head moves, the seal breaks and evidence-dependent steps are shown as void — never as carried over.">
       <DemoFrame note="Explorer — pick any contract state; SHAs are fixtures">
         <div className={styles.panelBody}>
           <div className={styles.row}>

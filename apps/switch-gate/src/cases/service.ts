@@ -1,4 +1,4 @@
-import { isTransient, type AuditEventType, type CaseState, type ReasonCode } from "@loopback/contracts";
+import { isTransient, type AuditEventType, type CaseState, type ReasonCode } from "@puneetnith28/loopback-contracts";
 import { append, countEvents } from "../audit/index.js";
 import type { ChatPort } from "../chat/port.js";
 import { formatReason, safe, type ReasonContext } from "../chat/reasons.js";

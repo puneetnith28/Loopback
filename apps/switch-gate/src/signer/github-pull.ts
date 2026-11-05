@@ -2,7 +2,7 @@ import { request as httpRequest } from "node:http";
 import { request as httpsRequest } from "node:https";
 import type { Socket } from "node:net";
 import { connect as tlsConnect } from "node:tls";
-import { FullSha, RepoSlug } from "@loopback/contracts";
+import { FullSha, RepoSlug } from "@puneetnith28/loopback-contracts";
 import type { LivePull } from "./policy.js";
 
 /**

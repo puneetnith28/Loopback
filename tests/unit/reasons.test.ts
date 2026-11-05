@@ -1,4 +1,4 @@
-import { REASON_CODES } from "@loopback/contracts";
+import { REASON_CODES } from "@puneetnith28/loopback-contracts";
 import { describe, expect, it } from "vitest";
 import { formatReason, safe } from "../../apps/switch-gate/src/chat/reasons.js";
 

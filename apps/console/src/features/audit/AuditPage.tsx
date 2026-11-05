@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { AUDIT_EVENT_TYPES, CaseId } from "@loopback/contracts";
+import { AUDIT_EVENT_TYPES, CaseId } from "@puneetnith28/loopback-contracts";
 import { fromInfiniteQuery } from "../../api/loadable.ts";
 import { useAuditFeed } from "../../api/queries.ts";
 import type { AuditEvent } from "../../api/schemas.ts";

@@ -1,7 +1,7 @@
 {
-  "name": "@loopback/contracts",
+  "name": "@puneetnith28/loopback-contracts",
   "version": "0.1.0",
-  "private": true,
+  "description": "Core TypeScript vocabulary, domain schemas, state machine definitions, and invariants for Loopback autonomous agent orchestration",
   "license": "Apache-2.0",
   "type": "module",
   "main": "./dist/index.js",
@@ -12,7 +12,23 @@
       "default": "./dist/index.js"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/puneetnith28/Loopback.git",
+    "directory": "packages/contracts"
+  },
+  "bugs": {
+    "url": "https://github.com/puneetnith28/Loopback/issues"
+  },
+  "homepage": "https://github.com/puneetnith28/Loopback/tree/main/packages/contracts#readme",
   "dependencies": {
     "zod": "4.6.7"
   }

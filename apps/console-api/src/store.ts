@@ -1,8 +1,8 @@
-import { CASE_STATES, GATE_SETTINGS_KEY, GateSettings, TRANSIENT_REASON_CODES, ReasonCode } from "@loopback/contracts";
+import { CASE_STATES, GATE_SETTINGS_KEY, GateSettings, TRANSIENT_REASON_CODES, ReasonCode } from "@puneetnith28/loopback-contracts";
 import {
   AGENT_ACTIVITY_TYPES, ATTENTION_STATES, TERMINAL_STATES,
   type ApprovalRecord, type AuditEvent, type CaseDetail, type CaseSummary, type CiCheck, type CommitRecord, type MergeOperation, type SummaryResponse, type VerificationRun,
-} from "@loopback/console-contracts";
+} from "@puneetnith28/loopback-console-contracts";
 import Database from "better-sqlite3";
 import { githubUrlOrNull, sanitize, scrubText } from "./sanitize.js";
 

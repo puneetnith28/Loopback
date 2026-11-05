@@ -1,5 +1,5 @@
 import { useSyncExternalStore, type AnchorHTMLAttributes, type ReactNode } from "react";
-import { AUDIT_EVENT_TYPES, CaseId, type CaseState } from "@loopback/contracts";
+import { AUDIT_EVENT_TYPES, CaseId, type CaseState } from "@puneetnith28/loopback-contracts";
 import { isKnownState } from "../lib/lifecycle.ts";
 
 /**

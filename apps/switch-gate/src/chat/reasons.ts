@@ -1,4 +1,4 @@
-import type { ReasonCode } from "@loopback/contracts";
+import type { ReasonCode } from "@puneetnith28/loopback-contracts";
 
 /** Context for refusal messages. Every value is rendered through `safe()`. */
 export interface ReasonContext {

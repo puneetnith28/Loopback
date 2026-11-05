@@ -1,5 +1,5 @@
 import { generateKeyPairSync } from "node:crypto";
-import type { InboundMessage } from "@loopback/contracts";
+import type { InboundMessage } from "@puneetnith28/loopback-contracts";
 import { signReport } from "../agents/signature.js";
 import { CaseLocks } from "../cases/lock.js";
 import { HaltSwitch } from "../cases/halt.js";

@@ -1,5 +1,5 @@
 import { useEffect, type ReactNode } from "react";
-import type { CaseState } from "@loopback/contracts";
+import type { CaseState } from "@puneetnith28/loopback-contracts";
 import { Button } from "../../design-system/components/Button.tsx";
 import { StatusIndicator, type Status } from "../../design-system/components/Badge.tsx";
 import { STATE_LABELS } from "../../lib/lifecycle.ts";

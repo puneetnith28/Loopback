@@ -3,7 +3,7 @@ import { readFileSync, statSync } from "node:fs";
 import { dirname, isAbsolute } from "node:path";
 import { cloudSyncRoot, windowsPermissions, type HostPermissions } from "./platform/windows-acl.js";
 import { z } from "zod";
-import { FullSha, ParticipantId, RepoSlug } from "@loopback/contracts";
+import { FullSha, ParticipantId, RepoSlug } from "@puneetnith28/loopback-contracts";
 import { PublicKeyError, parsePublicKey } from "./agents/signature.js";
 
 /**

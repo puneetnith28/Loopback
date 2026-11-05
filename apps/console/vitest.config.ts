@@ -7,6 +7,8 @@ const consoleContracts = fileURLToPath(new URL("../../packages/console-contracts
 export default defineProject({
   resolve: {
     alias: {
+      "@puneetnith28/loopback-contracts": contracts,
+      "@puneetnith28/loopback-console-contracts": consoleContracts,
       "@loopback/contracts": contracts,
       "@loopback/console-contracts": consoleContracts,
     },

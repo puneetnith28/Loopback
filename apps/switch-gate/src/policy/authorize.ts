@@ -1,4 +1,4 @@
-import type { CommandKind, ReasonCode } from "@loopback/contracts";
+import type { CommandKind, ReasonCode } from "@puneetnith28/loopback-contracts";
 
 /**
  * Roles of an admitted sender. Agents never get a role: admission (policy/admission.ts)

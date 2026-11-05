@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { CaseId, FullSha } from "@loopback/contracts";
+import { CaseId, FullSha } from "@puneetnith28/loopback-contracts";
 import { shortSha } from "../../lib/format.ts";
 import { IconButton, cx } from "./Button.tsx";
 import styles from "./Sha.module.css";

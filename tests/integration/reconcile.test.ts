@@ -1,4 +1,4 @@
-import { CASE_STATES, type CaseState } from "@loopback/contracts";
+import { CASE_STATES, type CaseState } from "@puneetnith28/loopback-contracts";
 import { describe, expect, it } from "vitest";
 import { createCase } from "../../apps/switch-gate/src/cases/service.js";
 import { A, B, createHarness, type Harness } from "../helpers/harness.js";

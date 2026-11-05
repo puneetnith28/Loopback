@@ -1,4 +1,4 @@
-import type { CaseState } from "@loopback/contracts";
+import type { CaseState } from "@puneetnith28/loopback-contracts";
 import { STATE_LABELS, detourOf, isMainPathState, trackSteps, type MainPathState, type StepStatus } from "../../lib/lifecycle.ts";
 import { isFullSha } from "../../lib/format.ts";
 import { Icon } from "../Icon.tsx";

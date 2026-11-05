@@ -11,7 +11,7 @@ import {
   VerifierReport,
   displaySha,
   isTransient,
-} from "@loopback/contracts";
+} from "@puneetnith28/loopback-contracts";
 
 const SHA = "3f9c2ab4e1d0b4c9a8f7e6d5c4b3a2918f7e6d5c";
 
@@ -123,7 +123,7 @@ describe("reason codes (D15)", () => {
 
 describe("RepoSlug", () => {
   it("rejects dot segments", async () => {
-    const { RepoSlug } = await import("@loopback/contracts");
+    const { RepoSlug } = await import("@puneetnith28/loopback-contracts");
     expect(RepoSlug.safeParse("o/r").success).toBe(true);
     expect(RepoSlug.safeParse("../r").success).toBe(false);
     expect(RepoSlug.safeParse("o/..").success).toBe(false);
