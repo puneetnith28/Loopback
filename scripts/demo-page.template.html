@@ -1,293 +1,1138 @@
 <title>Loopback Rehearsal</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<meta name="description" content="Click through one bug going from a chat report to a merge, including the attacks and mistakes the Loopback gate stops.">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<meta name="description" content="Understand Loopback without installing it: do the same steps a local user does, in the same screens, then turn Switch off and watch the workflow stop.">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=Open+Sans:wght@400;600;700&display=swap">
 <style>
-/* Layout: a step rail, the chat room for the current step, and the commit's evidence panel beside it.
-   Type and colour follow the project's evidence console: IBM Plex, cool slate, a teal seal. */
+/* Layout: a chapter bar with the Switch button always in reach; the run is a guide column beside a workspace of the
+   same screens a local user has. Page colours and type follow the project's evidence console. The chat pane and the
+   terminal keep their own fixed look, because they stand for other applications. */
 :root {
   --bg: #f3f6f8; --surface: #ffffff; --sunk: #e9eef2; --line: #cfd8df; --fg: #14202a; --muted: #52626f;
-  --accent: #0b6f76; --accent-soft: #d9eff0; --ok: #17693a; --ok-soft: #dcf1e3; --wait: #7a5600; --wait-soft: #f7ecd0;
-  --bad: #a4262c; --bad-soft: #fbe4e4; --person: #1f5fa8; --agent: #6b3fa0; --gate: #0b6f76;
+  --accent: #0b6f76; --accent-soft: #d9eff0; --on-accent: #ffffff; --ok: #17693a; --ok-soft: #dcf1e3; --wait: #7a5600; --wait-soft: #f7ecd0;
+  --bad: #a4262c; --bad-soft: #fbe4e4;
   --sans: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif; --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  /* Chat pane: measured from a running Mattermost 11.9 in its default theme. */
+  --mm-top: #14213e; --mm-side: #1e325c; --mm-side-text: rgba(255,255,255,.72); --mm-side-hover: rgba(255,255,255,.08); --mm-active: rgba(255,255,255,.16);
+  --mm-center: #ffffff; --mm-text: #3f4350; --mm-soft: rgba(63,67,80,.72); --mm-line: rgba(63,67,80,.16); --mm-link: #1c58d9; --mm-button: #1c58d9; --mm-hover: rgba(63,67,80,.05);
+  --mm-bad: #fbeaea; --mm-bad-text: #a4262c; --mm-via: #0b6f76; --mm-code: rgba(63,67,80,.07); --mm-font: "Open Sans", "Segoe UI", system-ui, sans-serif;
+  /* Terminal */
+  --term-bg: #0d1117; --term-fg: #d6dde4; --term-dim: #8592a0; --term-ok: #6fd795; --term-bad: #ff9a9a; --term-prompt: #4fc4cc;
 }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
   --bg: #0e141a; --surface: #161e26; --sunk: #0a0f14; --line: #2b3742; --fg: #e6edf2; --muted: #9aaab7;
-  --accent: #4fc4cc; --accent-soft: #123338; --ok: #6fd795; --ok-soft: #12301f; --wait: #e9c063; --wait-soft: #33290f;
-  --bad: #ff9a9a; --bad-soft: #3a1619; --person: #84b8f2; --agent: #c0a2ec; --gate: #4fc4cc; color-scheme: dark;
+  --accent: #4fc4cc; --accent-soft: #123338; --on-accent: #06181a; --ok: #6fd795; --ok-soft: #12301f; --wait: #e9c063; --wait-soft: #33290f;
+  --bad: #ff9a9a; --bad-soft: #3a1619; color-scheme: dark;
 } }
 :root[data-theme="dark"] {
   --bg: #0e141a; --surface: #161e26; --sunk: #0a0f14; --line: #2b3742; --fg: #e6edf2; --muted: #9aaab7;
-  --accent: #4fc4cc; --accent-soft: #123338; --ok: #6fd795; --ok-soft: #12301f; --wait: #e9c063; --wait-soft: #33290f;
-  --bad: #ff9a9a; --bad-soft: #3a1619; --person: #84b8f2; --agent: #c0a2ec; --gate: #4fc4cc; color-scheme: dark;
+  --accent: #4fc4cc; --accent-soft: #123338; --on-accent: #06181a; --ok: #6fd795; --ok-soft: #12301f; --wait: #e9c063; --wait-soft: #33290f;
+  --bad: #ff9a9a; --bad-soft: #3a1619; color-scheme: dark;
 }
 * { box-sizing: border-box; }
-body { background: var(--bg); color: var(--fg); font: 15px/1.5 var(--sans); }
-.wrap { max-width: 1240px; margin: 0 auto; padding-block: 28px 56px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 20px; }
+html, body { min-height: 100%; }
+body { background: var(--bg); color: var(--fg); font: 15px/1.55 var(--sans); }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--surface); }
 a { color: var(--accent); }
-a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 code, .mono { font-family: var(--mono); }
-header { display: grid; gap: 8px; }
-.brand { font: 600 14px var(--mono); color: var(--accent); }
-h1 { margin: 0; font-size: clamp(25px, 3.6vw, 38px); line-height: 1.15; font-weight: 700; text-wrap: balance; max-width: 26em; }
-.lede { margin: 0; color: var(--muted); max-width: 68ch; font-size: 16px; }
-.notice { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; padding: 10px 14px; background: var(--wait-soft); border: 1px solid var(--line); border-radius: 6px; }
-.notice strong { color: var(--wait); }
-.player { display: grid; grid-template-columns: 250px minmax(0, 1fr) 280px; gap: 16px; align-items: start; }
-.rail { display: grid; gap: 2px; list-style: none; margin: 0; padding: 0; counter-reset: step; }
-.rail button { width: 100%; display: grid; grid-template-columns: 24px 1fr; gap: 6px; padding: 7px 8px; border: 0; border-radius: 5px; background: none; color: var(--muted); font: 13px/1.35 var(--sans); text-align: left; cursor: pointer; }
-.rail button:hover { background: var(--sunk); color: var(--fg); }
-.rail button[aria-current="step"] { background: var(--accent-soft); color: var(--fg); font-weight: 600; }
-.rail .n { font: 500 12px/1.5 var(--mono); }
-.stage { display: grid; gap: 12px; min-width: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 18px; }
-.stage h2 { margin: 0; font-size: 19px; line-height: 1.3; text-wrap: balance; }
-.controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-button.btn { font: 500 14px var(--sans); padding: 7px 14px; border-radius: 5px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); cursor: pointer; }
-button.btn:hover:not(:disabled) { border-color: var(--accent); }
-button.btn:disabled { opacity: .45; cursor: default; }
-button.primary { background: var(--accent); border-color: var(--accent); color: var(--bg); }
-.count { margin-left: auto; color: var(--muted); font: 13px var(--mono); }
-.log { display: grid; gap: 8px; min-width: 0; }
-.msg { display: grid; gap: 3px; padding: 9px 12px; border-radius: 6px; background: var(--sunk); min-width: 0; }
-.msg.refused { background: var(--bad-soft); }
-.meta { display: flex; flex-wrap: wrap; gap: 2px 8px; align-items: baseline; font-size: 13px; }
-.who { font-weight: 600; }
-.person { color: var(--person); } .agent { color: var(--agent); } .gate { color: var(--gate); }
-.room { color: var(--muted); font: 12px var(--mono); }
-.text { margin: 0; font: 13px/1.5 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
-.refused .text { color: var(--bad); font-weight: 500; }
-.gh { font-size: 13px; color: var(--wait); font-weight: 500; padding: 2px 12px; overflow-wrap: anywhere; }
-.checks { list-style: none; margin: 0; padding: 12px 0 0; border-top: 1px solid var(--line); display: grid; gap: 4px; font-size: 14px; }
-.checks li { display: grid; grid-template-columns: 20px 1fr; }
-.checks .yes { color: var(--ok); font-weight: 700; } .checks .no { color: var(--bad); font-weight: 700; }
-.evidence { display: grid; gap: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 16px; position: sticky; top: calc(12px + env(safe-area-inset-top, 0px)); }
+h1, h2, h3 { text-wrap: balance; line-height: 1.2; margin: 0; }
+p { margin: 0; }
+
+/* Chapter bar */
+.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--surface); border-bottom: 1px solid var(--line); }
+.top-in { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; padding-block: 8px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.brand { font: 600 15px var(--mono); color: var(--accent); }
+.chapters { display: flex; gap: 2px; overflow-x: auto; flex: 1 1 360px; min-width: 0; scrollbar-width: none; }
+.chapters a { flex: none; padding: 5px 10px; border-radius: 5px; color: var(--muted); font-size: 14px; font-weight: 500; text-decoration: none; }
+.chapters a:hover { background: var(--sunk); color: var(--fg); }
+.chapters a[aria-current="page"] { background: var(--accent-soft); color: var(--fg); font-weight: 600; }
+.toggle { display: inline-flex; align-items: center; gap: 8px; font: 600 14px var(--sans); padding: 4px 12px 4px 5px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); cursor: pointer; }
+.toggle .knob { width: 36px; height: 20px; border-radius: 999px; background: var(--accent); position: relative; flex: none; }
+.toggle .knob::after { content: ""; position: absolute; top: 3px; left: 19px; width: 14px; height: 14px; border-radius: 50%; background: var(--surface); transition: left .15s; }
+.toggle[aria-checked="false"] { border-color: var(--bad); }
+.toggle[aria-checked="false"] .knob { background: var(--bad); }
+.toggle[aria-checked="false"] .knob::after { left: 3px; }
+.sim { display: flex; flex-wrap: wrap; gap: 2px 8px; padding-block: 5px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); background: var(--wait-soft); font-size: 13px; line-height: 1.4; }
+.sim strong { color: var(--wait); }
+.sim.off { background: var(--bad-soft); }
+.sim.off strong { color: var(--bad); }
+
+/* Reading chapters */
+.read { max-width: 1120px; margin: 0 auto; padding-block: 32px 64px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 36px; }
+.read > * { min-width: 0; }
+.read section { display: grid; gap: 12px; min-width: 0; }
+h1 { font-size: clamp(27px, 4vw, 42px); font-weight: 700; max-width: 24em; }
+.read h2 { font-size: 21px; font-weight: 600; }
+.read h3 { font-size: 15px; font-weight: 600; }
+.lede { font-size: 17px; color: var(--muted); max-width: 68ch; }
+.prose { color: var(--muted); max-width: 70ch; }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.btn { display: inline-block; font: 500 14px var(--sans); padding: 8px 14px; border-radius: 5px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); cursor: pointer; text-decoration: none; }
+.btn:hover:not(:disabled) { border-color: var(--accent); }
+.btn:disabled { opacity: .45; cursor: default; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
+.btn.small { padding: 4px 10px; font-size: 13px; }
+.scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: left; padding: 8px 11px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--muted); font-weight: 600; background: var(--sunk); white-space: nowrap; }
+tr:last-child td { border-bottom: 0; }
+.wide td { min-width: 170px; }
+.nowrap td, .nowrap th { white-space: nowrap; font-size: 13px; }
+.flow { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 0; list-style: none; margin: 0; padding: 0; }
+.flow li { display: grid; gap: 4px; align-content: start; padding: 12px 14px; border-left: 1px solid var(--line); min-width: 0; }
+.flow li:first-child { border-left: 0; padding-left: 0; }
+.flow .n { font: 500 12px var(--mono); color: var(--accent); }
+.flow b { font-weight: 600; }
+.flow .d { font-size: 13px; color: var(--muted); line-height: 1.4; }
+.loopnote { font-size: 14px; padding: 9px 12px; background: var(--wait-soft); border-radius: 5px; max-width: 80ch; }
+.cast { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px 24px; }
+.cast div { display: grid; gap: 2px; min-width: 0; }
+.cast b { font-weight: 600; }
+.cast span { font-size: 14px; color: var(--muted); }
+pre.code { margin: 0; padding: 12px 14px; overflow-x: auto; background: var(--term-bg); color: var(--term-fg); border-radius: 6px; font: 13px/1.55 var(--mono); }
+.excerpt { display: grid; gap: 6px; min-width: 0; }
+.excerpt .file { font: 12px var(--mono); color: var(--muted); overflow-wrap: anywhere; }
+
+/* Without Switch */
+.path { display: flex; flex-wrap: wrap; gap: 8px; align-items: stretch; }
+.node { flex: 1 1 130px; display: grid; gap: 2px; align-content: start; padding: 10px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); min-width: 0; }
+.node b { font-weight: 600; font-size: 14px; }
+.node span { font-size: 13px; color: var(--muted); line-height: 1.35; }
+.node.hub { border-color: var(--accent); background: var(--accent-soft); }
+.node.dead { background: var(--sunk); opacity: .55; }
+.node.hub.dead { opacity: 1; background: var(--bad-soft); border-color: var(--bad); }
+.node.hub.dead b { text-decoration: line-through; color: var(--bad); }
+.refusal { padding: 12px 14px; border: 1px solid var(--bad); border-radius: 6px; display: grid; gap: 6px; min-width: 0; }
+.refusal pre { margin: 0; font: 13px/1.5 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; color: var(--bad); }
 .eyebrow { font-size: 12px; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
-.sha { font: 600 17px var(--mono); overflow-wrap: anywhere; }
-.state { font-weight: 600; }
-.rows { display: grid; gap: 6px; }
-.row { display: grid; grid-template-columns: 24px 1fr auto; gap: 4px; align-items: baseline; padding: 6px 8px; border-radius: 5px; font-size: 14px; transition: background-color .5s; }
-.row b { font-weight: 500; font-family: var(--mono); font-size: 13px; }
+
+/* The run and setup */
+.work { display: grid; grid-template-columns: 350px minmax(0, 1fr); gap: 0; height: calc(100dvh - 92px); min-height: 620px; }
+.guide { display: flex; flex-direction: column; gap: 12px; padding: 14px 16px 16px; padding-left: max(16px, env(safe-area-inset-left, 0px)); overflow-y: auto; border-right: 1px solid var(--line); background: var(--surface); min-width: 0; }
+.progress { height: 4px; background: var(--sunk); border-radius: 2px; overflow: hidden; }
+.progress i { display: block; height: 100%; background: var(--accent); transition: width .2s; }
+.stepline { display: flex; justify-content: space-between; gap: 8px; align-items: center; font: 13px var(--mono); color: var(--muted); }
+.stepline select { font: 12px var(--sans); max-width: 170px; padding: 2px 4px; color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 4px; }
+.guide h2 { font-size: 17px; font-weight: 600; line-height: 1.3; }
+.badge { display: inline-block; font: 600 11px var(--sans); letter-spacing: .05em; text-transform: uppercase; padding: 2px 7px; border-radius: 3px; background: var(--wait-soft); color: var(--wait); }
+.todo { display: grid; gap: 8px; padding: 12px; background: var(--accent-soft); border-radius: 6px; min-width: 0; }
+.todo p { font-size: 14px; }
+.cmd { font: 500 12.5px/1.5 var(--mono); padding: 7px 9px; background: var(--surface); border: 1px solid var(--line); border-radius: 4px; overflow-wrap: anywhere; }
+.said { display: grid; gap: 3px; min-width: 0; }
+.said p { font-size: 14px; }
+.said code { font-size: 13px; }
+.checks { list-style: none; margin: 0; padding: 10px 0 0; border-top: 1px solid var(--line); display: grid; gap: 4px; font-size: 13px; line-height: 1.4; }
+.checks li { display: grid; grid-template-columns: 18px minmax(0, 1fr); }
+.checks .yes { color: var(--ok); font-weight: 700; }
+.checks .no { color: var(--bad); font-weight: 700; }
+.spacer { flex: 1; }
+.nav { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding-top: 10px; border-top: 1px solid var(--line); }
+.evidence { display: grid; gap: 5px; padding-top: 10px; border-top: 1px solid var(--line); }
+.evidence .sha { font: 600 14px var(--mono); overflow-wrap: anywhere; }
+.row { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 4px; align-items: baseline; padding: 3px 7px; border-radius: 4px; font-size: 13px; transition: background-color .4s; }
+.row b { font: 500 12px var(--mono); }
 .row.pass { background: var(--ok-soft); } .row.pass .mark { color: var(--ok); }
 .row.wait { background: var(--wait-soft); } .row.wait .mark { color: var(--wait); }
 .row.none { background: var(--sunk); color: var(--muted); }
 .row.void { background: var(--bad-soft); } .row.void .mark, .voided { color: var(--bad); }
-.voided { font-size: 13px; font-weight: 600; margin: 0; }
-.tables { display: grid; gap: 14px; min-width: 0; }
-.tables h3 { margin: 0 0 6px; font-size: 14px; }
-.scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; }
-table { border-collapse: collapse; width: 100%; font-size: 13px; }
-th, td { text-align: left; padding: 6px 9px; border-bottom: 1px solid var(--line); white-space: nowrap; }
-th { color: var(--muted); font-weight: 600; background: var(--sunk); }
-tr:last-child td { border-bottom: 0; }
-.result { margin: 0; font-weight: 600; color: var(--ok); }
-.after { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; padding-top: 8px; }
-.after section { display: grid; gap: 6px; align-content: start; min-width: 0; }
-.after h2 { margin: 0; font-size: 15px; }
-.after p { margin: 0; color: var(--muted); font-size: 14px; }
-pre.cmd { margin: 0; padding: 10px 12px; background: var(--sunk); border-radius: 6px; font: 13px/1.5 var(--mono); overflow-x: auto; }
-.links { display: grid; gap: 3px; }
-@media (max-width: 1040px) {
-  .player { grid-template-columns: minmax(0, 1fr); }
-  .rail { display: flex; overflow-x: auto; gap: 4px; padding-bottom: 4px; }
-  .rail li { flex: none; }
-  .rail button { display: block; width: auto; padding: 5px 10px; background: var(--sunk); }
-  .rail .t { display: none; }
-  .evidence { position: static; order: -1; }
-  .after { grid-template-columns: minmax(0, 1fr); }
+.voided { font-size: 13px; font-weight: 600; }
+.offnote { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--bad); border-radius: 6px; }
+.offnote pre { margin: 0; font: 12.5px/1.5 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; color: var(--bad); }
+
+.space { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.tabs { display: flex; gap: 2px; overflow-x: auto; padding: 6px 8px 0; background: var(--sunk); border-bottom: 1px solid var(--line); scrollbar-width: none; flex: none; }
+.tabs button { flex: none; font: 500 13px var(--sans); padding: 6px 12px; border: 1px solid transparent; border-bottom: 0; border-radius: 5px 5px 0 0; background: none; color: var(--muted); cursor: pointer; position: relative; }
+.tabs button:hover { color: var(--fg); }
+.tabs button[aria-selected="true"] { background: var(--surface); border-color: var(--line); color: var(--fg); font-weight: 600; margin-bottom: -1px; }
+.tabs .dot { display: inline-block; width: 7px; height: 7px; margin-left: 6px; border-radius: 50%; background: var(--accent); vertical-align: 1px; }
+.pane { flex: 1; min-height: 0; min-width: 0; overflow: auto; display: flex; flex-direction: column; }
+.tag { flex: none; font-size: 12px; padding: 4px 12px; color: var(--muted); background: var(--sunk); border-bottom: 1px solid var(--line); }
+
+/* Chat, sized from the measured application: 44px top bar, 264px sidebar, 56px channel header. */
+.mm { flex: 1; min-height: 0; display: grid; grid-template-rows: 44px minmax(0, 1fr); background: var(--mm-top); color: var(--mm-text); font: 14px/20px var(--mm-font); }
+.mm-top { display: flex; align-items: center; gap: 12px; padding: 0 12px; color: var(--mm-side-text); min-width: 0; }
+.mm-search { flex: 0 1 430px; margin: 0 auto; padding: 4px 10px; border-radius: 4px; background: rgba(255,255,255,.08); font-size: 13px; color: rgba(255,255,255,.55); white-space: nowrap; overflow: hidden; }
+.mm-me { display: flex; gap: 8px; align-items: center; font-size: 13px; color: #fff; white-space: nowrap; flex: none; }
+.mm-body { display: grid; grid-template-columns: 264px minmax(0, 1fr); min-height: 0; padding: 0 12px 12px 0; }
+.mm-side { padding: 8px 0; color: var(--mm-side-text); min-width: 0; overflow-y: auto; }
+.mm-team { padding: 6px 18px 10px; font: 600 16px var(--mm-font); color: #fff; }
+.mm-group { padding: 10px 18px 4px; font: 600 12px var(--mm-font); letter-spacing: .02em; color: rgba(255,255,255,.55); }
+.mm-chan { display: flex; align-items: center; gap: 9px; width: 100%; height: 32px; padding: 0 16px 0 19px; border: 0; background: none; color: inherit; font: 400 14px var(--mm-font); text-align: left; cursor: pointer; }
+.mm-chan:hover { background: var(--mm-side-hover); }
+.mm-chan[aria-current="true"] { background: var(--mm-active); color: #fff; box-shadow: inset 3px 0 0 #5d89ea; }
+.mm-chan.unread { color: #fff; font-weight: 700; }
+.mm-chan .count { margin-left: auto; padding: 0 6px; border-radius: 9px; background: #fff; color: var(--mm-side); font: 700 11px/16px var(--mm-font); }
+.mm-chan svg { flex: none; }
+.mm-main { background: var(--mm-center); border-radius: 12px; display: grid; grid-template-rows: 56px minmax(0, 1fr) auto; min-height: 0; min-width: 0; overflow: hidden; }
+.mm-head { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--mm-line); min-width: 0; }
+.mm-head b { font: 600 16px/16px var(--mm-font); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mm-head label { margin-left: auto; display: flex; gap: 5px; align-items: center; font-size: 12px; color: var(--mm-soft); white-space: nowrap; cursor: pointer; }
+.mm-posts { overflow-y: auto; padding-bottom: 8px; min-height: 0; }
+.mm-empty { padding: 28px 24px; display: grid; gap: 6px; color: var(--mm-soft); }
+.mm-empty b { font: 600 20px var(--mm-font); color: var(--mm-text); }
+.post { display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: 0 11px; padding: 10px 16px 6px 21px; }
+.post:hover { background: var(--mm-hover); }
+.post .av { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; font: 600 13px var(--mm-font); color: #fff; }
+.post .h { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 7px; }
+.post .n { font-weight: 600; }
+.post .bot { font: 600 10px/14px var(--mm-font); padding: 0 4px; border-radius: 2px; background: var(--mm-code); color: var(--mm-soft); }
+.post .t { font-size: 12.6px; line-height: 18px; color: var(--mm-soft); }
+.post .m { color: var(--mm-text); overflow-wrap: anywhere; white-space: pre-wrap; }
+.post .m code { font: 12.5px var(--mono); padding: 1px 4px; border-radius: 3px; background: var(--mm-code); }
+.post .m pre { margin: 4px 0; padding: 7px 9px; border-radius: 4px; background: var(--mm-code); font: 12.5px/1.45 var(--mono); white-space: pre-wrap; }
+.post.refused { background: var(--mm-bad); }
+.post.refused .m { color: var(--mm-bad-text); font-weight: 600; }
+.post.fresh { animation: rise .28s ease-out; }
+@keyframes rise { from { opacity: .2; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.post .via { margin-top: 3px; font: 11.5px/1.4 var(--mono); color: var(--mm-via); overflow-wrap: anywhere; }
+.post.undelivered { background: var(--mm-bad); }
+.post.undelivered .m { text-decoration: line-through; color: var(--mm-soft); }
+.post.undelivered .via { color: var(--mm-bad-text); font-weight: 600; }
+.mm-compose { padding: 0 16px 12px; display: grid; gap: 5px; }
+.mm-box { display: flex; gap: 6px; align-items: flex-end; padding: 6px 6px 6px 12px; border: 1px solid var(--mm-line); border-radius: 4px; background: var(--mm-center); }
+.mm-box.ready { border-color: var(--mm-button); box-shadow: 0 0 0 1px var(--mm-button); }
+.mm-box input { flex: 1; min-width: 0; padding: 6px 0; border: 0; outline: 0; background: none; color: var(--mm-text); font: 14px var(--mm-font); }
+.mm-box input::placeholder { color: var(--mm-soft); }
+.mm-box button { flex: none; width: 34px; height: 32px; display: grid; place-items: center; border: 0; border-radius: 4px; background: var(--mm-code); color: var(--mm-soft); cursor: pointer; }
+.mm-box.ready button { background: var(--mm-button); color: #fff; }
+.mm-hint { font-size: 12.5px; line-height: 1.4; color: var(--mm-bad-text); }
+.mm-as { font-size: 12px; color: var(--mm-soft); }
+.frame { flex: 1; width: 100%; min-height: 0; border: 0; background: var(--bg); }
+
+/* Other panes */
+.term { flex: 1; padding: 12px 14px; background: var(--term-bg); color: var(--term-fg); font: 12.5px/1.55 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; overflow-y: auto; min-height: 0; }
+.term .p { color: var(--term-prompt); }
+.term .dim { color: var(--term-dim); }
+.term .bad { color: var(--term-bad); }
+.term .good { color: var(--term-ok); }
+.gh { padding: 16px; display: grid; gap: 14px; align-content: start; max-width: 860px; }
+.gh h3 { font-size: 18px; font-weight: 600; overflow-wrap: anywhere; }
+.gh .sub { color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
+.pill { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 13px; font-weight: 600; background: var(--ok-soft); color: var(--ok); }
+.pill.merged { background: var(--accent-soft); color: var(--accent); }
+.feed { display: grid; gap: 6px; list-style: none; margin: 0; padding: 0; font-size: 14px; }
+.feed li { padding: 7px 10px; background: var(--sunk); border-radius: 5px; overflow-wrap: anywhere; }
+.sc { flex: 1; min-height: 0; display: grid; grid-template-columns: 180px minmax(0, 1fr); background: var(--surface); }
+.sc-nav { display: grid; gap: 2px; align-content: start; padding: 10px 8px; border-right: 1px solid var(--line); background: var(--sunk); }
+.sc-nav button { padding: 6px 10px; border: 0; border-radius: 5px; background: none; color: var(--muted); font: 500 14px var(--sans); text-align: left; cursor: pointer; }
+.sc-nav button[aria-current="true"] { background: var(--surface); color: var(--fg); font-weight: 600; }
+.sc-main { padding: 16px; display: grid; gap: 14px; align-content: start; overflow: auto; min-width: 0; }
+.sc-main h3 { font-size: 16px; font-weight: 600; }
+.sc-main img { border: 1px solid var(--line); border-radius: 6px; }
+.field { display: grid; gap: 3px; font-size: 14px; }
+.field span { font-size: 13px; color: var(--muted); }
+.field i { font-style: normal; padding: 6px 9px; border: 1px solid var(--line); border-radius: 4px; background: var(--sunk); font-size: 13px; }
+.setup-go { display: flex; flex-wrap: wrap; gap: 8px; }
+.setup-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; }
+.setup-list button { width: 100%; display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 4px; padding: 5px 8px; border: 0; border-radius: 4px; background: none; color: var(--muted); font: 13px/1.35 var(--sans); text-align: left; cursor: pointer; }
+.setup-list button:hover { background: var(--sunk); }
+.setup-list button[aria-current="step"] { background: var(--accent-soft); color: var(--fg); font-weight: 600; }
+
+@media (max-width: 940px) {
+  .top { position: static; }
+  .work { grid-template-columns: minmax(0, 1fr); height: auto; min-height: 0; }
+  .guide { border-right: 0; border-bottom: 1px solid var(--line); padding-right: max(16px, env(safe-area-inset-right, 0px)); overflow: visible; }
+  .space { height: 86dvh; min-height: 520px; }
+  .flow { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 0; }
+  .flow li:nth-child(odd) { border-left: 0; padding-left: 0; }
+  .cast { grid-template-columns: minmax(0, 1fr); }
+  .mm-body { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); padding: 0 6px 6px; }
+  .mm-side { display: flex; gap: 4px; padding: 0 0 6px; overflow-x: auto; scrollbar-width: none; }
+  .mm-team, .mm-group { display: none; }
+  .mm-chan { width: auto; flex: none; padding: 0 10px; border-radius: 5px; font-size: 13px; }
+  .mm-search { display: none; }
+  .mm-me { margin-left: auto; }
+  .mm-head label span { display: none; }
+  .sc { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+  .sc-nav { display: flex; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--line); }
+  .sc-nav button { flex: none; }
 }
-@media (prefers-reduced-motion: reduce) { .row { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .post.fresh { animation: none; } .row, .toggle .knob::after, .progress i { transition: none; } }
 </style>
 
-<div class="wrap">
-  <header>
-    <div class="brand">Loopback</div>
-    <h1>AI agents fix bugs in your team chat. Nothing merges unless a person approved that exact commit.</h1>
-    <p class="lede">Step through one bug, from a report in a Switch room to a merge. Along the way, people and agents try the things the gate exists to stop.</p>
-  </header>
-
-  <div class="notice"><strong>Simulated rehearsal.</strong> <span>The gate's decisions, permissions and signatures here are its real code, and this page is recorded from an actual run. Switch's delivery, GitHub and the agents are simulated.</span></div>
-
-  <div class="player">
-    <nav aria-label="Steps"><ol class="rail" id="rail"></ol></nav>
-    <main class="stage">
-      <h2 id="title" tabindex="-1"></h2>
-      <div class="controls">
-        <button class="btn" id="back" type="button">Back</button>
-        <button class="btn primary" id="next" type="button">Next step</button>
-        <button class="btn" id="play" type="button">Play</button>
-        <button class="btn" id="point" type="button">Skip to the late commit</button>
-        <span class="count" id="count"></span>
-      </div>
-      <div class="log" id="log" aria-live="polite"></div>
-      <div class="tables" id="tables" hidden></div>
-      <ul class="checks" id="checks"></ul>
-    </main>
-    <aside class="evidence" aria-label="Evidence for the current commit">
-      <div><div class="eyebrow">Commit under review</div><div class="sha" id="sha"></div></div>
-      <div><div class="eyebrow">Case LB-001</div><div class="state" id="state"></div></div>
-      <div class="rows" id="rows"></div>
-      <p class="voided" id="voided" hidden>New commit. All earlier evidence for this case no longer counts.</p>
-    </aside>
+<div class="top">
+  <div class="top-in">
+    <span class="brand">Loopback</span>
+    <nav class="chapters" aria-label="Chapters" id="chapters">
+      <a href="#what">What it is</a>
+      <a href="#setup">Setup</a>
+      <a href="#run">Run a bug through it</a>
+      <a href="#without">Without Switch</a>
+      <a href="#built">How it's built</a>
+      <a href="#proof">What's proven</a>
+    </nav>
+    <button class="toggle" id="toggle" type="button" role="switch" aria-checked="true"><span class="knob"></span><span id="toggle-label">Switch is on</span></button>
   </div>
+  <div class="sim" id="sim"><strong id="sim-title">Simulated rehearsal.</strong> <span id="sim-text"></span></div>
+</div>
 
-  <div class="after">
-    <section>
-      <h2>See the real thing</h2>
-      <p>A real bug went through this flow on live Switch and GitHub. An agent wrote the fix, a person guided the verifier, and the gate merged it after a maintainer approved the exact commit.</p>
-      <div class="links">
-        <a href="https://github.com/puneetnith28/loopback-demo-target/pull/3">The merged pull request</a>
-        <a href="https://github.com/puneetnith28/loopback-demo-target/issues/1">The bug it fixed</a>
-        <a id="video" href="#" hidden>The demo video</a>
+<div class="read" data-chapter="what">
+  <section>
+    <h1>AI agents fix bugs in your team chat. Nothing merges unless a person approved that exact commit.</h1>
+    <p class="lede">Loopback is a merge gate that lives in Switch rooms. Someone reports a bug in chat, one AI agent fixes it, a second checks the fix, and a maintainer approves one exact commit. If the code changes after that, the approval stops counting and the merge is refused.</p>
+    <div class="actions">
+      <a class="btn primary" href="#run">Run a bug through it</a>
+      <a class="btn" href="#without">See it stop without Switch</a>
+      <a class="btn" href="#step-late" id="jump-late">Jump to the late commit</a>
+    </div>
+    <p class="prose">The run takes about five minutes and needs no install. You type the same messages a real team types, and see the gate's real answers. The evidence console is the real app, and the other screens are close copies, labelled as such.</p>
+  </section>
+
+  <section>
+    <h2>The problem it solves</h2>
+    <div class="scroll">
+      <table class="wide">
+        <thead><tr><th scope="col">What goes wrong today</th><th scope="col">What Loopback does</th></tr></thead>
+        <tbody>
+          <tr><td>A maintainer says "looks good", then one more commit lands before the merge.</td><td>An approval names one full commit. The gate re-reads GitHub before merging, and any new commit voids the evidence.</td></tr>
+          <tr><td>An agent says its tests passed when they never ran.</td><td>The gate trusts GitHub's CI results and a signed report tied to one run and one commit. An agent's word counts for nothing.</td></tr>
+          <tr><td>A public bug report carries instructions aimed at the agent.</td><td>No agent sees a report until a maintainer accepts it, and the report reaches the agent fenced as untrusted data.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>How one bug moves through it</h2>
+    <ol class="flow">
+      <li><span class="n">1</span><b>Report</b><span class="d">Anyone, in the public room</span></li>
+      <li><span class="n">2</span><b>Accept</b><span class="d">A maintainer decides it's worth fixing</span></li>
+      <li><span class="n">3</span><b>Fix</b><span class="d">The fixer agent opens a pull request</span></li>
+      <li><span class="n">4</span><b>Verify</b><span class="d">CI runs, and the verifier agent signs a report for that commit</span></li>
+      <li><span class="n">5</span><b>Approve</b><span class="d">A maintainer names the full commit</span></li>
+      <li><span class="n">6</span><b>Merge</b><span class="d">The gate re-reads GitHub, then merges that commit</span></li>
+    </ol>
+    <p class="loopnote">If a new commit lands at any point after step 3, the case goes back to step 4. CI, the verifier and the approval all have to be earned again.</p>
+  </section>
+
+  <section>
+    <h2>Who does what</h2>
+    <div class="cast">
+      <div><b>Switch</b><span>Runs the rooms, connects people and agents, and tells the gate exactly who sent each message.</span></div>
+      <div><b>The gate</b><span>A custom Switch agent. It holds the rules and is the only thing allowed to merge.</span></div>
+      <div><b>Maintainers</b><span>People on an exact list of Switch ids. They accept, approve and merge, in chat.</span></div>
+      <div><b>Fixer agent</b><span>Reproduces the bug with a failing test, fixes it and opens a pull request.</span></div>
+      <div><b>Verifier agent</b><span>Checks the fix independently and signs its report for one commit.</span></div>
+      <div><b>GitHub</b><span>The source of truth for code. Its rules refuse any merge without the gate's own status.</span></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Where to go next</h2>
+    <p class="prose">Use the chapters at the top, in any order. The button beside them turns Switch off on every chapter, so you can see what's left.</p>
+  </section>
+</div>
+
+<div class="work" data-chapter="setup" hidden>
+  <aside class="guide">
+    <div class="eyebrow">Setup: what a local install involves</div>
+    <ol class="setup-list" id="setup-list"></ol>
+    <div class="said"><h2 id="setup-title"></h2><p id="setup-body"></p></div>
+    <div class="setup-go" id="setup-go"></div>
+    <div class="spacer"></div>
+    <div class="nav">
+      <button class="btn" id="setup-back" type="button">Back</button>
+      <button class="btn" id="setup-next" type="button">Next</button>
+      <a class="btn" href="#run">Skip to the run</a>
+    </div>
+  </aside>
+  <div class="space"><div class="tag" id="setup-tag"></div><div class="pane" id="setup-pane"></div></div>
+</div>
+
+<div class="work" data-chapter="run" hidden>
+  <aside class="guide" aria-label="What to do">
+    <div class="stepline"><span id="count"></span><select id="jump" aria-label="Go to a step"></select></div>
+    <div class="progress"><i id="bar"></i></div>
+    <div class="said"><span class="badge" id="point-badge" hidden>The point of Loopback</span><h2 id="title" tabindex="-1"></h2></div>
+    <div id="action"></div>
+    <div id="after" class="said" aria-live="polite"></div>
+    <div class="spacer"></div>
+    <div class="evidence" aria-label="Evidence for the current commit">
+      <div class="eyebrow">Commit under review</div>
+      <div class="sha" id="sha"></div>
+      <div id="rows" style="display:grid;gap:3px"></div>
+      <p class="voided" id="voided" hidden>New commit. All earlier evidence for this case no longer counts.</p>
+    </div>
+    <div class="nav">
+      <button class="btn" id="back" type="button">Back</button>
+      <button class="btn" id="play" type="button">Play the rest</button>
+      <button class="btn" id="point" type="button">Late commit</button>
+    </div>
+  </aside>
+  <div class="space">
+    <div class="tabs" role="tablist" aria-label="Screens" id="tabs">
+      <button role="tab" type="button" data-tab="chat">Team chat</button>
+      <button role="tab" type="button" data-tab="github">GitHub</button>
+      <button role="tab" type="button" data-tab="console">Evidence console</button>
+      <button role="tab" type="button" data-tab="switch">Switch Console</button>
+      <button role="tab" type="button" data-tab="terminal">Terminal</button>
+    </div>
+    <div class="tag" id="tag"></div>
+    <div class="pane" id="pane-chat">
+      <div class="mm">
+        <div class="mm-top"><div class="mm-search">Search</div><div class="mm-me" id="me"></div></div>
+        <div class="mm-body">
+          <nav class="mm-side" aria-label="Rooms">
+            <div class="mm-team">Acme</div>
+            <div class="mm-group">CHANNELS</div>
+            <div id="rooms" style="display:contents"></div>
+          </nav>
+          <div class="mm-main">
+            <div class="mm-head"><b id="room-name"></b><label><input type="checkbox" id="showvia" checked> <span>Show what Switch did</span></label></div>
+            <div class="mm-posts" id="posts" aria-live="polite"></div>
+            <form class="mm-compose" id="compose">
+              <div class="mm-as" id="as"></div>
+              <div class="mm-box" id="box">
+                <input id="input" autocomplete="off" aria-label="Message">
+                <button type="submit" aria-label="Send"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M2 21 23 12 2 3v7l15 2-15 2z"/></svg></button>
+              </div>
+              <div class="mm-hint" id="hint" role="status" hidden></div>
+            </form>
+          </div>
+        </div>
       </div>
-    </section>
-    <section>
-      <h2>Run it yourself</h2>
-      <p>This same rehearsal runs on your machine in about two minutes. You need Node 22 and no accounts.</p>
-      <pre class="cmd">git clone https://github.com/puneetnith28/Loopback.git
+    </div>
+    <div class="pane" id="pane-github" hidden></div>
+    <div class="pane" id="pane-console" hidden></div>
+    <div class="pane" id="pane-switch" hidden></div>
+    <div class="pane" id="pane-terminal" hidden><div class="term" id="term" tabindex="0"></div></div>
+  </div>
+</div>
+
+<div class="read" data-chapter="without" hidden>
+  <section>
+    <h1 style="font-size:clamp(24px,3.4vw,34px)">Why it stops working without Switch</h1>
+    <p class="lede">Every person, agent and permission in Loopback reaches the gate through Switch. Turn it off and follow the path.</p>
+    <div class="actions">
+      <button class="btn primary" id="toggle2" type="button"></button>
+      <a class="btn" href="#run" id="try-off">Try the run in this state</a>
+    </div>
+  </section>
+  <section>
+    <div class="path" id="path">
+      <div class="node"><b>People in chat</b><span>Report, accept, approve, merge</span></div>
+      <div class="node hub"><b>Switch rooms</b><span>Delivery, sender identity, addressing rules</span></div>
+      <div class="node"><b>The gate</b><span>Rules, audit log, merge</span></div>
+      <div class="node"><b>Fixer and verifier</b><span>Tasked only by Switch message</span></div>
+      <div class="node"><b>GitHub merge</b><span>Needs the gate's status</span></div>
+    </div>
+  </section>
+  <section class="refusal" id="refusal" hidden>
+    <div class="eyebrow">What the real gate prints when it can't reach Switch</div>
+    <pre>Refusing to start: the gate's Switch addressing policy is not the expected one (could not read the policy (TypeError)).</pre>
+  </section>
+  <section>
+    <h2>What each part of Switch does here</h2>
+    <div class="scroll">
+      <table class="wide">
+        <thead><tr><th scope="col">What Switch provides</th><th scope="col">What Loopback does with it</th><th scope="col">Without it</th></tr></thead>
+        <tbody>
+          <tr><td>Rooms on a chat app</td><td>A public room for reports, and a maintainers' room where people and agents work</td><td>Nobody can report, accept, approve or merge. The gate has no other way to hear a person</td></tr>
+          <tr><td>The agent connection</td><td>The gate receives every command over its connection to each room</td><td>Nothing reaches the gate</td></tr>
+          <tr><td>Agents in the room</td><td>The gate tasks the fixer and verifier with a message everyone can see</td><td>The gate can't reach its agents, so no fix is written or checked</td></tr>
+          <tr><td>Who sent it</td><td>An approval only counts from an exact Switch participant id on the maintainers' list</td><td>Nothing can tell a maintainer from anyone typing their name</td></tr>
+          <tr><td>Addressing rules</td><td>The gate checks its rules at startup and every minute, and stops if they change</td><td>The gate refuses to start</td></tr>
+          <tr><td>Room documents</td><td>A case board and decision log that every person and agent reads</td><td>The team needs a separate tool to see where work stands</td></tr>
+          <tr><td>Room status</td><td><code>team</code> shows whether each agent is really connected, and the gate warns when it tasks one that isn't</td><td>A task to an absent agent waits in silence</td></tr>
+          <tr><td>Templates</td><td>One file creates both agents and both rooms</td><td>Each room and agent is set up by hand</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+  <section>
+    <p class="prose">GitHub is the source of truth for code. Switch is the source of truth for who said what, and where. The button on this page doesn't stop a server, because nothing here is running. It shows what you would see, and the refusal above is the gate's own wording, from starting it with Switch unreachable.</p>
+  </section>
+</div>
+
+<div class="read" data-chapter="built" hidden>
+  <section>
+    <h1 style="font-size:clamp(24px,3.4vw,34px)">How it's built</h1>
+    <p class="lede">A Node 22 and TypeScript service connects to Switch as an agent, keeps its state and audit log in SQLite, and is the only identity allowed to merge on GitHub.</p>
+  </section>
+  <section>
+    <h2>The parts, and where they are</h2>
+    <div class="scroll">
+      <table class="wide">
+        <thead><tr><th scope="col">Part</th><th scope="col">What it does</th><th scope="col">Code</th></tr></thead>
+        <tbody id="parts"></tbody>
+      </table>
+    </div>
+  </section>
+  <section><h2>Real code from the gate</h2><p class="prose">These excerpts are cut from the source each time this page is built.</p><div id="excerpts" style="display:grid;gap:18px"></div></section>
+  <section>
+    <h2>How this page works</h2>
+    <div class="scroll">
+      <table class="wide">
+        <thead><tr><th scope="col">On this page</th><th scope="col">How it's made</th></tr></thead>
+        <tbody>
+          <tr><td>Chat replies from the gate</td><td>Recorded from the gate's real router, permissions, state machine and merge policy (<code>apps/switch-gate/src/demo/rehearsal.ts</code>), which check 16 outcomes as they run.</td></tr>
+          <tr><td>Evidence console</td><td>The real React app from <code>apps/console</code>. It reads responses recorded from the real API in <code>apps/console-api</code>, taken at each step of that run. Its settings panel is filled in from the rehearsal's own settings, because the API doesn't serve them yet.</td></tr>
+          <tr><td>Terminal</td><td>What <code>npm run demo</code> printed during that run. Setup commands come from <code>docs/setup.md</code>.</td></tr>
+          <tr><td>Team chat layout</td><td>Rebuilt from a running Mattermost 11.9. It's a copy of the layout, and only the recorded messages get answers.</td></tr>
+          <tr><td>Switch Console screens</td><td>Illustrations unless marked as screenshots. Field labels come from the real template file.</td></tr>
+          <tr><td>The Switch button</td><td>Switches this page to what happens with no Switch: messages aren't delivered, no step can run, and the console shows no case. The refusal text is the gate's real wording, and a test fails if it changes in the code.</td></tr>
+          <tr><td>The build</td><td><code>npm run demo:page</code> (<code>scripts/build-demo-page.mjs</code>). It writes nothing if the rehearsal fails.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+
+<div class="read" data-chapter="proof" hidden>
+  <section>
+    <h1 style="font-size:clamp(24px,3.4vw,34px)">What's proven, and what isn't</h1>
+    <p class="lede" id="outcomes"></p>
+  </section>
+  <section>
+    <h2>On this page</h2>
+    <div class="scroll">
+      <table class="wide">
+        <thead><tr><th scope="col">Real</th><th scope="col">Simulated</th></tr></thead>
+        <tbody><tr><td>The gate's commands, permissions, state machine, merge policy, audit log and signatures. The evidence console and its API.</td><td>Switch's delivery, GitHub, the two agents' work, the people, and the moving clock.</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+  <section>
+    <h2>Proven live, on Switch, Mattermost and GitHub</h2>
+    <div class="scroll">
+      <table class="wide">
+        <thead><tr><th scope="col">Claim</th><th scope="col">Evidence</th></tr></thead>
+        <tbody>
+          <tr><td>A real bug went from a chat report to a merge by the gate</td><td><a href="https://github.com/puneetnith28/loopback-demo-target/pull/3">Merged pull request</a> and <a href="https://github.com/puneetnith28/loopback-demo-target/issues/1">the bug it fixed</a></td></tr>
+          <tr><td>GitHub refuses a merge without the gate's own status, even from the maintainer's account with green CI</td><td><a href="https://github.com/puneetnith28/Loopback/blob/main/docs/evidence/phase-06-ruleset-proof.md">Ruleset proof</a></td></tr>
+          <tr><td>A wrong-commit approval, and a merge while merging was disabled, were refused live</td><td><a href="https://github.com/puneetnith28/Loopback/blob/main/docs/evidence/phase-08-day2.md">Live run evidence</a></td></tr>
+          <tr><td>The Switch template is valid</td><td>The live Switch 0.31 server accepted it with no warnings</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <a id="video" class="btn primary" href="#" hidden style="justify-self:start">Watch the demo video</a>
+  </section>
+  <section>
+    <h2>Not proven yet</h2>
+    <ul class="prose" style="margin:0;padding-left:20px;display:grid;gap:6px">
+      <li>On the live run a person guided the verifier step by step. It hasn't yet completed its brief alone.</li>
+      <li>The agents ran on the host, not in their isolated containers, so verification is labelled advisory in chat. A signature proves a report wasn't altered, not that its tests ran. A person should review the diff before approving.</li>
+      <li>A commit landing after approval hasn't been seen live, nor have <code>why</code>, <code>board</code>, <code>team</code> and the room documents. The rehearsal and tests cover them, against stand-ins for Switch.</li>
+      <li>Nobody else has done the live setup from a clean clone, and the template hasn't been run end to end.</li>
+    </ul>
+  </section>
+  <section>
+    <h2>Run it yourself</h2>
+    <p class="prose">This same rehearsal runs on your machine in about two minutes. You need Node 22 and no accounts.</p>
+    <pre class="code">git clone https://github.com/puneetnith28/Loopback.git
 cd Loopback
 npm ci
 npm run build
 npm run demo</pre>
-    </section>
-    <section>
-      <h2>Where Switch fits</h2>
-      <p>In real use, all of this happens in Switch rooms. Switch delivers every command, tells the gate who really sent it, and is the only way the gate reaches its agents.</p>
-      <div class="links">
-        <a href="https://github.com/puneetnith28/Loopback">The code and README</a>
-        <a href="https://github.com/sandbox-quantum/switch">Switch</a>
-      </div>
-    </section>
-  </div>
+    <div class="actions"><a class="btn" href="https://github.com/puneetnith28/Loopback">The code and README</a><a class="btn" href="https://github.com/sandbox-quantum/switch">Switch</a></div>
+  </section>
 </div>
 
 <script id="data" type="application/json">__REHEARSAL_DATA__</script>
+<script id="console-doc" type="application/json">__CONSOLE_DOCUMENT__</script>
 <script>
 (function () {
+  "use strict";
   var data = JSON.parse(document.getElementById("data").textContent);
-  var scenes = data.scenes;
+  var steps = data.steps, scenes = data.scenes, guide = data.guide;
   var $ = function (id) { return document.getElementById(id); };
-  var el = function (tag, cls, text) {
-    var n = document.createElement(tag);
-    if (cls) n.className = cls;
-    if (text !== undefined) n.textContent = text;
-    return n;
-  };
-  var at = 0;
-  var timer = null;
-  var POINT = scenes.findIndex(function (s) { return s.title.indexOf("THE POINT") === 0; });
-  var MARK = { pass: "✓", wait: "…", none: "–", void: "✕" };
+  var el = function (tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text !== undefined) n.textContent = text; return n; };
+  var REFUSAL = "Refusing to start: the gate's Switch addressing policy is not the expected one (could not read the policy (TypeError)).";
+  var CHAPTERS = ["what", "setup", "run", "without", "built", "proof"];
+  var ROOMS = ["loopback-intake", "loopback-maintainers"];
+  var PEOPLE = { "Sam (contributor)": "#2f8f83", "Priya (maintainer)": "#a2438f", "Mallory (not a maintainer)": "#b4632a", "loopback-fixer (agent)": "#6b3fa0", "loopback-verifier (agent)": "#3b6fb5", "loopback-gate": "#0b6f76" };
 
-  scenes.forEach(function (s, i) {
-    var b = el("button");
-    b.type = "button";
-    b.append(el("span", "n", String(i + 1)), el("span", "t", s.title.replace(/^THE POINT OF LOOPBACK\.\s*/, "")));
-    b.setAttribute("aria-label", "Step " + (i + 1) + ": " + s.title);
-    b.addEventListener("click", function () { stop(); show(i); });
-    var li = el("li");
-    li.append(b);
-    $("rail").append(li);
-  });
+  var S = { chapter: "what", i: 0, done: false, on: true, tab: "chat", room: ROOMS[0], fresh: false, setup: 0, setupDone: false, sc: "home", tpl: 0, undelivered: [], timer: null, seen: {}, route: null };
+  var POINT = steps.findIndex(function (s) { return scenes[s.scene].title.indexOf("THE POINT") === 0 && s.kind === "person"; });
 
-  function row(label, kind, value) {
-    var r = el("div", "row " + kind);
-    r.append(el("span", "mark", MARK[kind]), el("span", null, label), el("b", null, value));
-    return r;
-  }
-
-  function renderEvidence(s, prev) {
-    var c = s.state || {};
-    var merged = c.state === "Merged";
-    var moved = !!(prev && prev.commit && c.commit && prev.commit !== c.commit);
-    $("sha").textContent = c.commit || "none yet";
-    $("state").textContent = c.state || "No case yet";
-    $("voided").hidden = !moved;
-    $("rows").replaceChildren(
-      row("CI", c.ci === "passed" ? "pass" : c.ci === null || c.ci === undefined ? "none" : c.ci === "failed" ? "void" : "wait", c.ci || "-"),
-      row("Verifier", c.verifier === "pass" ? "pass" : c.verifier === null || c.verifier === undefined ? "none" : c.verifier === "fail" || c.verifier === "invalid" ? "void" : "wait", c.verifier === "requested" ? "working" : c.verifier || "-"),
-      row("Maintainer approval", c.approvals > 0 ? "pass" : moved ? "void" : c.commit ? "wait" : "none", c.commit ? c.approvals + " of 1" : "-"),
-      row("Merged by the gate", merged ? "pass" : "none", merged ? "yes" : "no")
-    );
-  }
-
-  function renderTable(t) {
-    var wrap = el("div", "scroll");
-    var table = el("table");
-    var head = el("tr");
-    t.header.forEach(function (h) { var th = el("th", null, h); th.scope = "col"; head.append(th); });
-    var thead = el("thead");
-    thead.append(head);
-    var body = el("tbody");
-    t.rows.forEach(function (r) {
-      var tr = el("tr");
-      r.forEach(function (c) { tr.append(el("td", null, c)); });
-      body.append(tr);
+  // ---- Text helpers ----
+  /** Inline `code` and fenced blocks, as the chat app would show them. Everything goes in as text nodes. */
+  function richInto(node, text) {
+    text.split(/((?:```|~~~)[^\n]*\n[\s\S]*?\n(?:```|~~~))/).forEach(function (part, i) {
+      if (i % 2 === 1) { node.append(el("pre", null, part.replace(/^(?:```|~~~)[^\n]*\n/, "").replace(/\n(?:```|~~~)$/, ""))); return; }
+      part.split(/(`[^`\n]+`|\*\*[^*\n]+\*\*)/).forEach(function (bit, j) {
+        if (j % 2 === 0) { if (bit) node.append(bit); return; }
+        if (bit[0] === "`") node.append(el("code", null, bit.slice(1, -1)));
+        else node.append(el("strong", null, bit.slice(2, -2)));
+      });
     });
-    table.append(thead, body);
-    wrap.append(table);
+    return node;
+  }
+  function clock(j) { var m = 9 * 60 + j * 3; var h = Math.floor(m / 60); return (h % 12 || 12) + ":" + String(m % 60).padStart(2, "0") + (h < 12 ? " AM" : " PM"); }
+  function shortName(who) { return who.replace(/ \(.*\)$/, ""); }
+  function table(t, cls) {
+    var wrap = el("div", "scroll"), tb = el("table", cls), head = el("tr"), thead = el("thead"), body = el("tbody");
+    t.header.forEach(function (h) { var th = el("th", null, h); th.scope = "col"; head.append(th); });
+    thead.append(head);
+    t.rows.forEach(function (r) { var tr = el("tr"); r.forEach(function (c) { tr.append(el("td", null, c)); }); body.append(tr); });
+    tb.append(thead, body); wrap.append(tb);
     return wrap;
   }
 
-  function show(i) {
-    at = Math.max(0, Math.min(scenes.length - 1, i));
-    var s = scenes[at];
-    $("title").textContent = s.title;
-    $("count").textContent = "Step " + (at + 1) + " of " + scenes.length;
-    $("back").disabled = at === 0;
-    $("next").disabled = at === scenes.length - 1;
-    Array.prototype.forEach.call($("rail").querySelectorAll("button"), function (b, n) {
-      if (n === at) { b.setAttribute("aria-current", "step"); if (b.scrollIntoView && window.innerWidth <= 1040) b.scrollIntoView({ block: "nearest", inline: "center" }); }
-      else b.removeAttribute("aria-current");
-    });
-    $("log").replaceChildren.apply($("log"), s.items.map(function (m) {
-      if (m.kind === "github") return el("div", "gh", "On GitHub (simulated): " + m.text);
-      var box = el("div", "msg" + (m.refused ? " refused" : ""));
-      var meta = el("div", "meta");
-      meta.append(el("span", "who " + m.role, m.who), el("span", "room", "#" + m.room));
-      box.append(meta, el("p", "text", m.text));
-      return box;
-    }));
-    $("checks").replaceChildren.apply($("checks"), s.checks.map(function (c) {
-      var li = el("li");
-      li.append(el("span", c.held ? "yes" : "no", c.held ? "✓" : "✕"), el("span", null, c.claim));
-      return li;
-    }));
-    $("checks").hidden = s.checks.length === 0;
-    var last = at === scenes.length - 1 && data.tables;
-    $("tables").hidden = !last;
-    if (last) {
-      var a = el("div"), b = el("div");
-      a.append(el("h3", null, "Loopback case board"), renderTable(data.tables.board));
-      b.append(el("h3", null, "Loopback decision log, newest first"), renderTable(data.tables.decisions));
-      $("tables").replaceChildren(a, b, el("p", "result", data.held + " of " + data.total + " expected outcomes observed in this run."));
+  /** What Switch did for this message, in a line under it. */
+  function viaSwitch(kind, text, room, senderId) {
+    if (kind === "gate") {
+      var agent = /^@(loopback-fixer|loopback-verifier)\b/.exec(text);
+      return agent ? "Through Switch: sent to " + agent[1] + " in the room. This is the only way the gate can reach it." : "Through Switch: posted in #" + room + " as loopback-gate.";
     }
-    renderEvidence(s, at > 0 ? scenes[at - 1].state : null);
-    try { history.replaceState(null, "", "#step-" + (at + 1)); } catch (e) { /* a frame may refuse this */ }
+    return "Through Switch: delivered to the gate, addressed to it, from sender id " + String(senderId || "").replace(/^@/, "") + ".";
   }
 
-  function stop() {
-    if (timer !== null) { clearInterval(timer); timer = null; $("play").textContent = "Play"; }
+  function post(j, who, kind, text, room, opts) {
+    opts = opts || {};
+    var p = el("article", "post" + (opts.refused ? " refused" : "") + (opts.undelivered ? " undelivered" : "") + (opts.fresh ? " fresh" : ""));
+    var av = el("div", "av", shortName(who).replace(/^loopback-/, "").charAt(0).toUpperCase());
+    av.style.background = PEOPLE[who] || "#52626f";
+    var main = el("div"), h = el("div", "h");
+    h.append(el("span", "n", shortName(who)));
+    if (kind !== "person") h.append(el("span", "bot", "BOT"));
+    h.append(el("span", "t", clock(j)));
+    main.append(h, richInto(el("div", "m"), text));
+    var via = opts.undelivered ? "Not delivered. There is no room to type this in, and nothing to carry it to the gate." : $("showvia").checked ? viaSwitch(kind, text, room, opts.senderId) : "";
+    if (via) main.append(el("div", "via", via));
+    p.append(av, main);
+    return p;
   }
-  $("next").addEventListener("click", function () { stop(); show(at + 1); });
-  $("back").addEventListener("click", function () { stop(); show(at - 1); });
-  $("point").addEventListener("click", function () { stop(); show(POINT); $("title").focus({ preventScroll: true }); });
-  $("point").hidden = POINT < 0;
+
+  // ---- Run: state of the world at this step ----
+  function reached(j) { return j < S.i || (j === S.i && S.done); }
+  function stateNow() {
+    var st = null, prev = null;
+    for (var j = 0; j < steps.length && reached(j); j++) { if (steps[j].state) { prev = st; st = steps[j].state; } }
+    return { st: st, prev: prev };
+  }
+  function postsFor(room) {
+    var out = [];
+    steps.forEach(function (s, j) {
+      if (!reached(j)) return;
+      var isNew = S.fresh && j === S.i;
+      if (s.room === room && (s.kind === "person" || s.kind === "agent")) out.push(post(j, s.who, s.kind, s.text, room, { senderId: s.senderId, fresh: isNew }));
+      s.replies.forEach(function (r) { if (r.room === room) out.push(post(j, "loopback-gate", "gate", r.text, room, { refused: r.refused, fresh: isNew })); });
+    });
+    return out;
+  }
+  function unreadIn(room) {
+    if (room === S.room) return 0;
+    var seen = S.seen[room] || 0, n = 0;
+    steps.forEach(function (s, j) { if (!reached(j) || j < seen) return; s.replies.forEach(function (r) { if (r.room === room) n++; }); if (s.room === room && (s.kind === "person" || s.kind === "agent")) n++; });
+    return n;
+  }
+
+  function renderChat() {
+    S.seen[S.room] = S.i + (S.done ? 1 : 0);
+    var rooms = $("rooms");
+    rooms.replaceChildren.apply(rooms, ROOMS.map(function (r) {
+      var b = el("button", "mm-chan");
+      b.type = "button";
+      var n = S.on ? unreadIn(r) : 0;
+      if (n > 0) b.classList.add("unread");
+      b.setAttribute("aria-current", String(r === S.room));
+      var icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      icon.setAttribute("width", "16"); icon.setAttribute("height", "16"); icon.setAttribute("viewBox", "0 0 24 24"); icon.setAttribute("fill", "none"); icon.setAttribute("stroke", "currentColor"); icon.setAttribute("stroke-width", "2"); icon.setAttribute("aria-hidden", "true");
+      icon.innerHTML = r === "loopback-maintainers" ? '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>' : '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>';
+      b.append(icon, el("span", null, r));
+      if (n > 0) b.append(el("span", "count", String(n)));
+      b.addEventListener("click", function () { S.room = r; S.fresh = false; renderChat(); });
+      return b;
+    }));
+    $("room-name").textContent = S.room;
+    var list = S.on ? postsFor(S.room) : [];
+    S.undelivered.forEach(function (u) { if (u.room === S.room) list.push(post(S.i, u.who, "person", u.text, S.room, { undelivered: true, fresh: true })); });
+    if (list.length === 0) {
+      var empty = el("div", "mm-empty");
+      empty.append(el("b", null, S.room), el("span", null, S.on
+        ? (S.room === "loopback-intake" ? "This is the start of the public room. Anyone can report a bug here." : "This is the start of the maintainers' private room. Only invited members can see it.")
+        : "With Switch off, nothing connects this room to the gate or the agents."));
+      list.push(empty);
+    }
+    var posts = $("posts");
+    posts.replaceChildren.apply(posts, list);
+    posts.scrollTop = posts.scrollHeight;
+    renderComposer();
+  }
+  function renderComposer() {
+    var s = steps[S.i], input = $("input");
+    var typing = !S.done && s.kind === "person" && (s.room === S.room);
+    input.disabled = S.on && !typing;
+    input.placeholder = !S.on ? "Write something. It has nowhere to go." : typing ? "Write to " + S.room : S.done ? "Use Continue in the guide" : s.kind === "person" ? "This step happens in " + s.room : "Watch this step, using the button in the guide";
+    $("as").textContent = typing || !S.on ? "Sending as " + (s.kind === "person" ? s.who : "Priya (maintainer)") : "";
+    $("as").hidden = !$("as").textContent;
+    var me = $("me");
+    me.replaceChildren(el("span", null, s.kind === "person" ? "You are " + s.who : "You are watching"));
+    $("box").classList.toggle("ready", typing && input.value.trim() !== "");
+  }
+
+  // ---- Run: guide ----
+  function isLastOfScene(i) { return i === steps.length - 1 || steps[i + 1].scene !== steps[i].scene; }
+  function renderGuide() {
+    var s = steps[S.i], scene = scenes[s.scene], g = guide[s.scene] || {};
+    $("count").textContent = "Step " + (S.i + 1) + " of " + steps.length;
+    $("bar").style.width = (100 * (S.i + (S.done ? 1 : 0)) / steps.length) + "%";
+    $("jump").value = String(S.i);
+    var isPoint = scene.title.indexOf("THE POINT") === 0;
+    $("point-badge").hidden = !isPoint;
+    $("title").textContent = scene.title.replace(/^THE POINT OF LOOPBACK\.\s*/, "");
+    $("back").disabled = S.i === 0 && !S.done;
+    $("play").disabled = !S.on;
+    $("point").disabled = !S.on;
+    var action = $("action"), after = $("after");
+    action.replaceChildren(); after.replaceChildren();
+
+    if (!S.on) {
+      var off = el("div", "offnote");
+      off.append(el("p", null, "Switch is off. Send the message anyway if you like: it goes nowhere, no case exists, no agent is tasked, and nobody can approve or merge."), el("div", "eyebrow", "The real gate, started with Switch unreachable"), el("pre", null, REFUSAL));
+      var again = el("button", "btn primary", "Turn Switch back on");
+      again.type = "button";
+      again.addEventListener("click", function () { setSwitch(true); });
+      off.append(again);
+      action.append(off);
+      return;
+    }
+    if (!S.done) {
+      var todo = el("div", "todo");
+      if (s.kind === "person") {
+        var p = el("p"); p.append("You are ", el("strong", null, s.who), ". In ", el("strong", null, "#" + s.room), ", send:");
+        todo.append(p, el("div", "cmd", s.text));
+        var fill = el("button", "btn primary small", "Fill it in for me");
+        fill.type = "button";
+        fill.addEventListener("click", function () { stopPlay(); showTab("chat"); S.room = s.room; S.fresh = false; renderChat(); $("input").value = s.text; renderComposer(); $("input").focus({ preventScroll: true }); $("compose").scrollIntoView({ block: "nearest" }); });
+        todo.append(fill);
+      } else {
+        var says = s.kind === "agent" ? s.who + " posts in #" + s.room + "." : s.kind === "github" ? "On GitHub (simulated): " + s.text + "." : "The gate keeps two documents in the room. Open them.";
+        todo.append(el("p", null, says));
+        if (s.kind === "agent") todo.append(el("div", "cmd", s.text));
+        var go = el("button", "btn primary small", s.kind === "documents" ? "Open the documents" : "Let it happen");
+        go.type = "button";
+        go.id = "happen";
+        go.addEventListener("click", function () { stopPlay(); complete(); });
+        todo.append(go);
+      }
+      action.append(todo);
+      return;
+    }
+    if (isLastOfScene(S.i)) {
+      var what = el("div", "said"); what.append(el("div", "eyebrow", "What just happened"), richInto(el("p"), g.what || ""));
+      var why = el("div", "said"); why.append(el("div", "eyebrow", "Why it matters"), richInto(el("p"), g.why || ""));
+      after.append(what, why);
+    } else {
+      after.append(el("p", null, "There's more to this step. Continue to the next message."));
+    }
+    if (s.checks.length) {
+      var ul = el("ul", "checks");
+      s.checks.forEach(function (c) { var li = el("li"); li.append(el("span", c.held ? "yes" : "no", c.held ? "✓" : "✕"), el("span", null, c.claim)); ul.append(li); });
+      after.append(ul);
+    }
+    var row = el("div", "actions");
+    if (S.i < steps.length - 1) {
+      var next = el("button", "btn primary", "Continue");
+      next.type = "button"; next.id = "next";
+      next.addEventListener("click", function () { stopPlay(); advance(); });
+      row.append(next);
+    } else {
+      var a = el("a", "btn primary", "See what's proven"); a.href = "#proof"; row.append(a);
+    }
+    if (isLastOfScene(S.i) && g.console) {
+      var c = el("button", "btn", g.console[0]);
+      c.type = "button";
+      c.addEventListener("click", function () { stopPlay(); showConsole(g.console[1]); });
+      row.append(c);
+    }
+    after.append(row);
+  }
+
+  var MARK = { pass: "✓", wait: "…", none: "–", void: "✕" };
+  function evRow(label, kind, value) { var r = el("div", "row " + kind); r.append(el("span", "mark", MARK[kind]), el("span", null, label), el("b", null, value)); return r; }
+  function renderEvidence() {
+    var now = S.on ? stateNow() : { st: null, prev: null }, c = now.st || {}, prev = now.prev;
+    var moved = !!(prev && prev.commit && c.commit && prev.commit !== c.commit);
+    var merged = c.state === "Merged";
+    $("sha").textContent = c.commit ? c.commit + " · " + c.state : (c.state || "No case yet");
+    $("voided").hidden = !moved;
+    $("rows").replaceChildren(
+      evRow("CI", c.ci === "passed" ? "pass" : c.ci === null || c.ci === undefined ? "none" : c.ci === "failed" ? "void" : "wait", c.ci || "-"),
+      evRow("Verifier", c.verifier === "pass" ? "pass" : c.verifier === null || c.verifier === undefined ? "none" : c.verifier === "fail" || c.verifier === "invalid" ? "void" : "wait", c.verifier === "requested" ? "working" : c.verifier || "-"),
+      evRow("Approval", c.approvals > 0 ? "pass" : moved ? "void" : c.commit ? "wait" : "none", c.commit ? c.approvals + " of 1" : "-"),
+      evRow("Merged by the gate", merged ? "pass" : "none", merged ? "yes" : "no")
+    );
+  }
+
+  // ---- Run: other panes ----
+  function renderGithub() {
+    var pane = $("pane-github"), now = stateNow().st, wrap = el("div", "gh");
+    var feed = [];
+    steps.forEach(function (s, j) { if (reached(j) && s.kind === "github") feed.push(s.text); });
+    if (!S.on || feed.length === 0) {
+      wrap.append(el("h3", null, "No pull request yet"), el("p", "sub", S.on ? "The fixer opens one after a maintainer accepts the report." : "With Switch off, no agent is ever tasked, so nothing arrives here."));
+    } else {
+      var merged = now && now.state === "Merged";
+      wrap.append(el("h3", null, "Fix formatToken TypeError for null formatters  #7"));
+      var line = el("div", "actions"); line.append(el("span", "pill" + (merged ? " merged" : ""), merged ? "Merged" : "Open"), el("span", "sub", "simulated/rehearsal-not-a-live-run, loopback/LB-001 into main"));
+      wrap.append(line);
+      var rows = el("div"); rows.style.display = "grid"; rows.style.gap = "3px";
+      var c = now || {};
+      rows.append(
+        evRow("Head commit", c.commit ? "pass" : "none", c.commit || "-"),
+        evRow("Required check: test", c.ci === "passed" ? "pass" : "wait", c.ci || "waiting"),
+        evRow("Required status: loopback/gate", merged ? "pass" : "wait", merged ? "success" : "not posted"),
+        evRow("Only the gate's app may merge", "pass", "enforced by rules")
+      );
+      wrap.append(rows, el("div", "eyebrow", "What happened on GitHub"));
+      var ul = el("ul", "feed"); feed.forEach(function (t) { ul.append(el("li", null, t)); }); wrap.append(ul);
+    }
+    pane.replaceChildren(wrap);
+  }
+
+  function printLines(node, lines) {
+    lines.forEach(function (l) {
+      var cls = /^\s*✗|REFUSED|BLOCKED/.test(l) ? "bad" : /^\s*✓|Rehearsal passed/.test(l) ? "good" : /^\d+\. /.test(l) ? null : "dim";
+      node.append(cls ? el("span", cls, l) : l, "\n");
+    });
+  }
+  function renderTerminal() {
+    var t = $("term");
+    t.replaceChildren();
+    if (!S.on) {
+      t.append(el("span", "p", "$ "), "npm run gate\n");
+      t.append(el("span", "bad", REFUSAL), "\n", el("span", "dim", "(the gate exits here: no rooms, no agents, nothing to act on)"), "\n");
+      return;
+    }
+    t.append(el("span", "p", "$ "), "npm run demo\n");
+    printLines(t, data.transcriptHead);
+    var shown = steps[S.i].scene + ((S.done && isLastOfScene(S.i)) ? 1 : 0);
+    scenes.slice(0, shown).forEach(function (sc) { printLines(t, sc.lines); });
+    if (shown < scenes.length) t.append(el("span", "dim", "…continues as you go through the steps"), "\n");
+    t.scrollTop = t.scrollHeight;
+  }
+
+  // ---- Switch Console ----
+  function swInto(pane, view, opts) {
+    var wrap = el("div", "sc"), nav = el("nav", "sc-nav"), main = el("div", "sc-main");
+    nav.setAttribute("aria-label", "Switch Console");
+    [["home", "Agents and rooms"], ["templates", "Templates"], ["documents", "Documents"]].forEach(function (v) {
+      var b = el("button", null, v[1]); b.type = "button"; b.setAttribute("aria-current", String(v[0] === view));
+      b.addEventListener("click", function () { opts.go(v[0]); });
+      nav.append(b);
+    });
+    wrap.append(nav, main);
+    if (data.shots && data.shots[view]) {
+      var img = el("img"); img.src = data.shots[view]; img.alt = "Screenshot of Switch Console: " + view; main.append(img);
+      pane.replaceChildren(wrap);
+      return;
+    }
+    if (!S.on) { main.append(el("h3", null, "Switch is off"), el("p", "prose", "There are no rooms, no agents and no documents.")); pane.replaceChildren(wrap); return; }
+    if (view === "home") {
+      main.append(el("h3", null, "Agents"));
+      main.append(table({ header: ["Agent", "Kind", "Status"], rows: opts.installed
+        ? [["loopback-gate", "Custom agent", opts.gateUp ? "live" : "registered"], ["loopback-fixer", "Provider agent", opts.gateUp ? "live" : "created"], ["loopback-verifier", "Provider agent", opts.gateUp ? "live" : "created"]]
+        : opts.gateOnly ? [["loopback-gate", "Custom agent", "registered"]] : [["None yet", "", ""]] }));
+      main.append(el("h3", null, "Rooms"));
+      main.append(table({ header: ["Room", "Visibility", "Who is in it"], rows: opts.installed
+        ? [["loopback-intake", "Public", "Anyone, and loopback-gate"], ["loopback-maintainers", "Private", "Maintainers, and all three agents"]]
+        : [["None yet", "", ""]] }));
+    } else if (view === "templates") {
+      main.append(el("h3", null, "Templates"));
+      if (opts.tpl === 0) {
+        var imp = el("button", "btn primary", "Import template"); imp.type = "button"; imp.addEventListener("click", opts.nextTpl);
+        main.append(el("p", "prose", "Import a template to create a team of agents and rooms from one file."), imp);
+      } else {
+        main.append(el("div", "eyebrow", "templates/loopback.template.yaml"));
+        data.fields.forEach(function (f) { var d = el("div", "field"); d.append(el("span", null, f), el("i", null, f.indexOf("Messaging") === 0 ? "Mattermost" : f.indexOf("Coding") === 0 ? "opencode" : "Default folder")); main.append(d); });
+        if (opts.tpl === 1) { var use = el("button", "btn primary", "Use"); use.type = "button"; use.addEventListener("click", opts.nextTpl); main.append(use); }
+        else main.append(el("p", null, "Created loopback-fixer, loopback-verifier, loopback-intake and loopback-maintainers."));
+      }
+    } else {
+      main.append(el("h3", null, "Room documents in loopback-maintainers"));
+      if (opts.docs && data.tables) {
+        main.append(el("div", "eyebrow", "Loopback case board"), table(data.tables.board, "nowrap"), el("div", "eyebrow", "Loopback decision log, newest first"), table(data.tables.decisions, "nowrap"));
+        main.append(el("p", null, data.held + " of " + data.total + " expected outcomes observed in this run."));
+      } else {
+        main.append(el("p", "prose", "The gate keeps a case board and a decision log here, and updates them as the case moves. Reach the last step of the run to read them."));
+      }
+    }
+    pane.replaceChildren(wrap);
+  }
+  function renderSwitchRun() {
+    swInto($("pane-switch"), S.sc, { installed: true, gateUp: true, tpl: 2, docs: S.i === steps.length - 1 && S.done, go: function (v) { S.sc = v; renderSwitchRun(); renderTag(); } });
+  }
+
+  // ---- Console frame ----
+  var frame = null, frameReady = false;
+  function consoleStep() { var at = S.i; if (S.done) return steps[at].snapshot; return at > 0 ? steps[at - 1].snapshot : 0; }
+  function syncConsole() {
+    if (!frameReady) return;
+    var msg = { type: "lb-console", step: consoleStep(), off: !S.on };
+    if (S.route !== null) { msg.route = S.route; S.route = null; }
+    frame.contentWindow.postMessage(msg, "*");
+  }
+  function ensureFrame() {
+    if (frame) return;
+    frame = el("iframe", "frame");
+    frame.title = "Loopback evidence console";
+    frame.srcdoc = JSON.parse($("console-doc").textContent);
+    $("pane-console").append(frame);
+  }
+  window.addEventListener("message", function (e) { if (e.data && e.data.type === "lb-console-ready") { frameReady = true; syncConsole(); } });
+  function showConsole(route) { S.route = route; showTab("console"); }
+
+  // ---- Tabs ----
+  var TAGS = {
+    chat: "Team chat: Mattermost's layout with recorded messages. Type what the guide says.",
+    github: "GitHub, simulated. On a live run these are real pull requests, checks and rules.",
+    console: "The real evidence console from apps/console, reading responses recorded from its real API at this step. It's read-only, here and on a local install.",
+    switch: "",
+    terminal: "What npm run demo prints at this point. It needs no accounts.",
+  };
+  function renderTag() {
+    var sw = data.shots && data.shots[S.sc] ? "Screenshot of Switch Console." : "Illustration of Switch Console, for orientation. The real app's layout differs.";
+    $("tag").textContent = S.tab === "switch" ? sw : TAGS[S.tab];
+  }
+  function showTab(tab) {
+    S.tab = tab;
+    Array.prototype.forEach.call($("tabs").children, function (b) {
+      var on = b.dataset.tab === tab;
+      b.setAttribute("aria-selected", String(on));
+      var dot = b.querySelector(".dot");
+      if (on && dot) dot.remove();
+    });
+    ["chat", "github", "console", "switch", "terminal"].forEach(function (t) { $("pane-" + t).hidden = t !== tab; });
+    if (tab === "console") ensureFrame();
+    renderTag();
+    if (tab === "chat") { S.fresh = false; renderChat(); }
+    syncConsole();
+  }
+  function markTab(tab) {
+    if (S.tab === tab) return;
+    var b = $("tabs").querySelector('[data-tab="' + tab + '"]');
+    if (b && !b.querySelector(".dot")) b.append(el("span", "dot"));
+  }
+  Array.prototype.forEach.call($("tabs").children, function (b) { b.addEventListener("click", function () { stopPlay(); showTab(b.dataset.tab); }); });
+
+  // ---- Moving through the run ----
+  function renderRun() {
+    renderGuide(); renderEvidence(); renderChat(); renderGithub(); renderTerminal(); renderSwitchRun(); renderTag(); syncConsole();
+  }
+  function enter(i, done) {
+    S.i = Math.max(0, Math.min(steps.length - 1, i));
+    S.done = done; S.fresh = false; S.undelivered = [];
+    $("hint").hidden = true; $("input").value = "";
+    var s = steps[S.i];
+    if (s.room) S.room = s.room;
+    if (!done) {
+      if (s.kind === "person" || s.kind === "agent") { if (S.tab !== "chat") showTab("chat"); }
+      else if (s.kind === "github") { if (S.tab !== "github") showTab("github"); }
+    }
+    renderRun();
+  }
+  function complete() {
+    var s = steps[S.i];
+    S.done = true; S.fresh = true;
+    $("input").value = ""; $("hint").hidden = true;
+    var inRoom = s.replies.filter(function (r) { return r.room === S.room; }).length;
+    if (!s.room && s.replies.length) { S.room = s.replies[s.replies.length - 1].room; markTab("chat"); }
+    if (s.room && !inRoom && s.replies.length) markTab("chat");
+    if (s.kind === "documents") { S.sc = "documents"; showTab("switch"); }
+    renderRun();
+    S.fresh = false;
+    if (s.kind === "person" || s.kind === "agent") { markTab("console"); }
+  }
+  function advance() { enter(S.i + 1, false); $("title").focus({ preventScroll: true }); }
+  function stopPlay() { if (S.timer !== null) { clearInterval(S.timer); S.timer = null; $("play").textContent = "Play the rest"; } }
   $("play").addEventListener("click", function () {
-    if (timer !== null) { stop(); return; }
-    if (at === scenes.length - 1) show(0);
+    if (S.timer !== null) { stopPlay(); return; }
+    if (!S.on) return;
     $("play").textContent = "Pause";
-    timer = setInterval(function () {
-      if (at >= scenes.length - 1) { stop(); return; }
-      show(at + 1);
-    }, 5000);
+    S.timer = setInterval(function () {
+      if (!S.done) { complete(); return; }
+      if (S.i >= steps.length - 1) { stopPlay(); return; }
+      enter(S.i + 1, false);
+    }, 2600);
   });
-  document.addEventListener("keydown", function (e) {
-    if (e.altKey || e.ctrlKey || e.metaKey) return;
-    if (e.key === "ArrowRight") { stop(); show(at + 1); }
-    if (e.key === "ArrowLeft") { stop(); show(at - 1); }
+  $("back").addEventListener("click", function () { stopPlay(); if (S.done) enter(S.i, false); else enter(S.i - 1, false); });
+  $("point").addEventListener("click", function () { stopPlay(); enter(POINT, false); });
+  $("jump").addEventListener("change", function () { stopPlay(); enter(Number($("jump").value), false); });
+  scenes.forEach(function (sc, n) {
+    var first = steps.findIndex(function (s) { return s.scene === n; });
+    if (first < 0) return;
+    steps.forEach(function (s, j) {
+      if (s.scene !== n) return;
+      var o = el("option", null, (j + 1) + ". " + (s.kind === "person" ? shortName(s.who) + " sends a message" : s.kind === "agent" ? shortName(s.who) + " posts" : s.kind === "github" ? "GitHub event" : "Room documents"));
+      o.value = String(j);
+      $("jump").append(o);
+    });
   });
+  $("compose").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var s = steps[S.i], input = $("input"), typed = input.value.trim(), hint = $("hint");
+    if (!typed) return;
+    if (!S.on) {
+      S.undelivered.push({ room: S.room, who: s.kind === "person" ? s.who : "Priya (maintainer)", text: typed });
+      input.value = "";
+      renderChat();
+      return;
+    }
+    var norm = function (t) { return t.replace(/\s+/g, " ").toLowerCase(); };
+    if (s.kind === "person" && norm(typed) === norm(s.text)) { complete(); return; }
+    hint.textContent = "This page is a recording, so only the next message gets a reply. Send: " + s.text;
+    hint.hidden = false;
+  });
+  $("input").addEventListener("input", renderComposer);
+  $("showvia").addEventListener("change", function () { renderChat(); });
+
+  // ---- Setup ----
+  function terminalInto(pane, st, ran) {
+    var t = el("div", "term"); t.tabIndex = 0;
+    if (st.where === "transcript" && ran) {
+      t.append(el("span", "p", "$ "), "npm run demo\n");
+      printLines(t, data.transcriptHead);
+      scenes.forEach(function (sc) { printLines(t, sc.lines); });
+    } else {
+      (st.lines || []).forEach(function (l) {
+        if (!ran) return;
+        if (l === "" ) { t.append("\n"); return; }
+        var comment = /^#/.test(l);
+        var isCommand = /^(git|cd|npm|cp)\b/.test(l);
+        var hash = l.indexOf("    #");
+        if (isCommand) { t.append(el("span", "p", "$ ")); }
+        if (hash > 0) { t.append(l.slice(0, hash), el("span", "dim", l.slice(hash))); }
+        else if (comment) { t.append(el("span", "dim", l)); }
+        else { t.append(l); }
+        t.append("\n");
+      });
+      if (!ran) t.append(el("span", "p", "$ "), el("span", "dim", "use the button in the guide"));
+    }
+    pane.replaceChildren(t);
+    if (ran && st.where === "transcript") t.scrollTop = t.scrollHeight;
+  }
+  function renderSetup() {
+    var st = data.setup[S.setup], list = $("setup-list");
+    list.replaceChildren.apply(list, data.setup.map(function (x, n) {
+      var li = el("li"), b = el("button"); b.type = "button";
+      b.append(el("span", "mono", String(n + 1)), el("span", null, x.title));
+      if (n === S.setup) b.setAttribute("aria-current", "step");
+      b.addEventListener("click", function () { S.setup = n; S.setupDone = false; S.tpl = 0; renderSetup(); });
+      li.append(b); return li;
+    }));
+    $("setup-title").textContent = st.title;
+    $("setup-body").textContent = st.body;
+    $("setup-back").disabled = S.setup === 0;
+    $("setup-next").disabled = S.setup === data.setup.length - 1;
+    var go = $("setup-go");
+    go.replaceChildren();
+    var pane = $("setup-pane");
+    if (st.where === "switch") {
+      var isTemplate = st.screen === "templates";
+      var view = S.setupView || st.screen;
+      $("setup-tag").textContent = data.shots && data.shots[view] ? "Screenshot of Switch Console." : "Illustration of Switch Console, for orientation. The real app's layout differs.";
+      swInto(pane, view, {
+        installed: S.setup > 4 || (isTemplate && S.tpl === 2), gateOnly: S.setup >= 3, gateUp: false, tpl: isTemplate ? S.tpl : 2, docs: false,
+        go: function (v) { S.setupView = v; renderSetup(); },
+        nextTpl: function () { S.tpl += 1; S.setupView = "templates"; renderSetup(); },
+      });
+      if (isTemplate && S.tpl < 2) {
+        var more = el("button", "btn primary small", S.tpl === 0 ? "Import template" : "Use"); more.type = "button";
+        more.addEventListener("click", function () { S.tpl += 1; S.setupView = "templates"; renderSetup(); });
+        go.append(more);
+      }
+    } else {
+      $("setup-tag").textContent = st.where === "transcript" ? "Terminal: real output from npm run demo." : "Terminal: the commands from docs/setup.md, with placeholders where your values go.";
+      terminalInto(pane, st, S.setupDone);
+      if (!S.setupDone) {
+        var run = el("button", "btn primary small", st.where === "transcript" ? "Run it" : "Show the commands"); run.type = "button";
+        run.addEventListener("click", function () { S.setupDone = true; renderSetup(); });
+        go.append(run);
+      }
+    }
+  }
+  $("setup-next").addEventListener("click", function () { S.setup += 1; S.setupDone = false; S.setupView = null; S.tpl = 0; renderSetup(); });
+  $("setup-back").addEventListener("click", function () { S.setup -= 1; S.setupDone = false; S.setupView = null; S.tpl = 0; renderSetup(); });
+
+  // ---- The Switch button ----
+  function setSwitch(on) {
+    stopPlay();
+    S.on = on;
+    S.undelivered = [];
+    $("toggle").setAttribute("aria-checked", String(on));
+    $("toggle-label").textContent = on ? "Switch is on" : "Switch is off";
+    $("sim").classList.toggle("off", !on);
+    $("sim-title").textContent = on ? "Simulated rehearsal." : "Switch is off.";
+    $("sim-text").textContent = on
+      ? "The gate's decisions, permissions, signatures and evidence console are its real code, recorded from an actual run. Switch's delivery, GitHub and the agents are simulated."
+      : "This is the same workflow with no Switch. The gate won't start, no message reaches anyone, and no step can happen. Still a simulated rehearsal.";
+    $("toggle2").textContent = on ? "Turn Switch off" : "Turn Switch back on";
+    $("refusal").hidden = on;
+    Array.prototype.forEach.call($("path").children, function (n, i) { n.classList.toggle("dead", !on); });
+    renderRun();
+    renderSetup();
+  }
+  $("toggle").addEventListener("click", function () { setSwitch(!S.on); });
+  $("toggle2").addEventListener("click", function () { setSwitch(!S.on); });
+
+  // ---- How it's built: parts table and excerpts ----
+  var REPO = "https://github.com/puneetnith28/Loopback/blob/main/";
+  var TREE = "https://github.com/puneetnith28/Loopback/tree/main/";
+  [
+    ["Switch connection", "One WebSocket per room over Switch's agent protocol, with reconnect and takeover fencing", "apps/switch-gate/src/switch/connection.ts"],
+    ["Addressing check", "Reads the live policy at startup and every 60 seconds, and stops the gate if it differs", "apps/switch-gate/src/switch/policy-check.ts"],
+    ["Admission and permissions", "Who may say what, in which room, from the exact Switch sender id", "apps/switch-gate/src/policy/admission.ts"],
+    ["Commands", "report, accept, why, board, team, approve, merge and the rest", "apps/switch-gate/src/commands/router.ts"],
+    ["Case state machine", "Every allowed move a case can make", "apps/switch-gate/src/cases/machine.ts"],
+    ["Merge policy", "The checks that must all pass on one commit", "apps/switch-gate/src/policy/evaluate.ts"],
+    ["Verifier workflow", "Tasks agents, checks signed reports, and resets evidence when a commit moves", "apps/switch-gate/src/workflow/verification.ts"],
+    ["Signatures", "Ed25519 reports bound to one run and one commit", "apps/switch-gate/src/agents/signature.ts"],
+    ["Room documents", "The case board and decision log in Switch", "apps/switch-gate/src/switch/board.ts"],
+    ["Audit log", "Append-only: SQLite triggers reject updates and deletes", "apps/switch-gate/src/audit/index.ts"],
+    ["Evidence console", "A read-only React app and API. Neither can change anything", "apps/console"],
+    ["Agent isolation", "Containers with separate credentials and limited network access", "deploy/isolation"],
+    ["Team template", "One file that creates both agents and both rooms", "templates/loopback.template.yaml"],
+  ].forEach(function (p) {
+    var tr = el("tr"), link = el("a", "mono", p[2]);
+    link.href = (/\.\w+$/.test(p[2]) ? REPO : TREE) + p[2];
+    link.style.fontSize = "13px"; link.style.overflowWrap = "anywhere";
+    var td = el("td"); td.append(link);
+    tr.append(el("td", null, p[0]), el("td", null, p[1]), td);
+    $("parts").append(tr);
+  });
+  data.code.forEach(function (c) {
+    var box = el("div", "excerpt"), link = el("a", "file", c.file + ", line " + c.line);
+    link.href = REPO + c.file + "#L" + c.line;
+    box.append(el("h3", null, c.title), el("p", "prose", c.note), link, el("pre", "code", c.code));
+    $("excerpts").append(box);
+  });
+  $("outcomes").textContent = data.held + " of " + data.total + " expected outcomes held in the run recorded for this page. A step that doesn't happen fails the build, so the page can't quietly stop showing what it claims.";
   if (data.videoUrl) { $("video").href = data.videoUrl; $("video").hidden = false; }
 
-  var hash = /^#step-(\d+)$/.exec(location.hash);
-  show(hash ? Number(hash[1]) - 1 : 0);
+  // ---- Chapters ----
+  function showChapter(name) {
+    S.chapter = name;
+    Array.prototype.forEach.call(document.querySelectorAll("[data-chapter]"), function (n) { n.hidden = n.dataset.chapter !== name; });
+    Array.prototype.forEach.call($("chapters").children, function (a) {
+      if (a.getAttribute("href") === "#" + name) { a.setAttribute("aria-current", "page"); if (a.scrollIntoView && innerWidth <= 940) a.scrollIntoView({ block: "nearest", inline: "center" }); }
+      else a.removeAttribute("aria-current");
+    });
+    window.scrollTo(0, 0);
+    if (name === "run") renderRun();
+    if (name === "setup") renderSetup();
+  }
+  function route() {
+    var h = location.hash.replace(/^#/, "");
+    if (h === "step-late") { enter(POINT, false); showChapter("run"); return; }
+    var m = /^step-(\d+)$/.exec(h);
+    if (m) { enter(Number(m[1]) - 1, false); showChapter("run"); return; }
+    showChapter(CHAPTERS.indexOf(h) >= 0 ? h : "what");
+  }
+  // A frame may refuse hash navigation, so links change the chapter directly as well.
+  document.addEventListener("click", function (e) {
+    var a = e.target instanceof Element ? e.target.closest('a[href^="#"]') : null;
+    if (!a || a.id === "video") return;
+    e.preventDefault();
+    var h = a.getAttribute("href");
+    try { history.replaceState(null, "", h); } catch (err) { /* a frame may refuse this */ }
+    route();
+  });
+  window.addEventListener("hashchange", route);
+  showTab("chat");
+  setSwitch(true);
+  route();
 })();
 </script>

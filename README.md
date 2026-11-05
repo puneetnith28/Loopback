@@ -13,7 +13,7 @@ that, even one new commit, the approval no longer counts and the gate refuses to
 
 Built on [Switch](https://github.com/sandbox-quantum/switch) for the Flip the Switch hackathon, Best Business Workflow track.
 
-**Demo video:** *link added at submission* · **[Click through a rehearsal in your browser](https://claude.ai/artifact/JWwtrnBgQ6UjhvpymQp5Nf)** · **Run it yourself, no accounts:** [two minutes, below](#try-it-in-two-minutes)
+**Demo video:** *link added at submission* · **[Try it in your browser, no install](https://claude.ai/artifact/JWwtrnBgQ6UjhvpymQp5Nf)** · **Run it yourself, no accounts:** [two minutes, below](#try-it-in-two-minutes)
 
 ## The problem
 

@@ -58,11 +58,15 @@ export interface RehearsalOptions {
   readonly color?: boolean;
   /** Receives the run as structured events; `npm run demo:page` builds the public page from them. */
   readonly record?: (event: RehearsalEvent) => void;
+  /** The clock the gate sees. `npm run demo:page` steps it, so the recorded times read like a real case. */
+  readonly now?: () => Date;
+  /** Called whenever the database has settled; `npm run demo:page` reads the console's API here. */
+  readonly checkpoint?: () => Promise<void>;
 }
 
 export type RehearsalEvent =
   | { readonly kind: "scene"; readonly title: string }
-  | { readonly kind: "chat"; readonly room: string; readonly who: string; readonly role: "person" | "agent" | "gate"; readonly text: string; readonly refused: boolean }
+  | { readonly kind: "chat"; readonly room: string; readonly who: string; readonly role: "person" | "agent" | "gate"; readonly text: string; readonly refused: boolean; readonly senderId?: string }
   | { readonly kind: "github"; readonly text: string }
   | { readonly kind: "check"; readonly claim: string; readonly held: boolean }
   | { readonly kind: "state"; readonly state: string | null; readonly commit: string | null; readonly ci: string | null; readonly verifier: string | null; readonly approvals: number }
@@ -93,7 +97,7 @@ export async function runRehearsal(o: RehearsalOptions): Promise<RehearsalResult
   const verifierKeys = generateKeyPairSync("ed25519");
   const issuerKeys = generateKeyPairSync("ed25519");
   const forgedKeys = generateKeyPairSync("ed25519");
-  const now = () => new Date();
+  const now = o.now ?? (() => new Date());
   const maintainers = new Set([MAINTAINER]);
   const outcomes: { claim: string; held: boolean }[] = [];
   let lastPosts: string[] = [];
@@ -159,10 +163,12 @@ export async function runRehearsal(o: RehearsalOptions): Promise<RehearsalResult
   const say = async (sender: string, body: string, roomId = MAINT_ROOM) => {
     seq += 1;
     lastPosts = [];
-    o.record?.({ kind: "chat", room: roomId, who: NAMES[sender] ?? sender, role: sender === FIXER || sender === VERIFIER ? "agent" : "person", text: forReading(body).replace(/\n/g, " "), refused: false });
+    o.record?.({ kind: "chat", room: roomId, who: NAMES[sender] ?? sender, role: sender === FIXER || sender === VERIFIER ? "agent" : "person", text: forReading(body).replace(/\n/g, " "), refused: false, senderId: sender });
     o.print(`  ${c("2", `#${roomId}`)} ${c(sender === FIXER || sender === VERIFIER ? "35" : "32", NAMES[sender] ?? sender)}: ${forReading(body).replace(/\n/g, " ")}`);
     const msg: InboundMessage = { eventId: `demo-${seq}`, roomId, sequence: seq, messageId: `demo-${seq}`, sender, senderKind: null, onBehalfOf: null, senderRole: null, addressed: true, body, threadId: null, timestamp: seq };
     await router.handle(msg);
+    recordState();
+    await o.checkpoint?.();
   };
   const github_ = (text: string) => {
     o.record?.({ kind: "github", text });
@@ -181,6 +187,7 @@ export async function runRehearsal(o: RehearsalOptions): Promise<RehearsalResult
   };
   const scene = async (title: string) => {
     recordState();
+    await o.checkpoint?.();
     o.record?.({ kind: "scene", title });
     o.print("");
     o.print(c("1", title));
@@ -284,6 +291,7 @@ export async function runRehearsal(o: RehearsalOptions): Promise<RehearsalResult
   o.print(renderDecisionTable(db));
   o.record?.({ kind: "tables", board: renderCaseTable(boardFacts), decisions: renderDecisionTable(db) });
   recordState();
+  await o.checkpoint?.();
 
   const passed = outcomes.every((x) => x.held);
   o.print("");

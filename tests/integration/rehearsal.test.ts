@@ -4,7 +4,8 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { runRehearsal, type RehearsalEvent } from "../../apps/switch-gate/src/demo/rehearsal.js";
 import { getCase } from "../../apps/switch-gate/src/persistence/repos.js";
-import { buildPageData, renderPage } from "../../scripts/build-demo-page.mjs";
+import { assertClean, buildPageData, cutExcerpt, renderPage, templateFields, withRelativeTimes } from "../../scripts/build-demo-page.mjs";
+import { CODE_EXCERPTS, SCENE_GUIDE, SETUP_STEPS } from "../../scripts/demo-page/content.mjs";
 import { buildTemplate } from "../../scripts/build-switch-template.mjs";
 
 // `npm run demo` is what a judge or new user runs first. If it stops showing what it claims, this fails.
@@ -94,6 +95,19 @@ describe("the public click-through page", () => {
     expect(page).not.toContain("</script><script>");
   });
 
+  it("shows what Switch did for each message, and what stops without it", async () => {
+    const { scenes } = await pageData();
+    const fromPeople = scenes.flatMap((s) => s.items).filter((m) => m.kind === "chat" && m.role !== "gate");
+    expect(fromPeople.length).toBeGreaterThan(5);
+    for (const m of fromPeople) expect(m.kind === "chat" ? m.senderId : "").toMatch(/^@switch-/);
+    const page = template();
+    expect(page).toContain('role="switch"');
+    expect(page).toContain("Why it stops working without Switch");
+    // The real wording the gate logs when it can't reach Switch: run.ts and policy-check.ts.
+    expect(page).toContain("Refusing to start: the gate's Switch addressing policy is not the expected one");
+    expect(readFileSync(join(process.cwd(), "apps", "switch-gate", "src", "run.ts"), "utf8")).toContain("Refusing to start: the gate's Switch addressing policy is not the expected one");
+  });
+
   it("shows people's names in the decision log, not raw participant ids", async () => {
     const { tables } = await pageData();
     const who = tables?.decisions.rows.map((r) => r[1]) ?? [];
@@ -104,6 +118,83 @@ describe("the public click-through page", () => {
   it("the video link stays hidden until there is one", async () => {
     expect((await pageData()).videoUrl).toBe("");
     expect((await pageData("https://example.com/v")).videoUrl).toBe("https://example.com/v");
+  });
+
+  it("turns the run into steps a person does, each with what came back", async () => {
+    const { steps, scenes } = await pageData();
+    expect(new Set(steps.map((s) => s.scene)).size).toBe(scenes.length);
+    expect(steps.at(-1)?.kind).toBe("documents");
+    const typed = steps.filter((s) => s.kind === "person");
+    expect(typed.length).toBeGreaterThan(5);
+    for (const s of typed) {
+      expect(s.text.startsWith("@loopback-gate ")).toBe(true);
+      expect(s.room).toMatch(/^loopback-(intake|maintainers)$/);
+      expect(s.senderId).toMatch(/^@switch-/);
+    }
+    const refused = steps.flatMap((s) => s.replies).filter((r) => r.refused).map((r) => r.text).join("\n");
+    for (const code of ["VERIFIER_SIGNATURE_INVALID", "APPROVAL_SHA_MISMATCH", "HEAD_MOVED"]) expect(refused).toContain(code);
+    expect(steps.flatMap((s) => s.checks)).toHaveLength(16);
+  });
+
+  it("explains every scene, and sends the viewer only to console pages that exist", async () => {
+    const { scenes } = await pageData();
+    expect(SCENE_GUIDE).toHaveLength(scenes.length);
+    for (const g of SCENE_GUIDE) {
+      expect(g.what.length).toBeGreaterThan(10);
+      expect(g.why.length).toBeGreaterThan(10);
+      if (g.console) expect(g.console[1]).toMatch(/^\/(cases\/LB-001|audit)$/);
+    }
+    const point = scenes.findIndex((s) => s.title.startsWith("THE POINT"));
+    expect(SCENE_GUIDE[point]?.why).toContain("point of Loopback");
+  });
+
+  it("keeps the Switch button and labels what is simulated, on the page itself", () => {
+    const page = template();
+    expect(page).toContain('id="toggle"');
+    expect(page).toContain("Simulated rehearsal.");
+    expect(page).toContain("Illustration of Switch Console");
+    expect(page).toContain("How it's built");
+    expect(page).toContain("Not proven yet");
+  });
+
+  it("shows only setup commands from the docs, with placeholders for every secret", () => {
+    const commands = SETUP_STEPS.flatMap((s) => s.lines ?? []).join("\n");
+    expect(commands).toContain("npm run gate");
+    expect(commands).toContain("SWITCH_AGENT_API_KEY=<key>");
+    const docs = ["README.md", "docs/setup.md"].map((f) => readFileSync(join(process.cwd(), f), "utf8")).join("\n");
+    for (const c of ["npm run migrate", "npm run readiness", "/gateway/agents/{id}/addressing-policy", ".env.example"]) expect(docs).toContain(c);
+  });
+
+  it("cuts its code excerpts from the real source, and fails if they are gone", () => {
+    for (const e of CODE_EXCERPTS) {
+      const cut = cutExcerpt(readFileSync(join(process.cwd(), e.file), "utf8"), e);
+      expect(cut.code.split("\n").length).toBeGreaterThan(2);
+      expect(cut.line).toBeGreaterThan(0);
+    }
+    const first = CODE_EXCERPTS[0];
+    expect(first).toBeDefined();
+    expect(() => cutExcerpt("nothing here", first as (typeof CODE_EXCERPTS)[number])).toThrow(/no longer in/);
+  });
+
+  it("reads the template's own field labels", () => {
+    const fields = templateFields(readFileSync(join(process.cwd(), "templates", "loopback.template.yaml"), "utf8"));
+    expect(fields).toContain("Messaging app");
+    expect(fields.length).toBeGreaterThanOrEqual(4);
+  });
+
+  it("removes run dates from what it records, and refuses a page that still has any", () => {
+    const stamped = withRelativeTimes('{"at":"2001-09-09T01:46:40.000Z"}', Date.parse("2001-09-09T01:47:40.000Z"));
+    expect(stamped).toBe('{"at":"@T:60@"}');
+    expect(() => assertClean("page", stamped)).not.toThrow();
+    expect(() => assertClean("page", "ran on 2001-09-09")).toThrow(/date/);
+    expect(() => assertClean("page", "lbcap1.abcdefghijkl")).toThrow(/signing/);
+  });
+
+  it("answers only from the recording inside the console frame, and can't navigate away", () => {
+    const shim = readFileSync(join(process.cwd(), "scripts", "demo-page", "console-shim.js"), "utf8");
+    expect(shim).toContain("window.fetch =");
+    expect(shim).toContain("e.preventDefault()");
+    expect(shim).not.toMatch(/https?:\/\/(?!console\.loopback\.invalid)/);
   });
 });
 
