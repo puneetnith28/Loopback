@@ -173,7 +173,7 @@ start_runner() {
   local name=loopback-runner
   reuse_or_remove "$name" && return 0
   docker run -d --name "$name" --hostname runner --network none \
-    --user 10004:10004 "${HARDEN[@]}" --tmpfs /work:rw,nosuid,nodev,size=1g \
+    --user 10004:10004 "${HARDEN[@]}" --tmpfs /work:rw,nosuid,nodev,size=1g,uid=10004,gid=10004,mode=0700 \
     --pids-limit 512 --memory 2g --cpus 2 \
     -v loopback-runner-jobs:/jobs:ro -v loopback-runner-results:/results \
     -e HOME=/work -e LOOPBACK_AGENT_ROLE=runner \
