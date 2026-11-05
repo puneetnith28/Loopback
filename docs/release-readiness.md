@@ -1,50 +1,67 @@
 # Release readiness
 
-Status of the release checks (plan steps 10.6 and 10.8) on the current `main`. Evidence classes:
-**Local** = enforced by code and covered by passing automated tests with fakes; **Live** = needs
-the real GitHub and Switch setup, not yet exercised; **Met** = satisfied as stated.
+Status of the release checks (plan steps 10.6 and 10.8), updated 2026-11-05. Evidence classes:
+
+- **Live:** observed on real GitHub and Switch.
+- **Local:** enforced by code and covered by passing automated tests with fakes, not yet seen live.
+- **Met:** satisfied as stated.
+- **Not done:** still to do.
+
 Nothing here counts a simulated test as live evidence.
 
 ## Code freeze and final review (step 10.7)
 
-- **Frozen commit:** `2326cc4c584519ba5cfce1dbb55d2a37895472d6` (2026-11-04). After this, only bug fixes and documentation.
-- **Final review:** `ecc:code-reviewer` over the full diff since the bootstrap commit (`31edd1f..35bd818`): 0 CRITICAL, 0 HIGH. One MEDIUM fixed in the frozen commit (a failed "PR found" announcement left the case without a verification request); the other findings fail closed and are recorded as accepted residual risks in `docs/threat-model.md` (item 11).
-- **CI on the frozen commit:** green (GitHub Actions run 41768902518): typecheck, lint, 744 tests with coverage thresholds, gitleaks over 42 commits with no leaks, no deprecation warnings.
-- **Fresh clone of the frozen commit:** `npm ci`, typecheck, lint and `npm run test:coverage` pass (744 passed, 4 skipped).
+Not frozen yet: the final commit comes after the remaining live runs. The earlier freeze at `2326cc4`
+(2026-11-04) no longer describes `main`.
 
-## Release hygiene (step 10.6) — re-run on the frozen commit 2326cc4
+A security review of `d777967..045cd87` (gate, console API, console, scripts, isolation) found one high
+and four low issues, all since fixed with tests. The high one was a verifier permission template that
+pre-approved raw `git diff`, whose `--output` option can write a Git hook; it was never installed. By
+reading the code, the review found no way to reach `Merged` without valid evidence. It did not cover
+unchanged code such as the signer server, the router and the sandbox runner.
+
+## Release hygiene (step 10.6)
 
 | Check | Result |
 |---|---|
-| Licence | Apache-2.0 (`LICENSE`, every `package.json`). Production dependencies: MIT (15), Apache-2.0 (2), ISC (1), all compatible. The demo target is the maintainer's own repository, so no third-party code is redistributed. |
-| `SECURITY.md` | Private reporting via GitHub security advisories, supported versions, security model summary, known limits including advisory verification and token attribution. |
-| `.env.example` | Placeholders and non-secret defaults only; every secret setting is empty. |
-| Local-only files | `plan.md`, `implementation.md`, `ANTIGRAVITY_HANDOFF.md`, `.env` and `secrets/` are git-ignored and untracked. |
-| Secret scan | gitleaks 8.24.3 (checksum-pinned) over the full history: 42 commits, no leaks — locally and in CI. |
-| Dependency audit | `npm audit --omit=dev`: 0 vulnerabilities. Development-only: one moderate advisory (GHSA-g3hv-75wg-m249, `minimatch` via ESLint), accepted and recorded in `docs/threat-model.md`. |
-
-Commands: `npm run typecheck`, `npx eslint .`, `npm run build`, `npx vitest run` (twice: 744 passed, 4 skipped), `npm audit --omit=dev`, `npm audit`, `npm ls --omit=dev --all` (licences), `gitleaks git --config .gitleaks.toml --redact .`, `git ls-files` for the local-only files.
+| Tests | Windows 1398 passed, 0 failed, with typecheck and lint clean. Linux 1465 passed, 0 failed, one commit earlier. To repeat on the final commit. |
+| Secret scan | gitleaks 8.24.3 over the full history: 90 commits, no leaks. Run locally; CI also runs it, and CI results for the latest commits have not been checked. |
+| Dependency audit | `npm audit --omit=dev`: 0 vulnerabilities. |
+| Licence | Apache-2.0 (`LICENSE`). The dependency licence count was last taken at `2326cc4`, before the frontend's dependencies arrived, so it needs repeating at the freeze. |
+| `SECURITY.md` | Private reporting via GitHub security advisories, and known limits. |
+| `.env.example` | Placeholders and non-secret defaults only. |
+| Local-only files | `plan.md`, `implementation.md`, `.env` and `secrets/` are git-ignored and untracked. |
 
 ## Definition of done (step 10.8, `implementation.md` §19)
 
 | # | Item | Class | Evidence or what is missing |
 |---|---|---|---|
-| 1 | A human and an AI agent complete a real task through Switch | **Live** | Needs the fixer/verifier agents and the intake room (setup steps 7.2, 3.10). Locally: `tests/integration/e2e-simulated.test.ts` (fakes). |
-| 2 | The fixer opens a genuine GitHub PR | **Live** | Needs the demo target, tokens and a live fixer (6.1, 6.3, 7.10). |
-| 3 | A regression test demonstrates the bug and the fix | **Live** | Demo target with the seeded bug (1.5, 6.1). The verifier's report records `regressionTestFailsBeforeFix`. |
-| 4 | Verification evidence identifies the exact current commit | **Local** | Run id, repository, PR and full SHA bound; live head re-read; superseded runs; optional Ed25519 signatures (`workflow.test.ts`, `verifier-signature.test.ts`, `signature.test.ts`). Advisory until isolation is proven. |
-| 5 | Authenticated maintainer approval is bound to that commit | **Local** (identity **Live**) | Full 40-character SHA, exact equality, exact sender ids (`merge-gate.test.ts`, `admission.test.ts`). Live sender attribution for agents not yet observed. |
-| 6 | Changing the commit invalidates the old approval and verification | **Local** | `merge-gate.test.ts` (commit binding), `interleaving.test.ts` (100 runs), `reconcile.test.ts`. |
-| 7 | The gatekeeper rechecks live GitHub state before merging | **Local** | Snapshot with head before/after, ruleset and check-source validation, head re-read after the status (`policy.test.ts`, `merge-gate.test.ts`). |
-| 8 | Only the gatekeeper can perform the merge (ruleset proves it) | **Live** | Ruleset sources are pinned (`test` → 15368, `loopback/gate` → 5598944) and validated at runtime; the nine-outcome ruleset proof (6.6) is not run. |
-| 9 | A successful merge is confirmed by GitHub and recorded | **Local** | `merge-gate.test.ts`, `e2e-simulated.test.ts` (fakes); no live merge yet (8.10). |
-| 10 | Unauthorized and stale approvals are visibly refused | **Local** | `intake.test.ts`, `router.test.ts`, `merge-gate.test.ts`, `composition.test.ts`. |
-| 11 | Duplicate events and uncertain API responses are handled safely | **Local** | Processed events, `MergeUnknown` reconciliation, no blind retries (`merge-gate.test.ts`, `reconcile.test.ts`, `poller-backoff.test.ts`). |
-| 12 | Tests cover state machine, policy, integration and security | **Met** | 744 tests across unit, integration and security suites; coverage thresholds enforced in CI. Live suites exist but are opt-in. |
-| 13 | Setup works from a clean clone | **Local** | A fresh clone of the frozen commit passes `npm ci`, typecheck, lint and `test:coverage`; CI green on it. A clone reaching `/readyz` OK against live services (10.3) is **Live**. |
+| 1 | A human and an AI agent complete a real task through Switch | **Live**, once | `LB-001` ([evidence](evidence/phase-08-day2.md)). It took four attempts, and a person guided the verifier. |
+| 2 | The fixer opens a genuine GitHub PR | **Live** | Demo target PR #3, from a real fixer session. |
+| 3 | A regression test demonstrates the bug and the fix | **Live** | The sandbox's own results: 9 of 9 pass on `23e39be`, and the null test fails on `70a5362`. |
+| 4 | Verification evidence identifies the exact current commit | **Live** | Run `9d0d549d`, signature `valid`, live head re-read. Advisory, because the agents run on the host. |
+| 5 | Authenticated maintainer approval is bound to that commit | **Live** | Full SHA approved; a wrong SHA refused with `APPROVAL_SHA_MISMATCH`. |
+| 6 | Changing the commit invalidates the old approval and verification | **Local** | `merge-gate.test.ts`, `interleaving.test.ts`, `reconcile.test.ts`. The live extra-push run is still to do. |
+| 7 | The gatekeeper rechecks live GitHub state before merging | **Live** | `merge.requested`, then `gate_status.posted`, then the merge with its SHA precondition. |
+| 8 | Only the gatekeeper can perform the merge (ruleset proves it) | **Live** | [Ruleset proof](evidence/phase-06-ruleset-proof.md): every outcome passed, including a refused merge from the maintainer's account with green CI. |
+| 9 | A successful merge is confirmed by GitHub and recorded | **Live** | `02445c3`, merged by the gate's App, confirmed by reading GitHub. |
+| 10 | Unauthorized and stale approvals are visibly refused | **Live** for unauthorized and wrong-SHA; **Local** for stale | `phase-05.md`, `phase-08-day2.md`; the stale case is item 6. |
+| 11 | Duplicate events and uncertain API responses are handled safely | **Local** | `merge-gate.test.ts`, `reconcile.test.ts`, `poller-backoff.test.ts`. The confirmation step ran live, but no real uncertain outcome has occurred. |
+| 12 | Tests cover state machine, policy, integration and security | **Met** | See the hygiene table. Live suites exist but are opt-in. |
+| 13 | Setup works from a clean clone | **Local** | A clone from GitHub passes `npm ci`, the build and the tests, and the console starts. That was run by the author on the same machine, and no one else has done the live setup from the README. |
 | 14 | The README explains Switch's role | **Met** | `README.md` §2. |
-| 15 | The demo shows a successful run and a meaningful refusal | **Live** | `docs/demo-runbook.md` is ready; recording needs live runs (10.2, 10.9). |
-| 16 | No secrets are committed; licence and security-reporting instructions exist | **Met** | gitleaks in CI, the hygiene table above, `LICENSE`, `SECURITY.md`. |
+| 15 | The demo shows a successful run and a meaningful refusal | **Not done** | `docs/demo-runbook.md` is ready; the recording comes with the final live run. |
+| 16 | No secrets are committed; licence and security-reporting instructions exist | **Met** | The hygiene table above. |
 
-**Summary:** 3 met, 7 locally enforced and tested, 6 need the live setup. Every unmet item is
-listed in the README's known limits.
+**Summary:** 12 met or live (one of them only partly), 3 local, 1 not done. Every gap is listed in the
+README's known limits.
+
+## Known gaps besides the table
+
+- **Verifier reliability:** it has not yet completed a run without a person guiding it. The new
+  instructions and retry are tested but not yet used live.
+- **Lost `verify`:** one command posted on 2026-11-04 never reached the gate, cause unknown. Logging now
+  exists to diagnose a repeat.
+- **Console:** verified on real data through the dev server ([evidence](evidence/phase-11-console.md)).
+  The API doesn't serve the production console itself yet.
+- **Live gate build:** the hardening since the first merge has not run in a live gate yet.
