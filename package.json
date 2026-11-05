@@ -30,7 +30,8 @@
     "backup": "node --env-file=.env scripts/backup-db.mjs",
     "agents": "node scripts/sh.mjs deploy/isolation/agents.sh",
     "console-api": "node --env-file=.env.console apps/console-api/dist/main.js",
-    "console-api:mock": "node scripts/console-mock.mjs"
+    "console-api:mock": "node scripts/console-mock.mjs",
+    "release:check": "node scripts/release-check.mjs"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

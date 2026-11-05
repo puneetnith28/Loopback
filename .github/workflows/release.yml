@@ -1,0 +1,86 @@
+name: "Release"
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+*'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build, Verify & Publish GitHub Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify release readiness & version consistency
+        run: npm run release:check -- "${{ github.ref_name }}"
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
+      - name: Build packages (tsc -b)
+        run: npm run build
+
+      - name: Build console frontend (vite build)
+        run: npm --prefix apps/console run build
+
+      - name: Package release artifacts
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          mkdir -p release-artifacts
+
+          # Bundle compiled console distribution
+          tar -czf "release-artifacts/loopback-console-${VERSION}.tar.gz" -C apps/console dist
+
+          # Generate SHA-256 checksums
+          cd release-artifacts
+          sha256sum *.tar.gz > SHA256SUMS.txt
+          cd ..
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          VERSION="${TAG#v}"
+
+          # Pre-1.0 releases (v0.x.x) or versions with hyphens (-alpha, -beta, -rc) are marked prerelease
+          PRERELEASE_FLAG=""
+          if [[ "$VERSION" =~ ^0\. || "$VERSION" == *"-"* ]]; then
+            PRERELEASE_FLAG="--prerelease"
+          fi
+
+          gh release create "$TAG" \
+            release-artifacts/* \
+            --title "Loopback $TAG" \
+            --generate-notes \
+            $PRERELEASE_FLAG
