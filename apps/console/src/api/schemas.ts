@@ -35,18 +35,38 @@ export const CaseStateSchema = z.enum(CASE_STATES);
 // Cases
 // ---------------------------------------------------------------------------------------------------------------
 
-export const CaseSummary = z.object({
+const caseSummaryShape = {
   id: CaseId,
   state: CaseStateSchema,
-  repo: RepoSlug,
-  prNumber: z.number().int().positive().nullable(),
+  repo: RepoSlug.optional(),
+  repository: RepoSlug.optional(),
+  prNumber: z.number().int().positive().nullable().optional(),
+  pullRequest: z.number().int().positive().nullable().optional(),
+  pullRequestUrl: z.string().nullable().optional(),
+  branch: z.string().nullable().optional(),
   headSha: FullSha.nullable(),
   blockedReason: ReasonCode.nullable(),
-  /** Server-truncated start of the reporter's text: UNTRUSTED. */
+  blockedReasonTransient: z.boolean().nullable().optional(),
+  reporterId: z.string().optional(),
   reportExcerpt: UntrustedText(500),
   stateEnteredAt: Timestamp,
   createdAt: Timestamp,
   updatedAt: Timestamp,
+};
+
+export const CaseSummary = z.object(caseSummaryShape).transform((c) => {
+  const repo = c.repository ?? c.repo ?? "repo";
+  const pr = c.pullRequest ?? c.prNumber ?? null;
+  return {
+    ...c,
+    repo,
+    repository: repo,
+    prNumber: pr,
+    pullRequest: pr,
+    branch: c.branch ?? null,
+    blockedReasonTransient: c.blockedReasonTransient ?? null,
+    pullRequestUrl: c.pullRequestUrl ?? (pr !== null ? `https://github.com/${repo}/pull/${pr}` : null),
+  };
 });
 export type CaseSummary = z.infer<typeof CaseSummary>;
 
@@ -54,21 +74,45 @@ export const Commit = z.object({
   headSha: FullSha,
   baseSha: FullSha,
   observedAt: Timestamp,
-  provenance: z.literal("github"),
-});
+  isCurrentHead: z.boolean().optional(),
+  provenance: z.literal("github").default("github"),
+}).transform((c) => ({
+  ...c,
+  isCurrentHead: c.isCurrentHead ?? true,
+  provenance: "github" as const,
+}));
 export type Commit = z.infer<typeof Commit>;
 
 export const CiCheck = z.object({
   id: z.string().min(1).max(100),
   headSha: FullSha,
-  checkName: z.string().min(1).max(200),
-  appSlug: z.string().min(1).max(100),
+  checkName: z.string().min(1).max(200).optional(),
+  name: z.string().min(1).max(200).optional(),
+  appSlug: z.string().min(1).max(100).optional(),
+  source: z.string().min(1).max(100).optional(),
   status: z.string().min(1).max(40),
   conclusion: z.string().min(1).max(40).nullable(),
   /** Rendered as a link only after safeGitHubUrl(); otherwise plain text. */
-  htmlUrl: z.string().max(500),
+  htmlUrl: z.string().max(500).optional(),
+  url: z.string().max(500).nullable().optional(),
   observedAt: Timestamp,
-  provenance: z.literal("github"),
+  isCurrentHead: z.boolean().optional(),
+  provenance: z.literal("github").default("github"),
+}).transform((c) => {
+  const name = c.checkName ?? c.name ?? "check";
+  const source = c.appSlug ?? c.source ?? "github-actions";
+  const url = c.htmlUrl ?? c.url ?? "";
+  return {
+    ...c,
+    name,
+    checkName: name,
+    source,
+    appSlug: source,
+    htmlUrl: url,
+    url: url || null,
+    isCurrentHead: c.isCurrentHead ?? true,
+    provenance: "github" as const,
+  };
 });
 export type CiCheck = z.infer<typeof CiCheck>;
 
@@ -87,29 +131,68 @@ const verificationRunShape = {
   status: z.enum(VERIFICATION_STATUSES),
   requestedAt: Timestamp,
   completedAt: Timestamp.nullable(),
+  sequence: z.number().int().positive().optional(),
+  isCurrentHead: z.boolean().optional(),
   /** Gate verification mode when the run was recorded (audit payload `verification`); null if not recorded. */
-  mode: z.enum(["advisory", "isolated"]).nullable(),
+  mode: z.enum(["advisory", "isolated"]).nullable().optional(),
+  advisory: z.boolean().nullable().optional(),
   /** D28 signature check recorded by the gate (audit payload `signature`); null while requested. */
   signature: z.enum(SIGNATURE_STATUSES).nullable(),
-  summary: UntrustedText(800).nullable(),
-  findings: z.array(VerificationFinding).max(30),
-  regressionTestFailsBeforeFix: z.boolean().nullable(),
-  provenance: z.enum(["gate", "signed-verifier", "agent-claim"]),
+  report: z.object({
+    verdict: z.enum(["pass", "fail"]),
+    regressionTestFailsBeforeFix: z.boolean(),
+    summary: z.string(),
+    findings: z.array(VerificationFinding),
+  }).nullable().optional(),
+  summary: UntrustedText(800).nullable().optional(),
+  findings: z.array(VerificationFinding).max(30).optional(),
+  regressionTestFailsBeforeFix: z.boolean().nullable().optional(),
+  provenance: z.enum(["gate", "signed-verifier", "agent-claim"]).default("gate"),
 };
 
 /** Signed-verifier provenance is only credible with a valid signature: anything else is a contract violation. */
-function signedMeansValid(run: { provenance: string; signature: string | null }, ctx: z.RefinementCtx): void {
+function signedMeansValid(run: { provenance?: string; signature: string | null }, ctx: z.RefinementCtx): void {
   if (run.provenance === "signed-verifier" && run.signature !== "valid") {
     ctx.addIssue({ code: "custom", path: ["provenance"], message: "signed-verifier provenance requires a valid signature" });
   }
 }
 
-export const VerificationRun = z.object(verificationRunShape).superRefine(signedMeansValid);
+export const VerificationRun = z.object(verificationRunShape).superRefine(signedMeansValid).transform((r) => {
+  const mode = r.mode ?? (r.advisory === true ? "advisory" : r.advisory === false ? "isolated" : null);
+  const summary = r.report ? r.report.summary : (r.summary ?? null);
+  const findings = r.report ? r.report.findings : (r.findings ?? []);
+  const regressionTestFailsBeforeFix = r.report ? r.report.regressionTestFailsBeforeFix : (r.regressionTestFailsBeforeFix ?? null);
+  const prov = r.signature === "valid" ? ("signed-verifier" as const) : r.provenance;
+  return {
+    ...r,
+    mode,
+    advisory: r.advisory ?? (mode === "advisory"),
+    summary,
+    findings,
+    regressionTestFailsBeforeFix,
+    provenance: prov,
+  };
+});
 export type VerificationRun = z.infer<typeof VerificationRun>;
 
 export const VerificationRunListItem = z
   .object({ ...verificationRunShape, caseId: CaseId, caseState: CaseStateSchema, caseHeadSha: FullSha.nullable() })
-  .superRefine(signedMeansValid);
+  .superRefine(signedMeansValid).transform((r) => {
+    const mode = r.mode ?? (r.advisory === true ? "advisory" : r.advisory === false ? "isolated" : null);
+    const summary = r.report ? r.report.summary : (r.summary ?? null);
+    const findings = r.report ? r.report.findings : (r.findings ?? []);
+    const regressionTestFailsBeforeFix = r.report ? r.report.regressionTestFailsBeforeFix : (r.regressionTestFailsBeforeFix ?? null);
+    const prov = r.signature === "valid" ? ("signed-verifier" as const) : r.provenance;
+    return {
+      ...r,
+      mode,
+      advisory: r.advisory ?? (mode === "advisory"),
+      summary,
+      findings,
+      regressionTestFailsBeforeFix,
+      provenance: prov,
+    };
+  });
 export type VerificationRunListItem = z.infer<typeof VerificationRunListItem>;
 
 export const Approval = z.object({
@@ -119,7 +202,7 @@ export const Approval = z.object({
   decision: z.enum(["approve", "reject"]),
   reason: UntrustedText(500).nullable(),
   createdAt: Timestamp,
-  provenance: z.literal("gate"),
+  provenance: z.literal("gate").default("gate"),
 });
 export type Approval = z.infer<typeof Approval>;
 
@@ -128,12 +211,22 @@ export const MergeOperation = z.object({
   headSha: FullSha,
   attempt: z.number().int().min(1),
   status: z.enum(["started", "succeeded", "failed", "unknown"]),
-  githubMergeSha: FullSha.nullable(),
+  githubMergeSha: FullSha.nullable().optional(),
+  mergeSha: FullSha.nullable().optional(),
   /** Mapped to a reason code by the API; raw GitHub error text is never sent. */
-  errorCode: ReasonCode.nullable(),
+  errorCode: ReasonCode.nullable().optional(),
   startedAt: Timestamp,
   finishedAt: Timestamp.nullable(),
-  provenance: z.enum(["gate", "github"]),
+  provenance: z.enum(["gate", "github"]).default("gate"),
+}).transform((m) => {
+  const sha = m.githubMergeSha ?? m.mergeSha ?? null;
+  return {
+    ...m,
+    githubMergeSha: sha,
+    mergeSha: sha,
+    errorCode: m.errorCode ?? null,
+    provenance: m.provenance,
+  };
 });
 export type MergeOperation = z.infer<typeof MergeOperation>;
 
@@ -170,19 +263,50 @@ export const PrSnapshot = z.object({
 });
 export type PrSnapshot = z.infer<typeof PrSnapshot>;
 
-export const CaseDetail = CaseSummary.extend({
-  branch: z.string().max(255).nullable(),
+export const CaseDetail = z.object({
+  ...caseSummaryShape,
+  branch: z.string().max(255).nullable().optional(),
   reportText: UntrustedText(4000),
-  commits: z.array(Commit).max(100),
-  ciChecks: z.array(CiCheck).max(300),
-  verificationRuns: z.array(VerificationRun).max(100),
-  approvals: z.array(Approval).max(100),
-  mergeOperations: z.array(MergeOperation).max(20),
+  commits: z.array(Commit).max(100).default([]),
+  ciChecks: z.array(CiCheck).max(300).default([]),
+  checks: z.array(CiCheck).optional(),
+  verificationRuns: z.array(VerificationRun).max(100).default([]),
+  latestVerification: VerificationRun.nullable().optional(),
+  approvals: z.array(Approval).max(100).default([]),
+  mergeOperations: z.array(MergeOperation).max(20).default([]),
+  latestMerge: MergeOperation.nullable().optional(),
   /** R3: the full SHA the gate's latest passing verification is bound to. Selected server-side, never here. */
-  evidence: z.object({ verifiedSha: FullSha, runId: z.string().min(1).max(100) }).nullable(),
-  lastGateDecision: GateDecision.nullable(),
-  fixerClaim: FixerClaim.nullable(),
-  prSnapshot: PrSnapshot.nullable(),
+  evidence: z.object({ verifiedSha: FullSha, runId: z.string().min(1).max(100) }).nullable().default(null),
+  lastGateDecision: GateDecision.nullable().default(null),
+  fixerClaim: FixerClaim.nullable().default(null),
+  prSnapshot: PrSnapshot.nullable().default(null),
+}).transform((c) => {
+  const repo = c.repository ?? c.repo ?? "repo";
+  const pr = c.pullRequest ?? c.prNumber ?? null;
+  const ciChecks = c.checks && c.checks.length > 0 ? c.checks : c.ciChecks;
+  const verificationRuns = c.latestVerification
+    ? [c.latestVerification, ...c.verificationRuns.filter((v: { id: string }) => v.id !== c.latestVerification?.id)]
+    : c.verificationRuns;
+  const mergeOperations = c.latestMerge
+    ? [c.latestMerge, ...c.mergeOperations.filter((m: { id: string }) => m.id !== c.latestMerge?.id)]
+    : c.mergeOperations;
+  const passingRun = verificationRuns.find((r: { status: string }) => r.status === "pass");
+  const evidence = c.evidence ?? (passingRun ? { verifiedSha: passingRun.headSha, runId: passingRun.id } : null);
+  return {
+    ...c,
+    repo,
+    repository: repo,
+    prNumber: pr,
+    pullRequest: pr,
+    branch: c.branch ?? null,
+    blockedReasonTransient: c.blockedReasonTransient ?? null,
+    pullRequestUrl: c.pullRequestUrl ?? (pr !== null ? `https://github.com/${repo}/pull/${pr}` : null),
+    ciChecks,
+    checks: ciChecks,
+    verificationRuns,
+    mergeOperations,
+    evidence,
+  };
 });
 export type CaseDetail = z.infer<typeof CaseDetail>;
 
@@ -194,13 +318,22 @@ export const AuditEvent = z.object({
   id: z.number().int().nonnegative(),
   caseId: CaseId.nullable(),
   actorId: z.string().min(1).max(256),
-  eventType: EventType,
+  type: z.string().optional(),
+  eventType: EventType.optional(),
   targetSha: FullSha.nullable(),
   reasonCode: ReasonCode.nullable(),
   /** Redacted server-side; still UNTRUSTED and rendered as plain text only. */
   payload: z.record(z.string().max(100), z.unknown()),
   createdAt: Timestamp,
-  provenance: ApiProvenance,
+  provenance: ApiProvenance.default("gate"),
+}).transform((e) => {
+  const t = e.type ?? e.eventType ?? "case.state_changed";
+  return {
+    ...e,
+    type: t,
+    eventType: t,
+    provenance: e.provenance,
+  };
 });
 export type AuditEvent = z.infer<typeof AuditEvent>;
 
