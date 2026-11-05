@@ -1,4 +1,4 @@
-import { CASE_STATES, TRANSIENT_REASON_CODES, ReasonCode } from "@loopback/contracts";
+import { CASE_STATES, GATE_SETTINGS_KEY, GateSettings, TRANSIENT_REASON_CODES, ReasonCode } from "@loopback/contracts";
 import {
   AGENT_ACTIVITY_TYPES, ATTENTION_STATES, TERMINAL_STATES,
   type ApprovalRecord, type AuditEvent, type CaseDetail, type CaseSummary, type CiCheck, type CommitRecord, type MergeOperation, type SummaryResponse, type VerificationRun,
@@ -9,8 +9,8 @@ import { githubUrlOrNull, sanitize, scrubText } from "./sanitize.js";
 // Read-only access to the gate's database. Each request opens and closes its own connection:
 // it never pins a file that reset-demo.sh may move away (Windows refuses to move an open file)
 // and never serves a replaced file from a stale handle. Opened read-only and query-only, so this
-// code cannot change the gate's state even by mistake. The tables `kv` (connection ids and
-// cursors) and `processed_events` are never read.
+// code cannot change the gate's state even by mistake. From the table `kv` only the gate's recorded
+// settings are read, never connection ids or cursors; `processed_events` is never read.
 
 /** The gate schema this API was written against (apps/switch-gate persistence migrations). */
 export const EXPECTED_SCHEMA_VERSION = 3;
@@ -259,6 +259,18 @@ export function summary(db: Db, now: Date): SummaryResponse {
     lastEventAt: last ?? null,
     generatedAt: now.toISOString(),
   };
+}
+
+/** The settings the gate recorded when it last started, or null if it never has (or the record is unreadable). */
+export function gateSettings(db: Db): GateSettings | null {
+  const raw = db.prepare("SELECT v FROM kv WHERE k = ?").pluck().get(GATE_SETTINGS_KEY);
+  if (typeof raw !== "string") return null;
+  try {
+    const parsed = GateSettings.safeParse(JSON.parse(raw));
+    return parsed.success ? parsed.data : null;
+  } catch {
+    return null;
+  }
 }
 
 export function schemaVersion(db: Db): number {

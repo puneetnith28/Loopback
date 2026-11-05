@@ -7,6 +7,7 @@ import { MergeExecutor } from "../cases/service.js";
 import { Router } from "../commands/router.js";
 import { migrate, openDatabase, type Db } from "../persistence/db.js";
 import { getCase, kvSet, latestCi, latestRunForHead, listApprovals } from "../persistence/repos.js";
+import { recordGateSettings } from "../persistence/settings.js";
 import { renderCaseTable, renderDecisionTable } from "../switch/board.js";
 import { renderTeam } from "../switch/team.js";
 import { Poller } from "../workflow/poller.js";
@@ -122,6 +123,12 @@ export async function runRehearsal(o: RehearsalOptions): Promise<RehearsalResult
     verificationAdvisory: true, verifierPublicKey: verifierKeys.publicKey, expectedBaseSha: () => null,
     runIssuerKey: issuerKeys.privateKey,
   };
+  // The settings this rehearsal runs with, recorded as the live gate records its own, for the console.
+  recordGateSettings(db, {
+    repo: REPO, baseBranch: BASE_BRANCH, requiredChecks: ["test"], verificationMode: "advisory",
+    safety: { mergeEnabled: true, privilegedEnabled: true, verifierIsolationProven: false },
+    quorum: 1, gateMention: G, pollIntervalMs: 30_000, verifyTimeoutMs: wfDeps.verifyTimeoutMs, fixTimeoutMs: wfDeps.fixTimeoutMs,
+  });
   const workflow = new VerificationWorkflow(wfDeps);
   const poller = new Poller(wfDeps, workflow, { warn: () => undefined });
   const executor = new MergeExecutor({

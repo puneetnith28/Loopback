@@ -6,7 +6,7 @@ import Database from "better-sqlite3";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { z } from "zod";
 import {
-  ApiError, ApprovalListResponse, AuditPageResponse, CaseDetail, CaseListResponse, CiListResponse, CommitListResponse, GateStatusResponse, HealthResponse, MergeListResponse, MetaResponse, SummaryResponse, VerificationListResponse,
+  ApiError, ApprovalListResponse, AuditPageResponse, CaseDetail, CaseListResponse, CiListResponse, CommitListResponse, ConfigSummaryResponse, GateStatusResponse, HealthResponse, MergeListResponse, MetaResponse, SummaryResponse, VerificationListResponse,
 } from "@loopback/console-contracts";
 import { ConsoleConfigError, loadConsoleConfig, type ConsoleConfig } from "../../apps/console-api/src/config.js";
 import { githubUrlOrNull, sanitize } from "../../apps/console-api/src/sanitize.js";
@@ -14,6 +14,7 @@ import { startConsoleServer } from "../../apps/console-api/src/server.js";
 import { EXPECTED_SCHEMA_VERSION } from "../../apps/console-api/src/store.js";
 import { MIGRATIONS } from "../../apps/switch-gate/src/persistence/migrations.js";
 import { migrate, openDatabase } from "../../apps/switch-gate/src/persistence/db.js";
+import { recordGateSettings } from "../../apps/switch-gate/src/persistence/settings.js";
 import { seedConsoleData, sha } from "../../scripts/console-seed.mjs";
 
 // The read-only console API against a real SQLite database with the gate's real schema.
@@ -68,6 +69,34 @@ afterAll(() => {
   server.close();
   server.closeAllConnections();
   rmSync(dir, { recursive: true, force: true });
+});
+
+describe("the gate's settings", () => {
+  it("are unavailable until the gate records them, and the console is never handed a guess", async () => {
+    await refused(await get("config/summary"), 404, "NOT_FOUND");
+  });
+
+  it("are served exactly as the gate recorded them, merging and isolation included", async () => {
+    const db = openDatabase(dbPath);
+    recordGateSettings(db, {
+      repo: "acme/widgets", baseBranch: "main", requiredChecks: ["test"], verificationMode: "advisory",
+      safety: { mergeEnabled: true, privilegedEnabled: true, verifierIsolationProven: false },
+      quorum: 1, gateMention: "@loopback-gate", pollIntervalMs: 30_000, verifyTimeoutMs: 1_800_000, fixTimeoutMs: 2_700_000,
+    });
+    db.close();
+    const r = await ok(ConfigSummaryResponse, "config/summary");
+    expect(r.data.verificationMode).toBe("advisory");
+    expect(r.data.safety).toEqual({ mergeEnabled: true, privilegedEnabled: true, verifierIsolationProven: false });
+    expect(r.data.schemaVersion).toBe(EXPECTED_SCHEMA_VERSION);
+    expect(r.data.repo).toBe("acme/widgets");
+  });
+
+  it("refuses to record anything outside the allowlist", () => {
+    const db = openDatabase(":memory:");
+    migrate(db);
+    expect(() => recordGateSettings(db, { repo: "acme/widgets", baseBranch: "main", requiredChecks: [], verificationMode: "advisory", safety: { mergeEnabled: false, privilegedEnabled: false, verifierIsolationProven: false }, quorum: 1, gateMention: "@loopback-gate", pollIntervalMs: 1, verifyTimeoutMs: 1, fixTimeoutMs: 1, apiKey: "x" } as never)).toThrow();
+    db.close();
+  });
 });
 
 describe("responses match the contract", () => {

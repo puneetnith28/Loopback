@@ -796,7 +796,7 @@ body.off .says p { color: var(--bad); }
     <h2>How this page works</h2>
     <div class="scroll"><table class="wide"><thead><tr><th scope="col">On this page</th><th scope="col">How it's made</th></tr></thead><tbody>
       <tr><td>Chat replies from the gate</td><td>Recorded from the gate's real router, permissions, state machine and merge policy (<code>apps/switch-gate/src/demo/rehearsal.ts</code>), which check 16 outcomes as they run.</td></tr>
-      <tr><td>Evidence console</td><td>The real React app from <code>apps/console</code>. It reads responses recorded from the real API in <code>apps/console-api</code>, taken at each step of that run. Its settings panel is filled in from the rehearsal's own settings, because the API doesn't serve them yet.</td></tr>
+      <tr><td>Evidence console</td><td>The real React app from <code>apps/console</code>. It reads responses recorded from the real API in <code>apps/console-api</code>, taken at each step of that run, including the settings the rehearsal recorded as the gate does.</td></tr>
       <tr><td>Terminal</td><td>What <code>npm run demo</code> printed during that run. Setup commands come from <code>docs/setup.md</code>.</td></tr>
       <tr><td>Team chat layout</td><td>Rebuilt from a running Mattermost 11.9. It's a copy of the layout, and only the recorded messages get answers.</td></tr>
       <tr><td>Switch Console screens</td><td>Illustrations unless marked as screenshots. Field labels come from the real template file.</td></tr>
@@ -1453,24 +1453,26 @@ npm run demo</pre>
   function swInto(pane, view, opts) {
     var wrap = el("div", "sc"), nav = el("nav", "sc-nav"), main = el("div", "sc-main");
     nav.setAttribute("aria-label", "Switch Console");
-    [["home", "Agents and rooms"], ["templates", "Templates"], ["documents", "Documents"]].forEach(function (v) {
+    [["home", "Home"], ["rooms", "Your Rooms"], ["templates", "Templates"], ["documents", "Documents"]].forEach(function (v) {
       var b = el("button", null, v[1]); b.type = "button"; b.setAttribute("aria-current", String(v[0] === view));
       b.addEventListener("click", function () { opts.go(v[0]); });
       nav.append(b);
     });
     wrap.append(nav, main);
-    if (data.shots && data.shots[view]) {
-      var img = el("img"); img.src = data.shots[view]; img.alt = "Screenshot of Switch Console: " + view; main.append(img);
-      pane.replaceChildren(wrap);
-      return;
-    }
     if (!S.on) { main.append(el("h3", null, "Switch is off"), el("p", "prose", "There are no rooms, no agents and no documents.")); pane.replaceChildren(wrap); return; }
+    var shot = data.shots && data.shots[view];
+    if (shot) {
+      var img = el("img"); img.src = shot; img.alt = "Screenshot of Switch Console: " + view; main.append(img);
+      // After Import template, show what the Loopback template asks for, read from the file itself.
+      if (!(view === "templates" && opts.tpl > 0)) { pane.replaceChildren(wrap); return; }
+    }
     if (view === "home") {
       main.append(el("h3", null, "Agents"));
       main.append(table({ header: ["Agent", "Kind", "Status"], rows: opts.installed
         ? [["loopback-gate", "Custom agent", opts.gateUp ? "live" : "registered"], ["loopback-fixer", "Provider agent", opts.gateUp ? "live" : "created"], ["loopback-verifier", "Provider agent", opts.gateUp ? "live" : "created"]]
         : opts.gateOnly ? [["loopback-gate", "Custom agent", "registered"]] : [["None yet", "", ""]] }));
-      main.append(el("h3", null, "Rooms"));
+    } else if (view === "rooms") {
+      main.append(el("h3", null, "Your Rooms"));
       main.append(table({ header: ["Room", "Visibility", "Who is in it"], rows: opts.installed
         ? [["loopback-intake", "Public", "Anyone, and loopback-gate"], ["loopback-maintainers", "Private", "Maintainers, and all three agents"]]
         : [["None yet", "", ""]] }));
@@ -1480,7 +1482,7 @@ npm run demo</pre>
         var imp = el("button", "btn primary", "Import template"); imp.type = "button"; imp.addEventListener("click", opts.nextTpl);
         main.append(el("p", "prose", "Import a template to create a team of agents and rooms from one file."), imp);
       } else {
-        main.append(el("div", "eyebrow", "templates/loopback.template.yaml"));
+        main.append(el("div", "eyebrow", shot ? "Then Switch asks for these, from templates/loopback.template.yaml" : "templates/loopback.template.yaml"));
         data.fields.forEach(function (f) { var d = el("div", "field"); d.append(el("span", null, f), el("i", null, f.indexOf("Messaging") === 0 ? "Mattermost" : f.indexOf("Coding") === 0 ? "opencode" : "Default folder")); main.append(d); });
         if (opts.tpl === 1) { var use = el("button", "btn primary", "Use"); use.type = "button"; use.addEventListener("click", opts.nextTpl); main.append(use); }
         else main.append(el("p", null, "Created loopback-fixer, loopback-verifier, loopback-intake and loopback-maintainers."));

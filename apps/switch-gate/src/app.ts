@@ -13,6 +13,7 @@ import { createMerger } from "./github/merge.js";
 import { GitHubTransport } from "./github/transport.js";
 import { migrate, openDatabase, type Db } from "./persistence/db.js";
 import { kvGet, kvSet, listUnfinishedMergeOps } from "./persistence/repos.js";
+import { recordGateSettings } from "./persistence/settings.js";
 import { RoomBoard, type RoomBoardDeps } from "./switch/board.js";
 import { agentName, renderTeam, type RoomStatuses } from "./switch/team.js";
 import { Poller } from "./workflow/poller.js";
@@ -74,6 +75,13 @@ export function createGate(cfg: GateConfig, chat: ChatPort, log: Logger, deps: {
   const locks = new CaseLocks();
   const halt = new HaltSwitch();
   const gateMention = cfg.switch.gateMention;
+  recordGateSettings(db, {
+    repo: cfg.github.repo, baseBranch: cfg.github.baseBranch, requiredChecks: [...cfg.github.requiredChecks],
+    verificationMode: cfg.identity.verifierIsolationProven ? "isolated" : "advisory",
+    safety: { mergeEnabled: cfg.runtime.mergeEnabled, privilegedEnabled: cfg.identity.privilegedEnabled, verifierIsolationProven: cfg.identity.verifierIsolationProven },
+    quorum: cfg.runtime.quorum, gateMention,
+    pollIntervalMs: cfg.runtime.pollIntervalMs, verifyTimeoutMs: cfg.runtime.verifyTimeoutMs, fixTimeoutMs: cfg.runtime.fixTimeoutMs,
+  });
   const expectedBaseSha = () => (cfg.github.demoResetSha === null ? null : kvGet(db, "expected_base_sha") ?? cfg.github.demoResetSha);
 
   const wfDeps: WorkflowDeps = {

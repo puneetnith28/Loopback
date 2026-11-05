@@ -22,6 +22,31 @@ export const RepoSlug = z
 export type RepoSlug = z.infer<typeof RepoSlug>;
 
 // ---------------------------------------------------------------------------
+// The gate's settings, recorded for the read-only console
+// ---------------------------------------------------------------------------
+
+/** The kv key under which the gate records its non-secret settings each time it starts. */
+export const GATE_SETTINGS_KEY = "gate_settings";
+
+/**
+ * What the console may show about how the gate is configured. Only values safe for anyone who can read the
+ * console: no participant ids, file paths, keys or tokens.
+ */
+export const GateSettings = z.object({
+  repo: RepoSlug,
+  baseBranch: z.string().min(1).max(255),
+  requiredChecks: z.array(z.string().min(1).max(200)).max(50),
+  verificationMode: z.enum(["advisory", "isolated"]),
+  safety: z.object({ mergeEnabled: z.boolean(), privilegedEnabled: z.boolean(), verifierIsolationProven: z.boolean() }).strict(),
+  quorum: z.number().int().positive(),
+  gateMention: z.string().regex(/^@[a-z0-9][a-z0-9._-]*$/, "Switch mention"),
+  pollIntervalMs: z.number().int().positive(),
+  verifyTimeoutMs: z.number().int().positive(),
+  fixTimeoutMs: z.number().int().positive(),
+}).strict();
+export type GateSettings = z.infer<typeof GateSettings>;
+
+// ---------------------------------------------------------------------------
 // Case states (implementation §8)
 // ---------------------------------------------------------------------------
 

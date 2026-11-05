@@ -1,4 +1,4 @@
-import { AuditEventType, CaseId, CaseState, FullSha, ReasonCode, RepoSlug } from "@loopback/contracts";
+import { AuditEventType, CaseId, CaseState, FullSha, GateSettings, ReasonCode, RepoSlug } from "@loopback/contracts";
 import { z } from "zod";
 
 // The wire contract of the read-only console API (docs/console-api.md). The server parses every
@@ -235,6 +235,14 @@ export const MetaResponse = z.object({
   agentActivityTypes: z.array(AuditEventType),
 }).strict();
 export type MetaResponse = z.infer<typeof MetaResponse>;
+
+/** `/config/summary`: the settings the gate recorded when it last started. In the console's envelope. */
+export const ConfigSummaryResponse = z.object({
+  success: z.literal(true),
+  data: GateSettings.extend({ schemaVersion: z.number().int().positive() }).strict(),
+  meta: z.object({ generatedAt: Timestamp }).strict(),
+}).strict();
+export type ConfigSummaryResponse = z.infer<typeof ConfigSummaryResponse>;
 
 /** Audit events that describe agent work. There is no live session data: this is all that is recorded. */
 export const AGENT_ACTIVITY_TYPES = [

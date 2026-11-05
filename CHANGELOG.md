@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`board` and room documents**: the gate keeps a case board and a decision log in the maintainers' room. They hold only the gate's own values, never report text.
 - **`team` and absence warnings**: shows each agent's status as Switch reports it, and warns when a task goes to an agent that isn't connected.
 - **`npm run demo`**: a self-checking rehearsal of the whole flow with no accounts.
+- **The gate's settings in the console**: the gate records its non-secret settings when it starts, and the console API serves them at `/api/v1/config/summary`. The console no longer fills in defaults, which had shown "Verification is isolated" and "Merging: Off" whatever the gate's real settings. If the gate hasn't recorded them, the console says the configuration is unavailable.
 - **`npm run demo:page`**: builds a single web page where someone can do the same run with no install. It uses the rehearsal's recorded messages, the real evidence console reading responses recorded from its real API, and a button that shows what happens with Switch off. The page puts Switch at the centre of an animated circuit, with a title page, a floating chapter bar and a guided 21-step run.
 - **`templates/loopback.template.yaml`**: a Switch template, generated from `prompts/`, that creates both agents and both rooms. It replaces `templates/loopback-room.yaml`.
 

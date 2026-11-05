@@ -1,5 +1,5 @@
 import { QueryClient, useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import type { CaseState, RepoSlug } from "@loopback/contracts";
+import type { CaseState } from "@loopback/contracts";
 import {
   AuditPageResponse,
   CaseDetail as CaseDetailWire,
@@ -7,7 +7,6 @@ import {
   CommitListResponse,
   GateStatusResponse,
   MergeListResponse,
-  MetaResponse,
   SummaryResponse,
   VerificationListResponse,
 } from "@loopback/console-contracts";
@@ -520,47 +519,14 @@ export function useVerificationRuns() {
   });
 }
 
+/**
+ * The settings the gate recorded when it last started. If the API can't say, this fails and the screens say the
+ * configuration is unavailable: the console never fills in values the gate didn't report.
+ */
 export function useConfigSummary() {
   return useQuery({
     queryKey: queryKeys.config,
-    queryFn: async ({ signal }) => {
-      try {
-        return await apiGet("/config/summary", ConfigSummary, { signal });
-      } catch (e) {
-        if (isApiError(e) && (e.status === 404 || e.kind === "not-found")) {
-          const [metaRes, gateRes, casesRes] = await Promise.all([
-            apiGet("/meta", MetaResponse, { signal }),
-            apiGet("/gate", GateStatusResponse, { signal }),
-            apiGet("/cases", CaseListResponse, { signal, query: { limit: 1 } }).catch(() => null),
-          ]);
-
-          const firstCase = casesRes?.data?.items?.[0];
-          const repo: RepoSlug = firstCase ? firstCase.repository : "puneetnith28/loopback-demo-target";
-          const config: ConfigSummary = {
-            repo,
-            baseBranch: "main",
-            requiredChecks: ["test"],
-            verificationMode: "isolated",
-            safety: {
-              mergeEnabled: false,
-              privilegedEnabled: false,
-              verifierIsolationProven: false,
-            },
-            quorum: 1,
-            gateMention: "@loopback-gate",
-            schemaVersion: metaRes.data.schemaVersion,
-            pollIntervalMs: 30000,
-            verifyTimeoutMs: 600000,
-            fixTimeoutMs: 1200000,
-          };
-          return {
-            data: config,
-            meta: gateRes.meta,
-          };
-        }
-        throw e;
-      }
-    },
+    queryFn: ({ signal }) => apiGet("/config/summary", ConfigSummary, { signal }),
   });
 }
 

@@ -2,14 +2,14 @@ import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { AUDIT_EVENT_TYPES, CASE_STATES, CaseId, REASON_CODES, isTransient } from "@loopback/contracts";
 import {
-  AGENT_ACTIVITY_TYPES, API_VERSION, ActivityQuery, ApiError, ApprovalListResponse, AuditPageResponse, AuditQuery, CaseDetail, CaseListQuery, CaseListResponse, CiListResponse,
+  AGENT_ACTIVITY_TYPES, API_VERSION, ActivityQuery, ApiError, ApprovalListResponse, AuditPageResponse, AuditQuery, CaseDetail, CaseListQuery, CaseListResponse, CiListResponse, ConfigSummaryResponse,
   CommitListResponse, GateStatusResponse, HealthResponse, MergeListResponse, MetaResponse, NoQuery, SummaryResponse, VerificationListResponse,
   type ApiErrorCode,
 } from "@loopback/console-contracts";
 import type { z } from "zod";
 import type { ConsoleConfig } from "./config.js";
 import {
-  DatabaseUnavailable, SchemaMismatch, caseDetail, currentHead, listActivity, listApprovals, listAudit, listCases, listChecks, listCommits, listMerges, listRuns, schemaVersion, summary, withDatabase,
+  DatabaseUnavailable, SchemaMismatch, caseDetail, currentHead, gateSettings, listActivity, listApprovals, listAudit, listCases, listChecks, listCommits, listMerges, listRuns, schemaVersion, summary, withDatabase,
 } from "./store.js";
 
 // The console's read-only API. GET and preflight only; nothing here can change the gate's state,
@@ -82,6 +82,14 @@ export function startConsoleServer(cfg: ConsoleConfig, opts: ConsoleServerOption
     if (path === "/api/v1/summary") {
       queryOf(NoQuery, url);
       return withDatabase(cfg.dbPath, (db) => checked(SummaryResponse, summary(db, now())));
+    }
+    if (path === "/api/v1/config/summary") {
+      queryOf(NoQuery, url);
+      return withDatabase(cfg.dbPath, (db) => {
+        const settings = gateSettings(db);
+        if (settings === null) throw new Refusal("NOT_FOUND", "The gate has not recorded its settings yet. Start the gate once with this database.");
+        return checked(ConfigSummaryResponse, { success: true, data: { ...settings, schemaVersion: schemaVersion(db) }, meta: { generatedAt: now().toISOString() } });
+      });
     }
     if (path === "/api/v1/gate") {
       queryOf(NoQuery, url);

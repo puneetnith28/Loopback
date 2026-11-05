@@ -9,7 +9,7 @@
 //   --out <file>                 writes somewhere else
 //
 // Real screenshots of Switch Console placed in docs/demo/shots/ replace the page's illustrations:
-// switch-home.png, switch-templates.png, switch-documents.png
+// switch-home.png, switch-templates.png, switch-rooms.png
 
 /* global fetch */
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -28,22 +28,10 @@ const CLOCK_START = 1_000_000_000_000;
 const CASE = "/api/v1/cases/LB-001";
 /** Everything the console reads. Recorded with the largest page, because the frame filters it as the API would. */
 const API_PATHS = [
-  "/api/v1/health", "/api/v1/meta", "/api/v1/summary", "/api/v1/gate", "/api/v1/cases?limit=200", "/api/v1/audit?limit=200", "/api/v1/activity?limit=200",
+  "/api/v1/health", "/api/v1/meta", "/api/v1/summary", "/api/v1/gate", "/api/v1/config/summary", "/api/v1/cases?limit=200", "/api/v1/audit?limit=200", "/api/v1/activity?limit=200",
   CASE, `${CASE}/commits`, `${CASE}/verification-runs`, `${CASE}/checks`, `${CASE}/approvals`, `${CASE}/merge-operations`, `${CASE}/audit?limit=200`,
 ];
-const SHOTS = ["home", "templates", "documents"];
-/**
- * The rehearsal's own settings, from rehearsal.ts. The read API has no settings endpoint yet, so without this the
- * console falls back to its defaults, which say merging is off and verification is isolated. Neither is true here.
- */
-const configBody = (schemaVersion) => JSON.stringify({
-  success: true,
-  data: {
-    repo: "simulated/rehearsal-not-a-live-run", baseBranch: "main", requiredChecks: ["test"], verificationMode: "advisory",
-    safety: { mergeEnabled: true, privilegedEnabled: true, verifierIsolationProven: false },
-    quorum: 1, gateMention: "@loopback-gate", schemaVersion, pollIntervalMs: 30_000, verifyTimeoutMs: 1_800_000, fixTimeoutMs: 2_700_000,
-  },
-});
+const SHOTS = ["home", "templates", "rooms"];
 
 /** Readable names for the rehearsal's participant ids in a table cell. */
 const friendly = (cell) => cell.replaceAll(String.fromCharCode(0x200b), "").replace(/^@?switch-(?:mattermost|agent)-(\w+):demo$/, (m, who) => NAMES[who] ?? m);
@@ -202,8 +190,6 @@ async function record() {
       const body = withRelativeTimes(res.status === 404 ? raw.replace(/"requestId":"[^"]*"/, '"requestId":"00000000-0000-4000-8000-000000000000"') : raw, clock);
       answers[path.split("?")[0]] = { b: internBody(body), s: res.status };
     }
-    const meta = JSON.parse(bodies[answers["/api/v1/meta"].b]);
-    answers["/api/v1/config/summary"] = { b: internBody(configBody(meta.schemaVersion)), s: 200 };
     const key = JSON.stringify(answers);
     let at = stepIndex.get(key);
     if (at === undefined) {
