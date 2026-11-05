@@ -6,6 +6,7 @@ import {
   CaseListResponse,
   CommitListResponse,
   GateStatusResponse,
+  MergeListResponse,
   MetaResponse,
   SummaryResponse,
   VerificationListResponse,
@@ -274,18 +275,122 @@ export function useCase(id: string) {
       const res = await apiGet(`/cases/${id}`, CaseDetailPayload, { signal });
       const detail: CaseDetail = withGateDecision(res.data);
 
-      if (detail.commits.length === 0) {
-        try {
-          const commitsRes = await apiGet(`/cases/${id}/commits`, CommitListResponse, { signal });
-          detail.commits = commitsRes.data.items.map((c) => ({
-            headSha: c.headSha,
-            baseSha: c.baseSha,
-            observedAt: c.observedAt,
-            isCurrentHead: c.isCurrentHead,
-            provenance: "github" as const,
-          }));
-        } catch {
-          // commits sub-endpoint is optional enhancement
+      const [commitsRes, runsRes, mergesRes, auditRes] = await Promise.allSettled([
+        detail.commits.length === 0
+          ? apiGet(`/cases/${id}/commits`, CommitListResponse, { signal })
+          : Promise.resolve(null),
+        apiGet(`/cases/${id}/verification-runs`, VerificationListResponse, { signal }),
+        apiGet(`/cases/${id}/merge-operations`, MergeListResponse, { signal }),
+        apiGet(`/cases/${id}/audit`, AuditFeedPayload, { signal, query: { limit: 50 } }),
+      ]);
+
+      if (commitsRes.status === "fulfilled" && commitsRes.value) {
+        detail.commits = commitsRes.value.data.items.map((c) => ({
+          headSha: c.headSha,
+          baseSha: c.baseSha,
+          observedAt: c.observedAt,
+          isCurrentHead: c.isCurrentHead,
+          provenance: "github" as const,
+        }));
+      }
+
+      if (runsRes.status === "fulfilled" && runsRes.value.data.items.length > 0) {
+        detail.verificationRuns = runsRes.value.data.items.map((r) => {
+          const summary = r.report?.summary ?? null;
+          const findings = r.report?.findings ?? [];
+          const regressionTestFailsBeforeFix = r.report?.regressionTestFailsBeforeFix ?? null;
+          const prov = r.signature === "valid" ? ("signed-verifier" as const) : ("gate" as const);
+          return {
+            id: r.id,
+            headSha: r.headSha,
+            status: r.status,
+            requestedAt: r.requestedAt,
+            completedAt: r.completedAt,
+            sequence: r.sequence,
+            isCurrentHead: r.isCurrentHead,
+            mode: r.advisory === true ? ("advisory" as const) : r.advisory === false ? ("isolated" as const) : null,
+            advisory: r.advisory === true,
+            signature: r.signature,
+            summary,
+            findings,
+            regressionTestFailsBeforeFix,
+            provenance: prov,
+          };
+        });
+      }
+
+      if (mergesRes.status === "fulfilled" && mergesRes.value.data.items.length > 0) {
+        detail.mergeOperations = mergesRes.value.data.items.map((m) => ({
+          id: m.id,
+          headSha: m.headSha,
+          attempt: m.attempt,
+          status: m.status,
+          githubMergeSha: m.mergeSha,
+          mergeSha: m.mergeSha,
+          errorCode: null,
+          startedAt: m.startedAt,
+          finishedAt: m.finishedAt,
+          provenance: "gate" as const,
+        }));
+      }
+
+      if (auditRes.status === "fulfilled" && auditRes.value.data.items.length > 0) {
+        const events = auditRes.value.data.items;
+        // Fixer claim extraction
+        const fixerEvt = events.find((e) => e.type === "fixer.reported" || e.reasonCode === "NOT_REPRODUCED");
+        if (fixerEvt && !detail.fixerClaim) {
+          if (fixerEvt.reasonCode === "NOT_REPRODUCED") {
+            detail.fixerClaim = {
+              outcome: "not_reproduced" as const,
+              headSha: fixerEvt.targetSha,
+              testsRun: [],
+              regressionTest: null,
+              limitations: [],
+              summary: typeof fixerEvt.payload?.summary === "string" ? fixerEvt.payload.summary : null,
+              reportedAt: fixerEvt.createdAt,
+              provenance: "agent-claim" as const,
+            };
+          } else {
+            const testsRun = Array.isArray(fixerEvt.payload?.testsRun)
+              ? (fixerEvt.payload.testsRun as unknown[]).map(String)
+              : [];
+            const limitations = Array.isArray(fixerEvt.payload?.limitations)
+              ? (fixerEvt.payload.limitations as unknown[]).map(String)
+              : [];
+            detail.fixerClaim = {
+              outcome: "fixed" as const,
+              headSha: fixerEvt.targetSha,
+              testsRun,
+              regressionTest: typeof fixerEvt.payload?.regressionTest === "string" ? fixerEvt.payload.regressionTest : null,
+              limitations,
+              summary: typeof fixerEvt.payload?.summary === "string" ? fixerEvt.payload.summary : null,
+              reportedAt: fixerEvt.createdAt,
+              provenance: "agent-claim" as const,
+            };
+          }
+        }
+
+        // Gate decision extraction
+        const gateEvt = events.find((e) =>
+          e.type === "merge.blocked" ||
+          e.type === "merge.confirmed" ||
+          e.type === "merge.requested" ||
+          e.type === "gate_status.posted",
+        );
+        if (gateEvt && !detail.lastGateDecision) {
+          const isAllowed = gateEvt.type === "merge.confirmed" ||
+            gateEvt.type === "merge.requested" ||
+            (gateEvt.type === "gate_status.posted" && gateEvt.payload?.state === "success");
+          const decisionSha = gateEvt.targetSha ?? detail.headSha;
+          if (decisionSha && /^[0-9a-f]{40}$/i.test(decisionSha)) {
+            detail.lastGateDecision = {
+              outcome: isAllowed ? ("allowed" as const) : ("blocked" as const),
+              reasonCodes: gateEvt.reasonCode ? [gateEvt.reasonCode] : [],
+              headSha: decisionSha,
+              observedAt: gateEvt.createdAt,
+              provenance: "gate" as const,
+            };
+          }
         }
       }
 

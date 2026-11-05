@@ -105,6 +105,31 @@ export function reasonLabel(code: string): string {
   return REASONS[code] ?? code;
 }
 
+const REASON_GUIDANCE: Readonly<Record<string, string>> = {
+  FIXER_TIMEOUT: "The fixer exceeded its time limit without opening a PR. Retask the case or investigate the fixer agent.",
+  VERIFICATION_TIMEOUT: "The verifier exceeded its execution deadline. Check the verifier agent status or trigger re-verification.",
+  HEAD_MOVED: "The pull request head commit changed after verification or approval. Verification and maintainer approval must run again for the new head.",
+  CI_FAILED: "One or more required CI status checks failed on GitHub. Inspect the CI check runs and push a fix.",
+  CI_MISSING: "Required CI checks have not reported status yet. Await completion or trigger CI workflows.",
+  CI_PENDING: "Required CI checks are currently in progress. Wait for workflows to finish.",
+  PROTECTED_PATH_CHANGED: "Changes touched protected configuration or security paths. Review carefully and ensure compliance with repository security policy.",
+  NOT_REPRODUCED: "The fixer agent could not reproduce the reported bug. Check report details and provide additional reproduction steps or retask.",
+  TRIAGE_DECLINED: "A maintainer reviewed and declined this report during triage.",
+  BASE_COMMIT_MISMATCH: "The PR base branch or commit diverged from the expected target branch. Rebase the PR against the latest base.",
+  VERIFICATION_FAILED: "The verifier evaluated the patch and reported a failure (e.g. regression test failed or high severity issue detected).",
+  VERIFIER_SIGNATURE_INVALID: "The verifier cryptographic signature could not be verified by the signer public key.",
+  APPROVAL_MISSING: "A maintainer has not yet approved this pull request head SHA in Switch.",
+  APPROVAL_SHA_MISMATCH: "The approved SHA does not match the current PR head commit SHA.",
+  MERGE_DISABLED: "Autonomous merge is disabled by configuration (MERGE_ENABLED=false). Maintainer manual merge or configuration change required.",
+  GATE_HALTED: "The gate has entered a halted state due to an administrative or safety trip. An operator must resume the gate.",
+  RATE_LIMITED: "GitHub API rate limit was encountered. Wait for the rate limit window to reset.",
+  NOT_MERGEABLE: "GitHub reports merge conflicts. Rebase or merge base branch into the PR branch.",
+};
+
+export function reasonGuidance(code: string): string | null {
+  return REASON_GUIDANCE[code] ?? null;
+}
+
 const SOURCES: Readonly<Record<string, string>> = {
   github: "GitHub observations",
   "github-snapshot": "the GitHub pull-request snapshot",

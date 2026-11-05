@@ -22,6 +22,20 @@ export function SystemPage() {
   );
 }
 
+const CHECK_GUIDANCE: Readonly<Record<string, string>> = {
+  "switch-maintainers": "Maintainer room connection or heartbeat missing. Verify Switch credentials and maintainer room configuration.",
+  "switch-intake": "Intake room connection or heartbeat missing. Verify Switch intake room configuration.",
+  "switch-operations": "Operations room connection or heartbeat missing. Verify Switch operations room configuration.",
+  github: "GitHub App authentication or API reachability failed. Check private key permissions or rate limits.",
+  "not-halted": "The gate is in an administrative halted state. Maintainer command required to resume.",
+};
+
+function checkGuidance(name: string): string | null {
+  if (CHECK_GUIDANCE[name]) return CHECK_GUIDANCE[name];
+  if (name.startsWith("switch-")) return "Switch room connection or heartbeat timed out. Verify Switch credentials.";
+  return null;
+}
+
 function StatusView({ status }: { readonly status: SystemStatus }) {
   return (
     <div className={shared.stack}>
@@ -29,7 +43,14 @@ function StatusView({ status }: { readonly status: SystemStatus }) {
       {status.failing.length > 0 ? (
         <div>
           <p className={shared.muted}>Failing readiness checks:</p>
-          <ul className={shared.list}>{status.failing.map((name) => <li key={name} className={shared.mono}>{name}</li>)}</ul>
+          <ul className={shared.list}>
+            {status.failing.map((name) => (
+              <li key={name}>
+                <span className={shared.mono}>{name}</span>
+                {checkGuidance(name) ? <p className={shared.muted}>{checkGuidance(name)}</p> : null}
+              </li>
+            ))}
+          </ul>
         </div>
       ) : null}
       <p className={shared.muted}>Checked <time dateTime={status.checkedAt} title={absoluteTime(status.checkedAt)}>{relativeTime(status.checkedAt)}</time></p>
