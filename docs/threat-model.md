@@ -62,6 +62,14 @@ for the current head timed out, the live PR head is unchanged and the base check
 privileged, audited command. It issues a new run and capability, and a late report for the old run
 stays refused. A `fail` verdict, CI failure or moved head still needs a retask.
 
+**Incoherent passes.** The gate rejects a `pass` that reports no failing regression test or a
+high-severity finding, as the signer does, because advisory mode can run with no signer.
+
+**Pre-approved verifier commands.** `templates/opencode-verifier.jsonc` must not allow raw `git diff`:
+its `--output` option can write a Git hook from PR-controlled text, which the next `git fetch` runs as
+the desktop user. A security review found this in the first version of the template, before it was used.
+The tool's `diff` command accepts only two full SHAs.
+
 ## Prompt review checklist (§14 "Malicious repo content")
 
 - `prompts/fixer.md` and `prompts/verifier.md` name every untrusted input (issue text, logs,

@@ -136,6 +136,15 @@ export const VerifierReport = z.object({
 }).strict();
 export type VerifierReport = z.infer<typeof VerifierReport>;
 
+/**
+ * Rules a verifier cannot argue its way past: a "pass" requires that the regression test was shown
+ * to fail before the fix and that no high-severity finding is reported. Failing is always allowed.
+ */
+export function verdictIsConsistent(report: Pick<VerifierReport, "verdict" | "regressionTestFailsBeforeFix" | "findings">): boolean {
+  if (report.verdict !== "pass") return true;
+  return report.regressionTestFailsBeforeFix && !report.findings.some((f) => f.severity === "high");
+}
+
 // ---------------------------------------------------------------------------
 // Approvals (§7, D11: bound to repository, PR and full SHA)
 // ---------------------------------------------------------------------------

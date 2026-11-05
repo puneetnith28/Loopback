@@ -88,7 +88,8 @@ the flag for itself and the script never sees it. Call the script with `node` in
 An agent waiting on a prompt looks idle in chat while its run counts down, so the gate posts one
 reminder after 5 minutes. To avoid most prompts, copy `templates/opencode-verifier.jsonc` to
 `opencode.jsonc` in the verifier's clone and set the path in it. Signing and anything unlisted still
-ask. Two limits apply:
+ask. Never add raw `git diff` to it: `--output` can write a Git hook, which is why the template uses the
+tool's `diff` command. Two limits apply:
 
 - This has not been tested with Console's own permission settings yet, so check that it takes effect.
 - OpenCode reads this file from the working folder, so PR code must never be checked out there. A PR
@@ -138,7 +139,10 @@ Run both before opening a pull request that touches platform code. Stage new fil
 
 ## Switch
 
-Switch itself is outside this repository. The live setup was verified on Linux (Console 0.40.1,
-switch-core 0.31.0), and running Switch Console on Windows has **not** been tested. If it cannot run
-here, the gate only needs its agent bridge reachable as `SWITCH_BRIDGE_URL`. The bridge binds to
-127.0.0.1 on its own host, so reach it over an SSH tunnel rather than by opening the port.
+Switch itself is outside this repository. The live flow has run on Windows 11 with Switch Console
+0.40.1, switch-core 0.31.0, Mattermost 11.9.0 under Docker Desktop, and agents on OpenCode 1.18 (the
+Antigravity ACP provider has no Windows build). Console runs in its native mode, so it has no Gateway
+web page: the Gateway API is at `/gateway/*` on the API port, and its ports can differ per install. If
+you run Switch on another host, the gate only needs its agent bridge reachable as `SWITCH_BRIDGE_URL`.
+The bridge binds to 127.0.0.1 on its own host, so reach it over an SSH tunnel rather than by opening the
+port.

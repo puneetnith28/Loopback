@@ -3,6 +3,8 @@
 // repository. See "Fewer permission prompts for the verifier" in docs/windows.md.
 //
 // Later rules win. Everything not listed still asks a person, and signing stays a human decision.
+// Never allow raw `git diff *`: its --output option can write a Git hook, which `git fetch` then runs.
+// The tool's diff command accepts only two full commit SHAs.
 {
   "$schema": "https://opencode.ai/config.json",
   "permission": {
@@ -10,8 +12,9 @@
       "*": "ask",
       "pwd": "allow",
       "git fetch origin": "allow",
-      "git diff *": "allow",
+      "node <LOOPBACK>/scripts/host-agent-tool.mjs diff *": "allow",
       "node <LOOPBACK>/scripts/host-agent-tool.mjs test *": "allow",
+      "git diff *": "deny",
       "docker *": "deny",
       "git push *": "deny",
       "git checkout *": "deny",

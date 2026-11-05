@@ -1,4 +1,4 @@
-import { FixerReport, VerifierReport, displaySha, type InboundMessage, type ReasonCode } from "@loopback/contracts";
+import { FixerReport, VerifierReport, displaySha, verdictIsConsistent, type InboundMessage, type ReasonCode } from "@loopback/contracts";
 import { append } from "../audit/index.js";
 import type { HaltGuard } from "../cases/halt.js";
 import type { CaseLocks } from "../cases/lock.js";
@@ -172,6 +172,12 @@ export class VerificationWorkflow implements AgentInbox, FixerHandoff {
   private async retryProblem(ctx: CommandContext, c: CaseRecord): Promise<Reply | null> {
     const latest = c.headSha === null ? undefined : latestRunForHead(this.d.db, c.id, c.headSha);
     if (latest?.status !== "timeout") return this.refuse(ctx, c, "INVALID_STATE", "verify");
+    // A CI failure leaves the run open, so it can time out later: that is not "only ran out of time".
+    const ciFailed = this.d.requiredChecks.some((name) => {
+      const e = latestCi(this.d.db, c.id, c.headSha!, name);
+      return e?.status === "completed" && e.conclusion !== "success";
+    });
+    if (ciFailed) return this.refuse(ctx, c, "INVALID_STATE", "verify");
     this.d.halt.assertRunning("verify");
     const live = await this.livePull(c);
     const base = await this.check(c);
@@ -248,7 +254,9 @@ export class VerificationWorkflow implements AgentInbox, FixerHandoff {
         }
         liveOk = live.headSha === current.headSha;
       }
-      const status = !identityOk || !liveOk ? "invalid" : report.verdict === "pass" ? "pass" : "fail";
+      // The signer enforces this too, but advisory mode can run with no signer in the loop.
+      const coherent = verdictIsConsistent(report);
+      const status = !identityOk || !liveOk || !coherent ? "invalid" : report.verdict === "pass" ? "pass" : "fail";
       db.transaction(() => {
         completeRun(db, current.id, status, JSON.stringify(report), now());
         append(db, {
@@ -264,6 +272,7 @@ export class VerificationWorkflow implements AgentInbox, FixerHandoff {
       })();
       if (!identityOk) await this.d.chat.post(msg.roomId, formatReason("AGENT_OUTPUT_INVALID", { detail: "report names a different commit or PR than the run" }), msg.threadId);
       else if (!liveOk) await this.d.chat.post(msg.roomId, formatReason("VERIFICATION_STALE", { caseId: current.caseId, headSha: current.headSha }), msg.threadId);
+      else if (!coherent) await this.d.chat.post(msg.roomId, formatReason("AGENT_OUTPUT_INVALID", { detail: "a pass needs a regression test that failed before the fix and no high-severity finding" }), msg.threadId);
       await this.progressLocked(current.caseId);
     });
   }

@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -7,7 +7,7 @@ import Database from "better-sqlite3";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { assessReadiness, isDesktopDaemon, type ReadinessFacts } from "../../scripts/live-readiness.mjs";
 import { bashCandidates, findBash, isMainModule } from "../../scripts/sh.mjs";
-import { roleToken, testPlan } from "../../scripts/host-agent-tool.mjs";
+import { diffPlan, roleToken, testPlan } from "../../scripts/host-agent-tool.mjs";
 import { assessDesktopDaemon, githubGetOptions } from "../../scripts/verify-isolation.mjs";
 import { gracefulSignals } from "../../apps/switch-gate/src/run.js";
 
@@ -149,6 +149,44 @@ describe("host-agent-tool.mjs", () => {
     expect(testPlan(sha, [])).toEqual({ dir: `/home/verifier/runs/${sha}`, command: ["node", "--test", "test/index.test.js"] });
     expect(testPlan(sha, ["npm", "test"])?.command).toEqual(["npm", "test"]);
     for (const bad of [undefined, "abc", `${sha}; rm -rf /`, "../../etc/passwd", sha.toUpperCase()]) expect(testPlan(bad, [])).toBeNull();
+  });
+
+  it("diffs only two full SHAs: git diff's own options can write files, such as a hook", () => {
+    const [a, b] = ["a".repeat(40), "b".repeat(40)];
+    expect(diffPlan(a, b)).toEqual(["diff", "--no-ext-diff", "--no-textconv", a, b]);
+    for (const bad of [undefined, "--output=.git/hooks/reference-transaction", "--no-index", "HEAD", "abc", `${a} ${b}`]) {
+      expect(diffPlan(bad, b)).toBeNull();
+      expect(diffPlan(a, bad)).toBeNull();
+    }
+  });
+
+  it("the verifier's permission template allows no raw git diff and leaves signing to a person", () => {
+    const template = readFileSync("templates/opencode-verifier.jsonc", "utf8");
+    const allowed = [...template.matchAll(/"([^"]+)": "allow"/g)].map((m) => m[1]!);
+    expect(allowed.filter((rule) => /^git diff/.test(rule))).toEqual([]);
+    expect(allowed.filter((rule) => /host-agent-tool\.mjs (sign|gh)/.test(rule))).toEqual([]);
+    expect(allowed).toEqual(expect.arrayContaining(["git fetch origin", "node <LOOPBACK>/scripts/host-agent-tool.mjs diff *", "node <LOOPBACK>/scripts/host-agent-tool.mjs test *"]));
+  });
+});
+
+describe("backup-db.mjs", () => {
+  it("refuses to write a backup into a cloud-synced folder", () => {
+    const dir = mkdtempSync(join(tmpdir(), "lb-backup-"));
+    try {
+      const dbPath = join(dir, "x.db");
+      new Database(dbPath).close();
+      // Windows matches variable names case-insensitively, so the machine's own value must go first.
+      const others = Object.fromEntries(Object.entries(process.env).filter(([name]) => !/^onedrive/i.test(name)));
+      const r = spawnSync(process.execPath, ["scripts/backup-db.mjs"], {
+        encoding: "utf8",
+        env: { ...others, DB_PATH: dbPath, BACKUP_DIR: join(dir, "synced", "backups"), OneDrive: join(dir, "synced") },
+      });
+      expect(r.status).toBe(1);
+      expect(r.stderr).toMatch(/cloud-synced/);
+      expect(existsSync(join(dir, "synced"))).toBe(false);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 

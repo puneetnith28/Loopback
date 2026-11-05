@@ -63,6 +63,21 @@ describe("D33: retrying a timed-out verification without a new commit", () => {
     expect(h.posts.join("\n")).toMatch(new RegExp(`${G} verify LB-001`));
   });
 
+  it("a CI failure still needs a retask, even if the open run later times out", async () => {
+    const h = await verifying();
+    h.gh.pass(A, "failure", 101);
+    await h.poller.tick();
+    expect(h.state()).toBe("VerificationFailed");
+    h.clock.now = new Date(h.clock.now.getTime() + 11 * MINUTE);
+    await h.wf.sweep();
+    expect(listRuns(h.db, "LB-001").at(-1)?.status).toBe("timeout");
+    const runs = listRuns(h.db, "LB-001").length;
+    await h.say(MAINT, `${G} verify LB-001`);
+    expect(h.state()).toBe("VerificationFailed");
+    expect(listRuns(h.db, "LB-001")).toHaveLength(runs);
+    expect(audits(h, "command.refused").at(-1)).toMatchObject({ reason: "INVALID_STATE" });
+  });
+
   it("a failed verdict still needs a retask: verify is refused", async () => {
     const h = await verifying();
     await h.verifierReply("fail");
@@ -103,6 +118,27 @@ describe("D33: retrying a timed-out verification without a new commit", () => {
     await h.wf.sweep();
     await h.say(MAINT, `${G} verify LB-001`);
     expect(h.state()).toBe("VerificationFailed");
+  });
+});
+
+describe("the gate applies the signer's rule for a pass, even with no signer in the loop", () => {
+  it.each([
+    ["the regression test never failed before the fix", { regressionTestFailsBeforeFix: false }],
+    ["it reports a high-severity finding", { findings: [{ severity: "high", message: "breaks something" }] }],
+  ])("a pass where %s is invalid, and cannot reach approval", async (_name, over) => {
+    const h = await verifying({ verificationAdvisory: true, verifierPublicKey: null });
+    await h.verifierReply("pass", { signature: undefined, ...over });
+    await h.poller.tick();
+    expect(h.state()).toBe("VerificationFailed");
+    expect(listRuns(h.db, "LB-001").at(-1)?.status).toBe("invalid");
+    expect(audits(h, "verification.passed")).toEqual([]);
+  });
+
+  it("a consistent pass still reaches approval", async () => {
+    const h = await verifying({ verificationAdvisory: true, verifierPublicKey: null });
+    await h.verifierReply("pass", { signature: undefined, findings: [{ severity: "low", message: "a nit" }] });
+    await h.poller.tick();
+    expect(h.state()).toBe("AwaitingApproval");
   });
 });
 

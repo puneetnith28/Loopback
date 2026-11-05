@@ -45,10 +45,9 @@ An earlier refusal is in [phase-05.md](phase-05.md) (Day-1 gate).
 | 08:28:55 | MergeUnknown (`MERGE_OUTCOME_UNKNOWN`, stage `confirming`) | gate |
 | 08:28:56 | `merge.confirmed` by reconciliation; Merged | gate |
 
-The merge outcome could not be confirmed straight after the merge call, so the case entered
-`MergeUnknown` for about a second and the reconciler confirmed the merge commit on GitHub. That is
-the designed path (D15), and no second merge call was made. The cause of the failed first
-confirmation was not investigated.
+`MergeUnknown` is a normal step here, not a fault. After every merge call the gate enters that state
+(stage `confirming`) and confirms the result by reading GitHub, rather than trusting the merge
+response (D15). It lasted about a second, and no second merge call was made.
 
 ## Independent checks
 
@@ -63,6 +62,12 @@ confirmation was not investigated.
 
 The verifier's report says "4 new regression tests". The correct count is 3 new plus the seeded one.
 This is an info-level wording error in the report.
+
+## Surviving a restart
+
+The machine restarted unplanned between the second and third attempts, on 2026-11-05, which also
+restarted Switch and the gate. Afterwards the case was intact, and the audit shows the same fixer,
+verifier and maintainer ids on both sides of the restart. This was not a controlled test.
 
 ## What this does not prove
 

@@ -4,10 +4,11 @@
 // code in the network-less runner and gets real signatures from the signer.
 //
 //   node host-agent-tool.mjs gh fixer|verifier <gh arguments...>   gh with only that role's token
+//   node host-agent-tool.mjs diff <full sha> <full sha>            show a diff, with no git options
 //   node host-agent-tool.mjs test <full sha> [-- <argv>]           run a commit's tests in the runner
 //   node host-agent-tool.mjs sign <lbcap1...> < report.json        ask the signer to sign a report
 //
-// Run `test` from a clone of the repository. Prints no token.
+// Run `diff` and `test` from a clone of the repository. Prints no token.
 
 import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
@@ -33,6 +34,24 @@ export function testPlan(sha, argv) {
   if (!/^[0-9a-f]{40}$/.test(sha ?? "")) return null;
   const command = argv.length > 0 ? argv : ["node", "--test", "test/index.test.js"];
   return { dir: `/home/verifier/runs/${sha}`, command };
+}
+
+/**
+ * The argv for a diff of two commits. Raw `git diff` must not be pre-approved for an agent: its
+ * `--output=` option writes files, so PR-controlled text could become a Git hook.
+ */
+export function diffPlan(base, head) {
+  const full = /^[0-9a-f]{40}$/;
+  if (!full.test(base ?? "") || !full.test(head ?? "")) return null;
+  return ["diff", "--no-ext-diff", "--no-textconv", base, head];
+}
+
+function diff(base, head) {
+  const plan = diffPlan(base, head);
+  if (plan === null) die("usage: diff <full 40-character sha> <full 40-character sha>");
+  const r = spawnSync("git", plan, { stdio: "inherit" });
+  if (r.error) die(`could not run git: ${r.error.message}`);
+  return r.status ?? 1;
 }
 
 function gh(role, args) {
@@ -77,12 +96,14 @@ if (isMainModule(import.meta.url)) {
   const [command, ...rest] = process.argv.slice(2);
   if (command === "gh") {
     process.exitCode = gh(rest[0], rest.slice(1));
+  } else if (command === "diff") {
+    process.exitCode = rest.length === 2 ? diff(rest[0], rest[1]) : diff(undefined, undefined);
   } else if (command === "test") {
     const at = rest.indexOf("--");
     process.exitCode = await test(rest[0], at >= 0 ? rest.slice(at + 1) : []);
   } else if (command === "sign") {
     process.exitCode = sign(rest[0]);
   } else {
-    die("usage: gh fixer|verifier <args> | test <sha> [-- <argv>] | sign <capability>");
+    die("usage: gh fixer|verifier <args> | diff <sha> <sha> | test <sha> [-- <argv>] | sign <capability>");
   }
 }

@@ -1,5 +1,5 @@
 import { createHash, type KeyObject } from "node:crypto";
-import { VerifierReport } from "@loopback/contracts";
+import { VerifierReport, verdictIsConsistent } from "@loopback/contracts";
 import { z } from "zod";
 import { verifyCapability } from "../agents/capability.js";
 import { signReport, signedBytes } from "../agents/signature.js";
@@ -57,22 +57,13 @@ export function reportDigest(report: Readonly<Record<string, unknown>>): string 
 
 const deny = (code: SignErrorCode, status: number): SignDecision => ({ ok: false, code, status });
 
-/**
- * Rules the verifier cannot argue its way past: a "pass" requires that the regression test was
- * shown to fail before the fix and that no high-severity finding is reported. Failing is always allowed.
- */
-function consistent(report: VerifierReport): boolean {
-  if (report.verdict !== "pass") return true;
-  return report.regressionTestFailsBeforeFix && !report.findings.some((f) => f.severity === "high");
-}
-
 export async function evaluateSignRequest(body: unknown, d: SignerPolicyDeps): Promise<SignDecision> {
   const req = SignRequest.safeParse(body);
   if (!req.success) return deny("MALFORMED", 400);
   const parsed = VerifierReport.safeParse(req.data.report);
   if (!parsed.success || parsed.data.signature !== undefined) return deny("REPORT_INVALID", 400);
   const report = parsed.data;
-  if (!consistent(report)) return deny("REPORT_INCONSISTENT", 400);
+  if (!verdictIsConsistent(report)) return deny("REPORT_INCONSISTENT", 400);
   const digest = reportDigest(report);
   if (digest !== req.data.reportDigest) return deny("DIGEST_MISMATCH", 400);
 

@@ -34,7 +34,7 @@ HEAD, BASE, the run id and the signing capability. Each new run starts from noth
 results from an earlier run.
 
 1. `git fetch origin`
-2. `git diff BASE HEAD`: review it as in step 5 below.
+2. `node <tool> diff BASE HEAD`: review it as in step 5 below. Do not run `git diff` itself.
 3. `node <tool> test HEAD`: runs the tests in the runner sandbox.
 4. `node <tool> test BASE`: the code before the change. A regression test must fail here.
 5. Write `report.json`, using the format below, in UTF-8.

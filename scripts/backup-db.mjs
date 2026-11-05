@@ -5,7 +5,7 @@
 // Verifies the copy with PRAGMA integrity_check and keeps the newest $KEEP backups.
 
 import { chmodSync, existsSync, mkdirSync, readdirSync, renameSync, rmSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve, sep } from "node:path";
 import Database from "better-sqlite3";
 
 function die(message) {
@@ -17,7 +17,19 @@ const dbPath = process.env.DB_PATH || "./data/loopback.db";
 const backupDir = process.env.BACKUP_DIR || join(dirname(dbPath), "backups");
 const keepText = process.env.KEEP || "14";
 
+// A backup holds the same audit data as the database, which the gate refuses to keep in OneDrive.
+function inCloudSync(path) {
+  const target = resolve(path).toLowerCase();
+  return ["OneDrive", "OneDriveConsumer", "OneDriveCommercial"].some((name) => {
+    const root = process.env[name];
+    if (!root) return false;
+    const prefix = resolve(root).toLowerCase();
+    return target === prefix || target.startsWith(prefix + sep);
+  });
+}
+
 if (!existsSync(dbPath)) die(`database not found: ${dbPath}`);
+if (inCloudSync(backupDir)) die(`BACKUP_DIR is in a cloud-synced folder: ${backupDir}`);
 if (!/^[1-9][0-9]*$/.test(keepText)) die("KEEP must be a positive integer");
 const keep = Number(keepText);
 

@@ -84,7 +84,8 @@ You need:
 - **A GitHub repository you own**, with CI, and permission to add rulesets to it.
 - **A GitHub App** for the gate (the only identity that can merge) and **two fine-grained tokens**, one
   each for the fixer and the verifier.
-- **Switch Console** with Mattermost, for the two chat rooms and the agents.
+- **Switch Console** with Mattermost, for the two chat rooms and the agents (tested with Console 0.40.1,
+  switch-core 0.31.0 and Mattermost 11.9.0).
 - **Docker** for the agent containers, and an AI model for the agents. Free models work but hit usage
   limits and need close supervision.
 

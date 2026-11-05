@@ -2,19 +2,19 @@
 
 This document is the executable checklist for the 3-minute hackathon video submission.
 
-> **Status: not recorded yet.** The example gate replies below are the gate's real wording,
-> captured from a simulated run (`tests/integration/e2e-simulated.test.ts`, fakes for GitHub and
-> Switch). No part of this flow has run against live GitHub or Switch yet. Verification is shown
-> as **advisory**: on the current setup the verifier is not an isolated identity, and the demo
-> must not say otherwise. Merging requires `MERGE_ENABLED=true` and
-> `LOOPBACK_PRIVILEGED_ENABLED=true`, which stay off until the live checks in `docs/setup.md` pass.
+> **Status: not recorded yet.** One real case (`LB-001`) has gone through this flow live, without the
+> Stale scene and with a person guiding the verifier: see `docs/evidence/phase-08-day2.md`. The example
+> replies below are the gate's real wording, captured from a simulated run
+> (`tests/integration/e2e-simulated.test.ts`), so exact details can differ live. Verification is shown
+> as **advisory**: the verifier is not an isolated identity on the current setup, and the demo must not
+> say otherwise. Merging requires `MERGE_ENABLED=true` and `LOOPBACK_PRIVILEGED_ENABLED=true`.
 
 ---
 
 ## 1. Prerequisites and Recording Environment
 
 - **Resolution & Zoom**: Record at 1080p (1920×1080). Zoom Mattermost chat font to 125%.
-- **Secret Hygiene**: Ensure no terminal with `.env`, private keys, PATs, or shell history containing secrets is displayed on screen.
+- **Secret Hygiene**: Ensure no terminal with `.env`, private keys, PATs, or shell history containing secrets is displayed on screen. Keep provider dashboards that show API keys off camera too. The signing capability in the gate's request is visible in chat: it is bound to one run and expires with it.
 - **Timing Target**: 2:45 to 3:00 total duration.
 - **Speed-up Rule**: Speed up long agent thinking/running periods (2× to 4×) and **label the speed-up on screen** (e.g. `[2x Speed: Agent running tests]`). Keep raw unedited video footage.
 - **Pre-flight Script Execution**:
@@ -24,6 +24,8 @@ This document is the executable checklist for the 3-minute hackathon video submi
   npm run migrate
   npm run gate
   ```
+  Stop the gate first: the reset archives the database. Then set `DEMO_RUN_ID` and `BASE_BRANCH` in `.env` to the values it prints. On Windows, run the script from Git Bash and see `docs/windows.md`.
+- **Before you press record**: confirm the agents have model quota, and answer every permission prompt straight away. An unanswered prompt freezes an agent while its run counts down.
 - **Rooms Setup**:
   - Public intake room: e.g. `loopback-intake`
   - Maintainer room: `loopback-maintainers` (members: Maintainer, `@loopback-gate`, `@loopback-fixer`, `@loopback-verifier`)
@@ -179,3 +181,6 @@ This document is the executable checklist for the 3-minute hackathon video submi
 | GitHub rate limit | Gate reports `RATE_LIMITED` and pauses polling until GitHub's reset on its own. Wait; do not switch credentials. |
 | Switch socket drops | The gate reconnects with backoff (0.5–30 s), fenced on its generation. If it was **taken over** (another client attached), it stops with exit code 3 by design: do not restart it automatically; find and stop the other client first. |
 | Test run failed | Run `./scripts/reset-demo.sh` to get a fresh `demo/<run-id>` branch and re-record. |
+| An agent shows "Queued" or sits idle | Look for an unanswered permission prompt in its older threads and answer it, or click **Stop current work**. Then check the OpenCode log for `Free usage limit reached`: a quota error looks like silence in chat. |
+| Verification timed out | `@loopback-gate verify <case>` starts a new run on the same commit, if the head has not moved. Anything else needs `retask`, then a new commit. |
+| A command gets no reply | Check the gate's log for a `switch.inbound` line. If there is none, Switch did not deliver the message: post it again. |
