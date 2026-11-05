@@ -45,12 +45,13 @@ export function assessWindowsAcl(acl: WindowsAcl, kind: "file" | "directory"): s
 }
 
 // Reads the ACL of $env:LOOPBACK_ACL_PATH: the path travels in the environment, so it can never
-// be interpreted as PowerShell code, whatever characters it holds.
+// be interpreted as PowerShell code, whatever characters it holds. Uses .NET FileSystemSecurity
+// directly rather than Get-Acl, avoiding module autoloading issues (e.g. CoreCLR PSModulePath).
 const READ_ACL_SCRIPT = [
   "$ErrorActionPreference='Stop'",
   "$t=[System.Security.Principal.SecurityIdentifier]",
   "$p=$env:LOOPBACK_ACL_PATH",
-  "$a=Get-Acl -LiteralPath $p",
+  "$a=if([System.IO.Directory]::Exists($p)){[System.IO.Directory]::GetAccessControl($p)}else{[System.IO.File]::GetAccessControl($p)}",
   "$o=$a.GetOwner($t)",
   "$owner=if($o){$o.Value}else{''}",
   "$u=[System.Security.Principal.WindowsIdentity]::GetCurrent().User",
@@ -75,18 +76,25 @@ function parseAcl(text: string): WindowsAcl {
 export function readWindowsAcl(path: string): WindowsAcl {
   const systemRoot = process.env.SystemRoot ?? process.env.SYSTEMROOT ?? "C:\\Windows";
   const powershell = join(systemRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
+  const winModules = join(systemRoot, "System32", "WindowsPowerShell", "v1.0", "Modules");
+  const psModulePath = process.env.PSModulePath ? `${winModules};${process.env.PSModulePath}` : winModules;
   const fullPath = resolve(path).replace(/\//g, "\\");
-  const out = execFileSync(powershell, ["-NoProfile", "-NonInteractive", "-Command", READ_ACL_SCRIPT], {
-    encoding: "utf8",
-    timeout: 20_000,
-    stdio: ["ignore", "pipe", "pipe"],
-    windowsHide: true,
-    env: {
-      ...process.env,
-      SystemRoot: systemRoot,
-      LOOPBACK_ACL_PATH: fullPath,
+  const out = execFileSync(
+    powershell,
+    ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", READ_ACL_SCRIPT],
+    {
+      encoding: "utf8",
+      timeout: 20_000,
+      stdio: ["ignore", "pipe", "pipe"],
+      windowsHide: true,
+      env: {
+        ...process.env,
+        SystemRoot: systemRoot,
+        PSModulePath: psModulePath,
+        LOOPBACK_ACL_PATH: fullPath,
+      },
     },
-  });
+  );
   return parseAcl(out);
 }
 
