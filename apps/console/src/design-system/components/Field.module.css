@@ -1,0 +1,62 @@
+.field { display: grid; gap: var(--space-1-5); min-width: 0; }
+.label { font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--color-text); }
+.required { color: var(--color-human-text); margin-left: 2px; }
+.hint { font-size: var(--text-xs); line-height: var(--leading-xs); color: var(--color-text-tertiary); }
+.error { display: flex; align-items: center; gap: var(--space-1); font-size: var(--text-xs); line-height: var(--leading-xs); color: var(--color-danger-text); }
+
+.control {
+  width: 100%;
+  height: var(--control-md);
+  padding: 0 var(--space-3);
+  background: var(--color-inset);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  font-size: var(--text-md);
+  transition-property: border-color, background-color, box-shadow;
+  transition-duration: var(--duration-fast);
+  transition-timing-function: var(--ease-out);
+}
+.control::placeholder { color: var(--color-text-tertiary); }
+.control:hover:not(:disabled) { border-color: var(--color-border-strong); }
+.control:focus-visible { outline: none; border-color: var(--color-focus); box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-focus) 28%, transparent); }
+.control[aria-invalid="true"] { border-color: var(--color-danger); }
+.control:disabled { color: var(--color-text-disabled); cursor: not-allowed; background: var(--color-surface); }
+.mono { font-family: var(--font-mono); font-size: var(--text-sm); }
+
+.withIcon { position: relative; }
+.withIcon .control { padding-left: calc(var(--space-3) + 16px + var(--space-2)); }
+.leading { position: absolute; left: var(--space-3); top: 50%; transform: translateY(-50%); color: var(--color-text-tertiary); pointer-events: none; }
+
+.select { appearance: none; padding-right: calc(var(--space-3) + 16px + var(--space-1)); cursor: pointer; }
+.trailing { position: absolute; right: var(--space-3); top: 50%; transform: translateY(-50%); color: var(--color-text-tertiary); pointer-events: none; }
+
+/* Checkbox: native input kept (keyboard + forms for free), visually restyled. */
+.check { display: inline-flex; align-items: flex-start; gap: var(--space-2); cursor: pointer; min-height: 24px; }
+.check input {
+  appearance: none; flex: none; width: 16px; height: 16px; margin: 3px 0 0;
+  border: var(--border-width-strong) solid var(--color-border-strong); border-radius: var(--radius-xs);
+  background: var(--color-inset); display: grid; place-content: center; cursor: pointer;
+  transition-property: background-color, border-color; transition-duration: var(--duration-fast);
+}
+.check input::after { content: ""; width: 9px; height: 5px; border: 2px solid var(--color-accent-text); border-top: 0; border-right: 0; transform: rotate(-45deg) translate(1px, -1px) scale(0); transition: transform var(--duration-fast) var(--ease-out); }
+.check input:checked { background: var(--color-accent); border-color: var(--color-accent); }
+.check input:checked::after { transform: rotate(-45deg) translate(1px, -1px) scale(1); }
+.check input:disabled { opacity: 0.5; cursor: not-allowed; }
+.checkText { display: grid; gap: 2px; font-size: var(--text-md); }
+
+/* Toggle (role="switch"). */
+.toggle { display: inline-flex; align-items: center; gap: var(--space-3); background: none; border: 0; padding: var(--space-1) 0; cursor: pointer; color: var(--color-text); font-size: var(--text-md); min-height: 32px; }
+.track { position: relative; flex: none; width: 34px; height: 20px; border-radius: var(--radius-pill); background: var(--color-inset); border: var(--border-width) solid var(--color-border-strong); transition-property: background-color, border-color; transition-duration: var(--duration-fast); }
+.thumb { position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: var(--radius-pill); background: var(--color-text-secondary); transition-property: transform, background-color; transition-duration: var(--duration-normal); transition-timing-function: var(--ease-out); }
+.toggle[aria-checked="true"] .track { background: var(--color-accent); border-color: var(--color-accent); }
+.toggle[aria-checked="true"] .thumb { transform: translateX(14px); background: var(--color-accent-text); }
+.toggle:disabled { opacity: 0.5; cursor: not-allowed; }
+.toggleState { font-size: var(--text-xs); color: var(--color-text-tertiary); font-family: var(--font-mono); }
+
+@media (forced-colors: active) {
+  .track { border-color: CanvasText; }
+  .thumb { background: CanvasText; }
+  .toggle[aria-checked="true"] .track { background: Highlight; border-color: Highlight; }
+  .toggle[aria-checked="true"] .thumb { background: HighlightText; }
+}

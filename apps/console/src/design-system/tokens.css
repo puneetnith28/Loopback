@@ -1,0 +1,126 @@
+/*
+ * Loopback design tokens — the single source of truth (DESIGN.md §3).
+ * Components use only SEMANTIC tokens (--color-*, --space-*, ...). Raw palette values appear here once.
+ * Contrast of every text/background pair is asserted in tests/tokens.test.ts (WCAG 2.2 AA).
+ */
+
+:root {
+  /* Typography */
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --text-2xs: 0.6875rem;  --leading-2xs: 1rem;      /* 11/16 eyebrow, stamp */
+  --text-xs: 0.75rem;     --leading-xs: 1.125rem;   /* 12/18 meta */
+  --text-sm: 0.8125rem;   --leading-sm: 1.25rem;    /* 13/20 dense rows */
+  --text-md: 0.875rem;    --leading-md: 1.375rem;   /* 14/22 base */
+  --text-lg: 1rem;        --leading-lg: 1.5rem;     /* 16/24 section */
+  --text-xl: 1.25rem;     --leading-xl: 1.75rem;    /* 20/28 panel title */
+  --text-2xl: 1.625rem;   --leading-2xl: 2.125rem;  /* 26/34 page */
+  --text-3xl: 2.25rem;    --leading-3xl: 2.625rem;  /* 36/42 display */
+  --weight-regular: 400; --weight-medium: 500; --weight-semibold: 600;
+  --tracking-tight: -0.015em; --tracking-wide: 0.06em;
+
+  /* Space (4px base) */
+  --space-0: 0; --space-px: 1px; --space-0-5: 2px; --space-1: 4px; --space-1-5: 6px; --space-2: 8px; --space-2-5: 10px;
+  --space-3: 12px; --space-4: 16px; --space-5: 20px; --space-6: 24px; --space-8: 32px; --space-10: 40px;
+  --space-12: 48px; --space-16: 64px;
+
+  /* Radius (concentric: outer = inner + padding) */
+  --radius-xs: 3px; --radius-sm: 5px; --radius-md: 7px; --radius-lg: 10px; --radius-xl: 14px; --radius-pill: 999px;
+
+  /* Borders */
+  --border-width: 1px; --border-width-strong: 1.5px;
+
+  /* Layout */
+  --layout-max: 1440px; --layout-nav: 232px; --layout-header: 56px; --layout-gutter: 16px; --layout-gutter-wide: 32px;
+  --control-sm: 28px; --control-md: 34px; --control-lg: 40px; --hit-min: 40px;
+
+  /* Elevation (z-index) */
+  --z-base: 0; --z-sticky: 10; --z-dropdown: 100; --z-tooltip: 200; --z-overlay: 300; --z-modal: 400; --z-toast: 500;
+
+  /* Motion (ECC motion-foundations: token-only, transform/opacity, reduced-motion aware) */
+  --duration-instant: 80ms; --duration-fast: 160ms; --duration-normal: 240ms; --duration-slow: 400ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+  --distance-xs: 2px; --distance-sm: 4px; --distance-md: 8px;
+  --scale-press: 0.97;
+}
+
+/* ───────────── Dark (default): graphite ───────────── */
+:root,
+[data-theme="dark"] {
+  color-scheme: dark;
+  --color-canvas: #0c0e11;
+  --color-surface: #121519;
+  --color-raised: #181c21;
+  --color-overlay: #1e2329;
+  --color-inset: #090b0d;
+  --color-hover: rgba(255, 255, 255, 0.045);
+  --color-active: rgba(255, 255, 255, 0.075);
+
+  --color-border-subtle: #20252b;
+  --color-border: #2b3138;
+  --color-border-strong: #3b424b;
+
+  --color-text: #e9ebee;
+  --color-text-secondary: #a8aeb6;
+  --color-text-tertiary: #8b929b;
+  --color-text-disabled: #5d636b;
+  --color-text-inverse: #0c0e11;
+
+  --color-machine: #4cc9e0;      --color-machine-text: #84dcec;   --color-machine-surface: rgba(76, 201, 224, 0.10);  --color-machine-border: rgba(76, 201, 224, 0.34);
+  --color-human: #f2b544;        --color-human-text: #f6c96f;     --color-human-surface: rgba(242, 181, 68, 0.10);   --color-human-border: rgba(242, 181, 68, 0.36);
+  --color-success: #46c48a;      --color-success-text: #74d8a7;   --color-success-surface: rgba(70, 196, 138, 0.10); --color-success-border: rgba(70, 196, 138, 0.34);
+  --color-danger: #f0703f;       --color-danger-text: #ff9b73;    --color-danger-surface: rgba(240, 112, 63, 0.11);  --color-danger-border: rgba(240, 112, 63, 0.38);
+  --color-demo: #f472b6;         --color-demo-text: #f9a8d4;      --color-demo-surface: rgba(244, 114, 182, 0.10);   --color-demo-border: rgba(244, 114, 182, 0.42);
+  --color-neutral-surface: rgba(168, 174, 182, 0.09); --color-neutral-border: rgba(168, 174, 182, 0.26);
+
+  --color-accent: #e9ebee;       /* primary action: quiet, high-contrast — no brand hue on buttons */
+  --color-accent-text: #0c0e11;
+  --color-accent-hover: #ffffff;
+  --color-focus: #8fd3ff;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 1px 2px rgba(0, 0, 0, 0.4), 0 6px 16px -4px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 2px 4px rgba(0, 0, 0, 0.4), 0 18px 40px -8px rgba(0, 0, 0, 0.6);
+  --hatch: repeating-linear-gradient(-45deg, transparent 0 5px, rgba(244, 114, 182, 0.14) 5px 7px);
+}
+
+/* ───────────── Light: warm paper (tuned independently, not inverted) ───────────── */
+[data-theme="light"] {
+  color-scheme: light;
+  --color-canvas: #f5f4f0;
+  --color-surface: #fdfcfa;
+  --color-raised: #ffffff;
+  --color-overlay: #ffffff;
+  --color-inset: #ecebe5;
+  --color-hover: rgba(26, 28, 31, 0.045);
+  --color-active: rgba(26, 28, 31, 0.08);
+
+  --color-border-subtle: #e6e3dc;
+  --color-border: #d6d2c9;
+  --color-border-strong: #b8b3a8;
+
+  --color-text: #17191c;
+  --color-text-secondary: #474c54;
+  --color-text-tertiary: #646a72;
+  --color-text-disabled: #a3a39c;
+  --color-text-inverse: #fdfcfa;
+
+  --color-machine: #0b8aa3;      --color-machine-text: #06687b;   --color-machine-surface: rgba(11, 138, 163, 0.08);  --color-machine-border: rgba(11, 138, 163, 0.32);
+  --color-human: #c27a06;        --color-human-text: #8a5400;     --color-human-surface: rgba(194, 122, 6, 0.09);     --color-human-border: rgba(194, 122, 6, 0.36);
+  --color-success: #1f8a55;      --color-success-text: #16683f;   --color-success-surface: rgba(31, 138, 85, 0.08);   --color-success-border: rgba(31, 138, 85, 0.32);
+  --color-danger: #c4471c;       --color-danger-text: #a3360e;    --color-danger-surface: rgba(196, 71, 28, 0.08);    --color-danger-border: rgba(196, 71, 28, 0.34);
+  --color-demo: #be2d79;         --color-demo-text: #9c1d60;      --color-demo-surface: rgba(190, 45, 121, 0.07);     --color-demo-border: rgba(190, 45, 121, 0.38);
+  --color-neutral-surface: rgba(71, 76, 84, 0.06); --color-neutral-border: rgba(71, 76, 84, 0.24);
+
+  --color-accent: #17191c;
+  --color-accent-text: #fdfcfa;
+  --color-accent-hover: #2c2f34;
+  --color-focus: #0a64c2;
+
+  --shadow-sm: 0 1px 2px rgba(23, 25, 28, 0.06);
+  --shadow-md: 0 1px 2px rgba(23, 25, 28, 0.06), 0 6px 16px -4px rgba(23, 25, 28, 0.10);
+  --shadow-lg: 0 2px 4px rgba(23, 25, 28, 0.06), 0 18px 40px -8px rgba(23, 25, 28, 0.16);
+  --hatch: repeating-linear-gradient(-45deg, transparent 0 5px, rgba(190, 45, 121, 0.10) 5px 7px);
+}

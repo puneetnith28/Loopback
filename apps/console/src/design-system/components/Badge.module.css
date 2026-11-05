@@ -1,0 +1,19 @@
+.badge {
+  display: inline-flex; align-items: center; gap: var(--space-1);
+  height: 22px; padding: 0 var(--space-2);
+  border: var(--border-width) solid var(--tone-border); border-radius: var(--radius-sm);
+  background: var(--tone-surface); color: var(--tone-text);
+  font-size: var(--text-xs); font-weight: var(--weight-medium); line-height: 1; white-space: nowrap;
+}
+.neutral { --tone-surface: var(--color-neutral-surface); --tone-border: var(--color-neutral-border); --tone-text: var(--color-text-secondary); }
+.machine { --tone-surface: var(--color-machine-surface); --tone-border: var(--color-machine-border); --tone-text: var(--color-machine-text); }
+.human { --tone-surface: var(--color-human-surface); --tone-border: var(--color-human-border); --tone-text: var(--color-human-text); }
+.success { --tone-surface: var(--color-success-surface); --tone-border: var(--color-success-border); --tone-text: var(--color-success-text); }
+.danger { --tone-surface: var(--color-danger-surface); --tone-border: var(--color-danger-border); --tone-text: var(--color-danger-text); }
+.demo { --tone-surface: var(--color-demo-surface); --tone-border: var(--color-demo-border); --tone-text: var(--color-demo-text); background-image: var(--hatch); }
+
+.status { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-1-5); font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--tone-text); }
+.status svg { flex: none; }
+.statusDetail { color: var(--color-text-tertiary); font-weight: var(--weight-regular); }
+.wrap { height: auto; min-height: 22px; padding-block: var(--space-1); white-space: normal; line-height: var(--leading-xs); align-items: flex-start; max-width: 100%; }
+.wrap svg { flex: none; margin-top: 1px; }

@@ -1,0 +1,10 @@
+.surface { background: var(--color-surface); border: var(--border-width) solid var(--color-border-subtle); border-radius: var(--radius-lg); min-width: 0; }
+.raised { background: var(--color-raised); border-color: var(--color-border); }
+.inset { background: var(--color-inset); }
+.header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; padding: var(--space-3) var(--space-4); border-bottom: var(--border-width) solid var(--color-border-subtle); }
+.titleGroup { display: grid; gap: 2px; min-width: 0; }
+.eyebrow { font-size: var(--text-2xs); line-height: var(--leading-2xs); letter-spacing: var(--tracking-wide); text-transform: uppercase; color: var(--color-text-tertiary); font-weight: var(--weight-medium); }
+.title { font-size: var(--text-md); line-height: var(--leading-md); }
+.actions { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.body { padding: var(--space-4); }
+.flush { padding: 0; }
