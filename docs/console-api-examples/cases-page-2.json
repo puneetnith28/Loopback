@@ -1,0 +1,53 @@
+{
+  "items": [
+    {
+      "id": "LB-004",
+      "state": "Blocked",
+      "blockedReason": "PROTECTED_PATH_CHANGED",
+      "blockedReasonTransient": false,
+      "repository": "puneetnith28/loopback-demo-target",
+      "pullRequest": 14,
+      "pullRequestUrl": "https://github.com/puneetnith28/loopback-demo-target/pull/14",
+      "branch": "loopback/LB-004",
+      "headSha": "27f96b1997d2c32b2c146c207daa965c94d93e3f",
+      "reporterId": "@switch-mattermost-b1-reporter:localhost",
+      "reportExcerpt": "CI is flaky on Windows runners.",
+      "stateEnteredAt": "2026-11-04T10:15:00.000Z",
+      "createdAt": "2026-11-04T10:00:00.000Z",
+      "updatedAt": "2026-11-04T10:15:00.000Z"
+    },
+    {
+      "id": "LB-003",
+      "state": "Stale",
+      "blockedReason": null,
+      "blockedReasonTransient": null,
+      "repository": "puneetnith28/loopback-demo-target",
+      "pullRequest": 13,
+      "pullRequestUrl": "https://github.com/puneetnith28/loopback-demo-target/pull/13",
+      "branch": "loopback/LB-003",
+      "headSha": "6227144ff935ad46489443007bcbe03e702dd43e",
+      "reporterId": "@switch-mattermost-b1-reporter:localhost",
+      "reportExcerpt": "Unicode tokens are truncated in the middle of a surrogate pair.",
+      "stateEnteredAt": "2026-11-04T09:40:00.000Z",
+      "createdAt": "2026-11-04T09:00:00.000Z",
+      "updatedAt": "2026-11-04T09:40:00.000Z"
+    },
+    {
+      "id": "LB-002",
+      "state": "AwaitingApproval",
+      "blockedReason": null,
+      "blockedReasonTransient": null,
+      "repository": "puneetnith28/loopback-demo-target",
+      "pullRequest": 12,
+      "pullRequestUrl": "https://github.com/puneetnith28/loopback-demo-target/pull/12",
+      "branch": "loopback/LB-002",
+      "headSha": "2294ca653b8bee6e7f9db8fbfc43ac270c1ea3e5",
+      "reporterId": "@switch-mattermost-b1-reporter:localhost",
+      "reportExcerpt": "Empty strings are dropped from the output when a default is configured.",
+      "stateEnteredAt": "2026-11-04T08:25:00.000Z",
+      "createdAt": "2026-11-04T07:50:00.000Z",
+      "updatedAt": "2026-11-04T08:25:00.000Z"
+    }
+  ],
+  "nextCursor": "2"
+}

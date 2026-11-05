@@ -1,0 +1,117 @@
+{
+  "items": [
+    {
+      "id": 9,
+      "caseId": "LB-001",
+      "actorId": "system",
+      "type": "merge.confirmed",
+      "targetSha": "5dbde10910a36804989811f9b3279c290ca292c1",
+      "reasonCode": null,
+      "payload": {
+        "mergeSha": "b234516900b082f6a2de9178cab7ff0b1ba56142"
+      },
+      "createdAt": "2026-11-04T06:40:00.000Z"
+    },
+    {
+      "id": 8,
+      "caseId": "LB-001",
+      "actorId": "system",
+      "type": "merge.requested",
+      "targetSha": "5dbde10910a36804989811f9b3279c290ca292c1",
+      "reasonCode": null,
+      "payload": {
+        "attempt": 1
+      },
+      "createdAt": "2026-11-04T06:38:00.000Z"
+    },
+    {
+      "id": 7,
+      "caseId": "LB-001",
+      "actorId": "@switch-mattermost-b1-maintainer:localhost",
+      "type": "approval.accepted",
+      "targetSha": "5dbde10910a36804989811f9b3279c290ca292c1",
+      "reasonCode": null,
+      "payload": {
+        "decision": "approve"
+      },
+      "createdAt": "2026-11-04T06:30:00.000Z"
+    },
+    {
+      "id": 6,
+      "caseId": "LB-001",
+      "actorId": "@switch-agent-verifier:localhost",
+      "type": "verification.passed",
+      "targetSha": "5dbde10910a36804989811f9b3279c290ca292c1",
+      "reasonCode": null,
+      "payload": {
+        "runId": "4438d901-484b-4dfe-8796-bf921de240bc",
+        "verdict": "pass",
+        "findings": 0,
+        "regressionTestFailsBeforeFix": true,
+        "advisory": false,
+        "signature": "valid"
+      },
+      "createdAt": "2026-11-04T06:22:00.000Z"
+    },
+    {
+      "id": 5,
+      "caseId": "LB-001",
+      "actorId": "system",
+      "type": "ci.observed",
+      "targetSha": "5dbde10910a36804989811f9b3279c290ca292c1",
+      "reasonCode": null,
+      "payload": {
+        "check": "test",
+        "conclusion": "success"
+      },
+      "createdAt": "2026-11-04T06:20:00.000Z"
+    },
+    {
+      "id": 4,
+      "caseId": "LB-001",
+      "actorId": "system",
+      "type": "verification.started",
+      "targetSha": "5dbde10910a36804989811f9b3279c290ca292c1",
+      "reasonCode": null,
+      "payload": {
+        "runId": "4438d901-484b-4dfe-8796-bf921de240bc"
+      },
+      "createdAt": "2026-11-04T06:15:00.000Z"
+    },
+    {
+      "id": 3,
+      "caseId": "LB-001",
+      "actorId": "system",
+      "type": "pr.created",
+      "targetSha": "5dbde10910a36804989811f9b3279c290ca292c1",
+      "reasonCode": null,
+      "payload": {
+        "pullRequest": 11
+      },
+      "createdAt": "2026-11-04T06:12:00.000Z"
+    },
+    {
+      "id": 2,
+      "caseId": "LB-001",
+      "actorId": "@switch-agent-fixer:localhost",
+      "type": "fixer.started",
+      "targetSha": null,
+      "reasonCode": null,
+      "payload": {
+        "branch": "loopback/LB-001"
+      },
+      "createdAt": "2026-11-04T06:01:00.000Z"
+    },
+    {
+      "id": 1,
+      "caseId": "LB-001",
+      "actorId": "@switch-mattermost-b1-reporter:localhost",
+      "type": "case.created",
+      "targetSha": null,
+      "reasonCode": null,
+      "payload": {},
+      "createdAt": "2026-11-04T06:00:00.000Z"
+    }
+  ],
+  "nextCursor": null
+}

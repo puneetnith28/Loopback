@@ -1,0 +1,13 @@
+{
+  "items": [
+    {
+      "id": "merge-007",
+      "headSha": "6ae4ec3069584d9c82b82a17c4f5f8ff59ea964c",
+      "attempt": 1,
+      "status": "unknown",
+      "mergeSha": null,
+      "startedAt": "2026-11-04T11:58:00.000Z",
+      "finishedAt": null
+    }
+  ]
+}

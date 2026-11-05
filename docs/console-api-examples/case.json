@@ -1,0 +1,67 @@
+{
+  "id": "LB-001",
+  "state": "Merged",
+  "blockedReason": null,
+  "blockedReasonTransient": null,
+  "repository": "puneetnith28/loopback-demo-target",
+  "pullRequest": 11,
+  "pullRequestUrl": "https://github.com/puneetnith28/loopback-demo-target/pull/11",
+  "branch": "loopback/LB-001",
+  "headSha": "5dbde10910a36804989811f9b3279c290ca292c1",
+  "reporterId": "@switch-mattermost-b1-reporter:localhost",
+  "reportExcerpt": "formatToken throws TypeError when a custom replace mapping contains null.",
+  "stateEnteredAt": "2026-11-04T06:40:00.000Z",
+  "createdAt": "2026-11-04T06:00:00.000Z",
+  "updatedAt": "2026-11-04T06:40:00.000Z",
+  "reportText": "formatToken throws TypeError when a custom replace mapping contains null.",
+  "latestVerification": {
+    "id": "4438d901-484b-4dfe-8796-bf921de240bc",
+    "sequence": 1,
+    "headSha": "5dbde10910a36804989811f9b3279c290ca292c1",
+    "isCurrentHead": true,
+    "status": "pass",
+    "signature": "valid",
+    "advisory": false,
+    "report": {
+      "verdict": "pass",
+      "regressionTestFailsBeforeFix": true,
+      "summary": "The regression test fails on the base and passes on the head. No protected files changed.",
+      "findings": []
+    },
+    "requestedAt": "2026-11-04T06:15:00.000Z",
+    "completedAt": "2026-11-04T06:22:00.000Z"
+  },
+  "checks": [
+    {
+      "id": "ci-LB-001-1001",
+      "headSha": "5dbde10910a36804989811f9b3279c290ca292c1",
+      "isCurrentHead": true,
+      "name": "test",
+      "source": "github-actions",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/puneetnith28/loopback-demo-target/actions/runs/1001",
+      "observedAt": "2026-11-04T06:20:00.000Z"
+    }
+  ],
+  "approvals": [
+    {
+      "id": "appr-001",
+      "approverId": "@switch-mattermost-b1-maintainer:localhost",
+      "headSha": "5dbde10910a36804989811f9b3279c290ca292c1",
+      "isCurrentHead": true,
+      "decision": "approve",
+      "reason": null,
+      "createdAt": "2026-11-04T06:30:00.000Z"
+    }
+  ],
+  "latestMerge": {
+    "id": "merge-001",
+    "headSha": "5dbde10910a36804989811f9b3279c290ca292c1",
+    "attempt": 1,
+    "status": "succeeded",
+    "mergeSha": "b234516900b082f6a2de9178cab7ff0b1ba56142",
+    "startedAt": "2026-11-04T06:38:00.000Z",
+    "finishedAt": "2026-11-04T06:39:00.000Z"
+  }
+}

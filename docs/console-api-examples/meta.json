@@ -1,0 +1,283 @@
+{
+  "apiVersion": "v1",
+  "schemaVersion": 3,
+  "caseStates": [
+    "Reported",
+    "Triaged",
+    "FixInProgress",
+    "PRCreated",
+    "Verifying",
+    "VerificationFailed",
+    "AwaitingApproval",
+    "ReadyToMerge",
+    "Revalidating",
+    "Merging",
+    "Merged",
+    "Stale",
+    "Blocked",
+    "MergeUnknown"
+  ],
+  "auditEventTypes": [
+    "case.created",
+    "case.state_changed",
+    "fixer.started",
+    "pr.created",
+    "verification.started",
+    "verification.passed",
+    "verification.failed",
+    "verification.superseded",
+    "approval.accepted",
+    "approval.rejected",
+    "commit.changed",
+    "merge.blocked",
+    "merge.requested",
+    "merge.confirmed",
+    "merge.outcome_unknown",
+    "command.refused",
+    "agent_output.invalid",
+    "ci.observed",
+    "gate_status.posted",
+    "gate_status.corrected",
+    "gate_status.correction_failed",
+    "case.retasked",
+    "policy.violation",
+    "retry.attempted",
+    "fixer.reported",
+    "case.triaged",
+    "delivery.gap"
+  ],
+  "reasonCodes": [
+    {
+      "code": "GITHUB_UNAVAILABLE",
+      "transient": true
+    },
+    {
+      "code": "IDENTITY_MISMATCH",
+      "transient": false
+    },
+    {
+      "code": "ALREADY_MERGED",
+      "transient": false
+    },
+    {
+      "code": "PR_CLOSED",
+      "transient": false
+    },
+    {
+      "code": "PR_DRAFT",
+      "transient": false
+    },
+    {
+      "code": "NOT_MERGEABLE",
+      "transient": false
+    },
+    {
+      "code": "MERGEABILITY_UNKNOWN",
+      "transient": true
+    },
+    {
+      "code": "WRONG_BASE",
+      "transient": false
+    },
+    {
+      "code": "BASE_UNPROTECTED",
+      "transient": false
+    },
+    {
+      "code": "CHECK_SOURCE_MISMATCH",
+      "transient": false
+    },
+    {
+      "code": "PROTECTED_PATH_CHANGED",
+      "transient": false
+    },
+    {
+      "code": "HEAD_MOVED",
+      "transient": false
+    },
+    {
+      "code": "CI_MISSING",
+      "transient": false
+    },
+    {
+      "code": "CI_PENDING",
+      "transient": true
+    },
+    {
+      "code": "CI_FAILED",
+      "transient": false
+    },
+    {
+      "code": "VERIFICATION_MISSING",
+      "transient": false
+    },
+    {
+      "code": "VERIFICATION_PENDING",
+      "transient": true
+    },
+    {
+      "code": "VERIFICATION_STALE",
+      "transient": false
+    },
+    {
+      "code": "VERIFICATION_IDENTITY",
+      "transient": false
+    },
+    {
+      "code": "VERIFICATION_FAILED",
+      "transient": false
+    },
+    {
+      "code": "VERIFICATION_INVALID",
+      "transient": false
+    },
+    {
+      "code": "VERIFICATION_TIMEOUT",
+      "transient": false
+    },
+    {
+      "code": "REJECTED",
+      "transient": false
+    },
+    {
+      "code": "APPROVAL_STALE",
+      "transient": false
+    },
+    {
+      "code": "APPROVAL_MISSING",
+      "transient": false
+    },
+    {
+      "code": "APPROVAL_SHA_MISMATCH",
+      "transient": false
+    },
+    {
+      "code": "NOT_AUTHORIZED",
+      "transient": false
+    },
+    {
+      "code": "UNKNOWN_COMMAND",
+      "transient": false
+    },
+    {
+      "code": "CASE_NOT_FOUND",
+      "transient": false
+    },
+    {
+      "code": "INVALID_STATE",
+      "transient": false
+    },
+    {
+      "code": "PRIVILEGED_DISABLED",
+      "transient": false
+    },
+    {
+      "code": "NOT_ADDRESSED",
+      "transient": false
+    },
+    {
+      "code": "DELEGATED_SENDER",
+      "transient": false
+    },
+    {
+      "code": "PLATFORM_SENDER",
+      "transient": false
+    },
+    {
+      "code": "UNRECOGNISED_SENDER_KIND",
+      "transient": false
+    },
+    {
+      "code": "GATE_HALTED",
+      "transient": false
+    },
+    {
+      "code": "WRONG_ROOM",
+      "transient": false
+    },
+    {
+      "code": "TRIAGE_DECLINED",
+      "transient": false
+    },
+    {
+      "code": "DUPLICATE_REPORT",
+      "transient": false
+    },
+    {
+      "code": "INTAKE_RATE_LIMITED",
+      "transient": false
+    },
+    {
+      "code": "VERIFICATION_ADVISORY",
+      "transient": false
+    },
+    {
+      "code": "REPORT_TOO_LONG",
+      "transient": false
+    },
+    {
+      "code": "INTAKE_BUSY",
+      "transient": false
+    },
+    {
+      "code": "VERIFIER_SIGNATURE_INVALID",
+      "transient": false
+    },
+    {
+      "code": "MERGE_DISABLED",
+      "transient": false
+    },
+    {
+      "code": "CONFIG_INCOMPLETE",
+      "transient": false
+    },
+    {
+      "code": "MERGE_OUTCOME_UNKNOWN",
+      "transient": false
+    },
+    {
+      "code": "AWAITING_MERGE_COMMAND",
+      "transient": true
+    },
+    {
+      "code": "RETRY_LIMIT_REACHED",
+      "transient": false
+    },
+    {
+      "code": "MERGE_ATTEMPTS_EXHAUSTED",
+      "transient": false
+    },
+    {
+      "code": "NOT_REPRODUCED",
+      "transient": false
+    },
+    {
+      "code": "FIXER_TIMEOUT",
+      "transient": false
+    },
+    {
+      "code": "BASE_COMMIT_MISMATCH",
+      "transient": false
+    },
+    {
+      "code": "AGENT_OUTPUT_INVALID",
+      "transient": false
+    },
+    {
+      "code": "RATE_LIMITED",
+      "transient": true
+    }
+  ],
+  "agentActivityTypes": [
+    "fixer.started",
+    "fixer.reported",
+    "pr.created",
+    "commit.changed",
+    "verification.started",
+    "verification.passed",
+    "verification.failed",
+    "verification.superseded",
+    "agent_output.invalid",
+    "case.retasked"
+  ]
+}

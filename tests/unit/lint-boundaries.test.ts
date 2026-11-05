@@ -41,6 +41,21 @@ describe("module boundaries", () => {
     for (const code of bad) expect((await errors(code, `${SRC}/signer/server.ts`)).length, code).toBeGreaterThan(0);
   });
 
+  it("the console API may not reach the gate, GitHub, Switch, the signer, the filesystem or a child process", async () => {
+    const file = "apps/console-api/src/store.ts";
+    const ok = [
+      `import { CaseId } from "@loopback/contracts";`, `import { CaseDetail } from "@loopback/console-contracts";`, `import { z } from "zod";`,
+      `import Database from "better-sqlite3";`, `import { createServer } from "node:http";`, `import { randomUUID } from "node:crypto";`, `import { sanitize } from "./sanitize.js";`,
+    ];
+    for (const code of ok) expect(await errors(code, file), code).toEqual([]);
+    const bad = [
+      `import { x } from "../../switch-gate/src/config.js";`, `import { mergePullRequest } from "../../switch-gate/src/github/merge.js";`,
+      `import { signReport } from "../../switch-gate/src/agents/signature.js";`, `import { x } from "@loopback/switch-gate";`,
+      `import { readFileSync } from "node:fs";`, `import { execFile } from "node:child_process";`, `import { x } from "octokit";`, `import { x } from "./sub/deep.js";`,
+    ];
+    for (const code of bad) expect((await errors(code, file)).length, code).toBeGreaterThan(0);
+  });
+
   it("only cases/service.ts may import the merge operation", async () => {
     const code = `import { mergePullRequest } from "../github/merge.js";`;
     expect(await errors(code, `${SRC}/cases/service.ts`)).toEqual([]);

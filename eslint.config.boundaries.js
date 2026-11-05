@@ -37,6 +37,13 @@ const SIGNER_PURITY = {
   message: "signer/** may import only @loopback/contracts, zod, node:*, ../agents/{signature,capability}.js and sibling signer modules.",
 };
 
+// The console API runs apart from the gate and holds none of its credentials. It may read the
+// database and the shared contracts; it may not reach the gate's code, GitHub, Switch or the signer.
+const CONSOLE_API_PURITY = {
+  regex: "^(?!@loopback/(contracts|console-contracts)$|zod$|better-sqlite3$|node:(http|crypto)$|\\./[^/]+$).*",
+  message: "apps/console-api may import only the contracts, zod, better-sqlite3, node:http, node:crypto and its sibling modules.",
+};
+
 function restrict(files, patterns, ignores = []) {
   return {
     files,
@@ -58,4 +65,5 @@ export const boundaryConfigs = [
   restrict([`${SRC}/audit/**/*.ts`], [MERGE, TRANSPORT]),
   // Composition root: builds and injects the merge capability; holds no audit internals.
   restrict([`${SRC}/main.ts`, `${SRC}/app.ts`], [AUDIT]),
+  restrict(["apps/console-api/src/**/*.ts"], [CONSOLE_API_PURITY]),
 ];

@@ -4,8 +4,9 @@
     "noEmit": true,
     "rootDir": ".",
     "paths": {
-      "@loopback/contracts": ["./packages/contracts/src/index.ts"]
+      "@loopback/contracts": ["./packages/contracts/src/index.ts"],
+      "@loopback/console-contracts": ["./packages/console-contracts/src/index.ts"]
     }
   },
-  "include": ["tests", "apps/switch-gate/src", "packages/contracts/src", "vitest.config.ts", "eslint.config.boundaries.d.ts"]
+  "include": ["tests", "apps/switch-gate/src", "apps/console-api/src", "packages/contracts/src", "packages/console-contracts/src", "vitest.config.ts", "eslint.config.boundaries.d.ts"]
 }

@@ -9,7 +9,7 @@ export default tseslint.config(
   {
     languageOptions: {
       parserOptions: {
-        project: ["./apps/switch-gate/tsconfig.json", "./packages/contracts/tsconfig.json", "./tsconfig.tests.json"],
+        project: ["./apps/switch-gate/tsconfig.json", "./apps/console-api/tsconfig.json", "./packages/contracts/tsconfig.json", "./packages/console-contracts/tsconfig.json", "./tsconfig.tests.json"],
         tsconfigRootDir: import.meta.dirname,
       },
     },

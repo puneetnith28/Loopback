@@ -11,7 +11,7 @@ COPY apps/switch-gate/package.json apps/switch-gate/tsconfig.json apps/switch-ga
 RUN npm ci --no-audit --no-fund
 COPY packages/contracts/src packages/contracts/src
 COPY apps/switch-gate/src apps/switch-gate/src
-RUN npx tsc -b && npm prune --omit=dev --no-audit --no-fund
+RUN npx tsc -b apps/switch-gate && npm prune --omit=dev --no-audit --no-fund
 
 FROM node:22.23.3-bookworm-slim AS runtime
 ENV NODE_ENV=production \

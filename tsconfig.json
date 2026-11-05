@@ -2,6 +2,8 @@
   "files": [],
   "references": [
     { "path": "packages/contracts" },
-    { "path": "apps/switch-gate" }
+    { "path": "packages/console-contracts" },
+    { "path": "apps/switch-gate" },
+    { "path": "apps/console-api" }
   ]
 }

@@ -1,0 +1,21 @@
+{
+  "items": [
+    {
+      "id": "4438d901-484b-4dfe-8796-bf921de240bc",
+      "sequence": 1,
+      "headSha": "5dbde10910a36804989811f9b3279c290ca292c1",
+      "isCurrentHead": true,
+      "status": "pass",
+      "signature": "valid",
+      "advisory": false,
+      "report": {
+        "verdict": "pass",
+        "regressionTestFailsBeforeFix": true,
+        "summary": "The regression test fails on the base and passes on the head. No protected files changed.",
+        "findings": []
+      },
+      "requestedAt": "2026-11-04T06:15:00.000Z",
+      "completedAt": "2026-11-04T06:22:00.000Z"
+    }
+  ]
+}

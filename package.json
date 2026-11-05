@@ -7,7 +7,9 @@
   "type": "module",
   "workspaces": [
     "packages/contracts",
-    "apps/switch-gate"
+    "packages/console-contracts",
+    "apps/switch-gate",
+    "apps/console-api"
   ],
   "engines": {
     "node": ">=22.12.0 <23"
@@ -25,7 +27,9 @@
     "smoke": "node scripts/smoke.mjs",
     "ruleset-proof": "node scripts/ruleset-proof.mjs",
     "backup": "node --env-file=.env scripts/backup-db.mjs",
-    "agents": "node scripts/sh.mjs deploy/isolation/agents.sh"
+    "agents": "node scripts/sh.mjs deploy/isolation/agents.sh",
+    "console-api": "node --env-file=.env.console apps/console-api/dist/main.js",
+    "console-api:mock": "node scripts/console-mock.mjs"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

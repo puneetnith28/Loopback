@@ -1,0 +1,14 @@
+{
+  "name": "@loopback/console-api",
+  "version": "0.1.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./dist/main.js",
+  "dependencies": {
+    "@loopback/console-contracts": "0.1.0",
+    "@loopback/contracts": "0.1.0",
+    "better-sqlite3": "13.0.3",
+    "zod": "4.6.7"
+  }
+}
