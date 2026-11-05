@@ -49,9 +49,14 @@ export function assessWindowsAcl(acl: WindowsAcl, kind: "file" | "directory"): s
 const READ_ACL_SCRIPT = [
   "$ErrorActionPreference='Stop'",
   "$t=[System.Security.Principal.SecurityIdentifier]",
-  "$a=Get-Acl -LiteralPath $env:LOOPBACK_ACL_PATH",
-  "$r=@($a.GetAccessRules($true,$true,$t)|ForEach-Object{@{sid=$_.IdentityReference.Value;allow=($_.AccessControlType -eq 'Allow');rights=$_.FileSystemRights.value__;inheritOnly=(($_.PropagationFlags -band 2) -ne 0)}})",
-  "@{owner=$a.GetOwner($t).Value;user=[System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value;aces=$r}|ConvertTo-Json -Compress -Depth 4",
+  "$p=$env:LOOPBACK_ACL_PATH",
+  "$a=Get-Acl -LiteralPath $p",
+  "$o=$a.GetOwner($t)",
+  "$owner=if($o){$o.Value}else{''}",
+  "$u=[System.Security.Principal.WindowsIdentity]::GetCurrent().User",
+  "$user=if($u){$u.Value}else{''}",
+  "$r=@($a.GetAccessRules($true,$true,$t)|ForEach-Object{if($_.IdentityReference){@{sid=$_.IdentityReference.Value;allow=($_.AccessControlType -eq 'Allow');rights=$_.FileSystemRights.value__;inheritOnly=(($_.PropagationFlags -band 2) -ne 0)}}})",
+  "@{owner=$owner;user=$user;aces=$r}|ConvertTo-Json -Compress -Depth 4",
 ].join(";");
 
 function parseAcl(text: string): WindowsAcl {
@@ -68,14 +73,19 @@ function parseAcl(text: string): WindowsAcl {
 
 /** Read a path's ACL. The absolute PowerShell path avoids running whatever PATH finds first. */
 export function readWindowsAcl(path: string): WindowsAcl {
-  const systemRoot = process.env.SystemRoot ?? "C:\\Windows";
+  const systemRoot = process.env.SystemRoot ?? process.env.SYSTEMROOT ?? "C:\\Windows";
   const powershell = join(systemRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
+  const fullPath = resolve(path).replace(/\//g, "\\");
   const out = execFileSync(powershell, ["-NoProfile", "-NonInteractive", "-Command", READ_ACL_SCRIPT], {
     encoding: "utf8",
     timeout: 20_000,
-    stdio: ["ignore", "pipe", "ignore"],
+    stdio: ["ignore", "pipe", "pipe"],
     windowsHide: true,
-    env: { SystemRoot: systemRoot, LOOPBACK_ACL_PATH: path, ...(process.env.PSModulePath ? { PSModulePath: process.env.PSModulePath } : {}) },
+    env: {
+      ...process.env,
+      SystemRoot: systemRoot,
+      LOOPBACK_ACL_PATH: fullPath,
+    },
   });
   return parseAcl(out);
 }
