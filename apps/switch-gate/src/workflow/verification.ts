@@ -13,9 +13,12 @@ import type { AgentInbox, CommandContext, FixerHandoff, Reply } from "../command
 import { RateLimited, type GitHubReader } from "../github/client.js";
 import type { Db } from "../persistence/db.js";
 import {
-  completeRun, getCase, getRun, insertApproval, insertRun, supersedeOpenRuns, latestCi, latestRunForHead, listApprovals, listCasesInStates,
+  baseShaForCommit, completeRun, getCase, getRun, insertApproval, insertRun, kvGet, kvSet, supersedeOpenRuns, latestCi, latestRunForHead, listApprovals, listCasesInStates,
   listExpiredRuns, recordCommit, type CaseRecord,
 } from "../persistence/repos.js";
+
+/** How long a verification run may stay silent before the operator is reminded, once per run. */
+const VERIFY_REMINDER_MS = 5 * 60_000;
 
 export interface WorkflowDeps {
   readonly db: Db;
@@ -43,10 +46,9 @@ export interface WorkflowDeps {
    */
   readonly verificationAdvisory: boolean;
   /**
-   * D28: the verifier's Ed25519 public key. In isolated mode (verificationAdvisory false) every
-   * report must carry a valid signature, and a missing key rejects every report (fail closed).
-   * In advisory mode an unsigned report is accepted as before; a signature that is present but
-   * does not verify is always rejected.
+   * D28, D32: the verifier's Ed25519 public key. When it is set, every report must carry a valid
+   * signature, in either mode. With no key, isolated mode rejects every report (fail closed) and
+   * advisory mode accepts reports as unverified.
    */
   readonly verifierPublicKey?: KeyObject | null;
   /**
@@ -117,6 +119,9 @@ export class VerificationWorkflow implements AgentInbox, FixerHandoff {
     const run = db.transaction(() => {
       if (c.state === "PRCreated" || c.state === "Stale") {
         transitionInTx(db, { caseId: c.id, to: "Verifying", actorId, trigger: "system", reason: null, auditType: "verification.started", targetSha: c.headSha }, now());
+      } else if (c.state === "VerificationFailed" && force) {
+        // D33: only verifyCommand gets here, after checking the run timed out on an unchanged head.
+        transitionInTx(db, { caseId: c.id, to: "Verifying", actorId, trigger: "command", reason: null, auditType: "verification.started", targetSha: c.headSha }, now());
       }
       if (!force && open?.status === "requested") return null; // reuse the open run
       const created = insertRun(db, c.id, c.repo, c.prNumber!, c.headSha!, now());
@@ -134,8 +139,10 @@ export class VerificationWorkflow implements AgentInbox, FixerHandoff {
       { runId: run.id, caseId: c.id, repository: c.repo, pullRequest: c.prNumber, headSha: c.headSha },
       issuer, now(), Math.min(this.d.verifyTimeoutMs, CAPABILITY_MAX_TTL_MS),
     );
+    const baseSha = baseShaForCommit(db, c.id, c.headSha);
     await this.d.chat.post(c.roomId, [
       `${this.d.verifierAlias} verify ${c.id}: repository ${c.repo}, PR #${c.prNumber}, head ${c.headSha}.`,
+      ...(baseSha === undefined ? [] : [`Compare against base ${baseSha} (the code before this change).`]),
       `Run id: ${run.id}. Inspect exactly that commit. Reply with one loopback-report block whose "runId" is "${run.id}".`,
       ...(capability === null ? [] : [`Signing capability: ${capability}`]),
     ].join("\n"), c.threadId);
@@ -145,13 +152,34 @@ export class VerificationWorkflow implements AgentInbox, FixerHandoff {
     return this.d.locks.with(caseId, async () => {
       const c = getCase(this.d.db, caseId);
       if (!c) return { text: formatReason("CASE_NOT_FOUND", { caseId }), caseId: null };
-      if (!["PRCreated", "Stale", "Verifying", "AwaitingApproval", "ReadyToMerge"].includes(c.state) || c.headSha === null) {
+      if (c.state === "VerificationFailed") {
+        const refused = await this.retryProblem(ctx, c);
+        if (refused !== null) return refused;
+      } else if (!["PRCreated", "Stale", "Verifying", "AwaitingApproval", "ReadyToMerge"].includes(c.state)) {
         return this.refuse(ctx, c, "INVALID_STATE", "verify");
       }
+      if (c.headSha === null) return this.refuse(ctx, c, "INVALID_STATE", "verify");
       this.d.halt.assertRunning("verify");
       await this.requestVerificationLocked(c.id, ctx.msg.sender, true);
       return { text: `Re-verification of ${displaySha(c.headSha)} requested.`, caseId: c.id };
     });
+  }
+
+  /**
+   * D33: a verification that only ran out of time may be retried on the same commit. Any other
+   * failure, a moved head or a problem with the base branch still needs a retask.
+   */
+  private async retryProblem(ctx: CommandContext, c: CaseRecord): Promise<Reply | null> {
+    const latest = c.headSha === null ? undefined : latestRunForHead(this.d.db, c.id, c.headSha);
+    if (latest?.status !== "timeout") return this.refuse(ctx, c, "INVALID_STATE", "verify");
+    this.d.halt.assertRunning("verify");
+    const live = await this.livePull(c);
+    const base = await this.check(c);
+    this.d.halt.assertRunning("verify");
+    if (typeof live === "string") return this.refuse(ctx, c, live, "verify");
+    if (live.headSha !== c.headSha) return this.refuse(ctx, c, "HEAD_MOVED", "verify", { headSha: live.headSha });
+    if (base !== null) return this.refuse(ctx, c, base, "verify");
+    return null;
   }
 
   // --- agent output (7.4, 7.6) -------------------------------------------------------
@@ -255,9 +283,9 @@ export class VerificationWorkflow implements AgentInbox, FixerHandoff {
     }
     const check = verifyReportSignature(report, key);
     if (check.ok) return { status: "valid", reject: null };
-    if (check.reason === "missing") {
-      return this.d.verificationAdvisory ? { status: "absent", reject: null } : { status: "absent", reject: "the report is not signed" };
-    }
+    // D32: once a key is configured a report must be signed, in advisory mode too. An unsigned
+    // report with stale results reached the gate during the first live run.
+    if (check.reason === "missing") return { status: "absent", reject: "the report is not signed" };
     return { status: "invalid", reject: `its signature is ${check.reason === "malformed" ? "malformed" : "not valid for this report and key"}` };
   }
 
@@ -274,7 +302,10 @@ export class VerificationWorkflow implements AgentInbox, FixerHandoff {
     if (run.status in failed) {
       const reason = failed[run.status]!;
       transition(db, { caseId: c.id, to: "VerificationFailed", actorId: "system", trigger: "system", reason, targetSha: c.headSha }, now());
-      await this.announce(c, `${formatReason(reason, { caseId: c.id })} A maintainer can retask ${c.id} with a note.`);
+      const next = reason === "VERIFICATION_TIMEOUT"
+        ? `A maintainer can retry this commit with ${this.d.gateMention} verify ${c.id}, or retask ${c.id} with a note.`
+        : `A maintainer can retask ${c.id} with a note.`;
+      await this.announce(c, `${formatReason(reason, { caseId: c.id })} ${next}`);
       return;
     }
     let ciOk = true;
@@ -318,6 +349,25 @@ export class VerificationWorkflow implements AgentInbox, FixerHandoff {
           return true;
         })();
         if (done) await this.progressLocked(run.caseId);
+      }));
+    }
+    await this.remindSilentRuns(nowMs);
+  }
+
+  /**
+   * An agent waiting on an unanswered permission prompt looks idle in chat, and stalled a live
+   * run for 25 minutes. Say so once per run, while there is still time to act on it.
+   */
+  private async remindSilentRuns(nowMs: number): Promise<void> {
+    const { db } = this.d;
+    for (const run of listExpiredRuns(db, new Date(nowMs - VERIFY_REMINDER_MS))) {
+      const key = `verify-reminded:${run.id}`;
+      if (kvGet(db, key) !== undefined) continue;
+      await this.safely(() => this.d.locks.with(run.caseId, async () => {
+        const c = getCase(db, run.caseId);
+        if (!c || c.state !== "Verifying") return;
+        kvSet(db, key, "1");
+        await this.announce(c, `No verifier report yet for ${c.id} after 5 minutes (run ${run.id}). If the verifier is waiting on a permission prompt, answer it: the run keeps counting down meanwhile.`);
       }));
     }
   }

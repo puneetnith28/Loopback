@@ -1,0 +1,21 @@
+// Optional: stops a host-run verifier asking about the routine commands in prompts/verifier.md.
+// Copy to opencode.jsonc in the verifier's own clone and replace <LOOPBACK> with the path to this
+// repository. See "Fewer permission prompts for the verifier" in docs/windows.md.
+//
+// Later rules win. Everything not listed still asks a person, and signing stays a human decision.
+{
+  "$schema": "https://opencode.ai/config.json",
+  "permission": {
+    "bash": {
+      "*": "ask",
+      "pwd": "allow",
+      "git fetch origin": "allow",
+      "git diff *": "allow",
+      "node <LOOPBACK>/scripts/host-agent-tool.mjs test *": "allow",
+      "docker *": "deny",
+      "git push *": "deny",
+      "git checkout *": "deny",
+      "git stash *": "deny"
+    }
+  }
+}

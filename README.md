@@ -122,7 +122,8 @@ See [SECURITY.md](SECURITY.md) and the full [threat model](docs/threat-model.md)
 each threat to its defence and tests and lists the accepted residual risks. Known limits: single
 instance, local only. Verification is advisory until the verifier's isolation is proven in its own
 container (`deploy/isolation/`): on the live Windows install the agents run on the host as the desktop
-user, and in advisory mode the gate accepts an unsigned report, so a human must review before approving.
+user, so they can reach that user's files. A signature proves a report wasn't altered, not that its tests
+ran, so a human must review before approving.
 Not yet met: the ruleset proof that only the gatekeeper can merge, a merge on a per-run branch, an extra
 push turning a live case Stale, two clean end-to-end runs, a fresh-clone test and a verifier that
 completes its brief without human guidance. [docs/release-readiness.md](docs/release-readiness.md) has

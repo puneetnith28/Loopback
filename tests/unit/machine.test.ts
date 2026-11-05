@@ -6,7 +6,7 @@ import { IllegalTransition, assertTransition, isAllowedTransition, isTerminal, t
 const SPEC: Record<CaseState, CaseState[]> = {
   Reported: ["Triaged", "Blocked"], Triaged: ["FixInProgress"], FixInProgress: ["PRCreated", "Blocked"],
   PRCreated: ["Verifying", "Stale"], Verifying: ["AwaitingApproval", "VerificationFailed", "Stale"],
-  VerificationFailed: ["FixInProgress"], AwaitingApproval: ["ReadyToMerge", "Stale"],
+  VerificationFailed: ["FixInProgress", "Verifying"], AwaitingApproval: ["ReadyToMerge", "Stale"],
   ReadyToMerge: ["Revalidating", "Stale"], Revalidating: ["Merging", "Stale", "Blocked"],
   Merging: ["Merged", "MergeUnknown"], MergeUnknown: ["Revalidating", "Merged"],
   Stale: ["Verifying"], Blocked: ["FixInProgress"], Merged: [],
@@ -19,6 +19,7 @@ describe("state machine (§8.2 + D18 exceptions)", () => {
     if (from === "Revalidating" && to === "Merging") return "maintainer_merge";
     if (to === "Merged") return "reconcile";
     if ((from === "Blocked" || from === "VerificationFailed") && to === "FixInProgress") return "command";
+    if (from === "VerificationFailed" && to === "Verifying") return "command"; // D33
     return "system";
   };
 

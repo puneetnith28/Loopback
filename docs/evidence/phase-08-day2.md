@@ -77,11 +77,15 @@ Read these before relying on this evidence.
 4. **Four attempts were needed.** Three runs timed out (`31a4a634`, `42ff21e2`, `bab56602`). Causes
    found: the OpenCode free-tier limit; a permission prompt left unanswered; the runner's tmpfs losing
    its owner after a machine restart (now fixed); report instructions that omitted the findings format.
-   Each retry needed a new commit, by design, which is why the PR carries three extra tests.
-5. **An unsigned report could pass.** In advisory mode the gate accepts a report without a signature.
-   The stale report above was refused only for its format. The passing report was checked by hand:
-   signature `valid`, and its results matched the runner's result files.
+   Each retry needed a new commit, by design at the time, which is why the PR carries three extra
+   tests. D33 has since added `verify` as a retry after a timeout.
+5. **An unsigned report could have passed on this run.** The gate then accepted unsigned reports in
+   advisory mode. The stale report above was refused only for its format. The passing report was
+   checked by hand: signature `valid`, and its results matched the runner's result files. D32 has
+   since made the gate reject unsigned reports whenever a key is configured.
 6. **`verify` delivery is unexplained.** A `verify LB-001` posted at 20:42 UTC on 2026-11-04 never
-   reached the gate's records, while other commands did. Not investigated.
+   reached the gate's records, while other commands did. The router marks every delivered event as
+   processed, so it was not delivered to the gate. Switch's log for that time shows no cause. A
+   `switch.inbound` log line has been added so that a repeat can be diagnosed.
 7. **Not done:** extra push → Stale on a live PR, the nine ruleset outcomes, two clean end-to-end runs,
    the fresh-clone test, and a security review of this phase.

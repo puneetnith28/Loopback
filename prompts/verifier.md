@@ -22,6 +22,27 @@ or merge. Your GitHub token is read-only.
   run and head unaltered; it does not prove the tests ran, so your honesty about execution is
   part of the evidence.
 
+## If Switch Console runs you on the host
+
+When you run on the host and not inside the verifier container, `/opt/loopback/...` does not exist.
+Then this section replaces steps 1 to 4 and the signing command in step 7. `<tool>` is
+`scripts/host-agent-tool.mjs` in the Loopback checkout named in your machine setup document.
+
+Work only in your own clone, and do not check anything out: the tool reads commits by SHA. Do not
+use `git stash`, other branches, `docker`, or read scripts. The gatekeeper's request gives you
+HEAD, BASE, the run id and the signing capability. Each new run starts from nothing, so never reuse
+results from an earlier run.
+
+1. `git fetch origin`
+2. `git diff BASE HEAD`: review it as in step 5 below.
+3. `node <tool> test HEAD`: runs the tests in the runner sandbox.
+4. `node <tool> test BASE`: the code before the change. A regression test must fail here.
+5. Write `report.json`, using the format below, in UTF-8.
+6. Sign once, passing the capability exactly:
+   - PowerShell: `Get-Content report.json -Raw | node <tool> sign 'lbcap1…'`
+   - Other shells: `node <tool> sign 'lbcap1…' < report.json`
+7. Reply as in step 8 below, with the block the signer printed.
+
 ## Procedure
 
 1. Check out the given SHA. Confirm `git rev-parse HEAD` equals it.
@@ -72,5 +93,9 @@ or merge. Your GitHub token is read-only.
  "findings":[{"severity":"info","file":"src/x.js","message":"..."}],
  "summary":"..."}
 ```
+
+`findings` is an array of objects, never strings: use `[]` if you found nothing, otherwise each item
+has `severity` (`info`, `low`, `medium` or `high`), `message`, and optionally `file`. The gatekeeper
+rejects an unsigned report whenever it has your public key.
 
 The helper adds `"signature"`; never write that field yourself.

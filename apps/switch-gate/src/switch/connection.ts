@@ -273,6 +273,8 @@ export class SwitchConnection {
       // Not representable (e.g. an oversized body): it is skipped for good, so say which one.
       this.o.log.error({ op: "switch.message", messageId: e.payload.message_id }, "dropped a message in the gate's room that the gate cannot accept");
     }
+    // No body or sender: enough to tell "Switch never delivered it" from "the gate ignored it".
+    if (msg !== null) this.o.log.info({ op: "switch.inbound", roomId: msg.roomId, messageId: msg.messageId, addressed: msg.addressed }, "message received");
     // Handed over strictly in order; the position is saved only after the handler ran.
     // Nothing runs once the connection has stopped: a client that lost the connection
     // (or is shutting down) must not act on messages, and the position is left for the

@@ -198,10 +198,13 @@ describe("advisory mode (VERIFIER_ISOLATION_PROVEN=false)", () => {
     expect(audits(h, "verification.passed")[0]!.payload).toMatchObject({ advisory: true, signature: "absent" });
   });
 
-  it("with a key configured: unsigned is accepted as absent, a valid signature is recorded, a bad one is rejected", async () => {
+  it("with a key configured (D32): unsigned is rejected, a valid signature is recorded, a bad one is rejected", async () => {
     const unsigned = await verifying({ verificationAdvisory: true });
     await unsigned.verifierReply("pass", { signature: undefined });
-    expect(audits(unsigned, "verification.passed")[0]!.payload).toMatchObject({ signature: "absent" });
+    expect(runStatus(unsigned)).toEqual(["requested"]);
+    expect(unsigned.state()).toBe("Verifying");
+    expect(audits(unsigned, "verification.passed")).toEqual([]);
+    expect(audits(unsigned, "agent_output.invalid").at(-1)).toMatchObject({ reason: "VERIFIER_SIGNATURE_INVALID", payload: { signature: "absent" } });
 
     const valid = await verifying({ verificationAdvisory: true });
     await valid.verifierReply("pass");

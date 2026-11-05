@@ -51,6 +51,16 @@ unresolved merge only postpones the check. Before tasking the fixer the gate che
 itself enforces (outcomes 1 to 4, and the tag) is proved only by `npm run ruleset-proof -- --apply`,
 which has **not** been run.
 
+**Unsigned verifier reports (D32).** With `VERIFIER_PUBLIC_KEY` set, the gate rejects an unsigned report
+in advisory mode as well. During the first live run an unsigned report carrying results from an older
+commit reached the gate and was refused only for a format error. A signature still proves integrity
+and possession of the signer's capability, not that tests ran.
+
+**Retry after a timeout (D33).** `verify` is accepted from `VerificationFailed` only when the latest run
+for the current head timed out, the live PR head is unchanged and the base check passes. It is a
+privileged, audited command. It issues a new run and capability, and a late report for the old run
+stays refused. A `fail` verdict, CI failure or moved head still needs a retask.
+
 ## Prompt review checklist (§14 "Malicious repo content")
 
 - `prompts/fixer.md` and `prompts/verifier.md` name every untrusted input (issue text, logs,

@@ -73,6 +73,10 @@ at most 50 public reports awaiting triage at once (further reports get `INTAKE_B
 are triaged). The triage notice shows the whole report; if it cannot be posted, the gate re-sends
 it every poll interval. A declined report cannot be retasked.
 
+**A verification that times out.** If the head hasn't moved, `@loopback-gate verify <case>` starts a new
+run on the same commit. A `fail` verdict, a CI failure or a moved head needs `retask`, and then a new
+commit from the fixer. The gate reminds the room once if a run has no report after 5 minutes.
+
 ## Delivery gaps
 
 If Switch reports undelivered events, the maintainers' room gets a notice with a count (no

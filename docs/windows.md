@@ -72,6 +72,24 @@ shutdown. Exit codes are the same as on Linux.
 **Backups.** `npm run backup` takes a verified online backup. Schedule it with Task Scheduler
 instead of the systemd timer.
 
+**Logs.** To keep the gate's log, run `npm run gate *>> "$HOME\.loopback\gate.log"`. Each delivered
+message is logged as `switch.inbound`, with no body or sender. If a command gets no reply and has no
+such line, Switch never delivered it to the gate.
+
+**After a restart.** Start Docker Desktop first, then Switch Console (it skips Mattermost if Docker
+isn't running), then `npm run agents -- up`, then the gate.
+
+### Fewer permission prompts for the verifier
+
+An agent waiting on a prompt looks idle in chat while its run counts down, so the gate posts one
+reminder after 5 minutes. To avoid most prompts, copy `templates/opencode-verifier.jsonc` to
+`opencode.jsonc` in the verifier's clone and set the path in it. Signing and anything unlisted still
+ask. Two limits apply:
+
+- This has not been tested with Console's own permission settings yet, so check that it takes effect.
+- OpenCode reads this file from the working folder, so PR code must never be checked out there. A PR
+  could otherwise bring its own permissions. `prompts/verifier.md` forbids checking anything out.
+
 ## Agent isolation on Docker Desktop
 
 Run the scripts through npm, which finds Git Bash. On Windows `bash` on PATH is usually the WSL

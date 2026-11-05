@@ -112,6 +112,12 @@ export function recordCommit(db: Db, caseId: string, headSha: string, baseSha: s
     .run(caseId, headSha, baseSha, now.toISOString()).changes === 1;
 }
 
+/** The base commit recorded when this head was first seen on its PR. */
+export function baseShaForCommit(db: Db, caseId: string, headSha: string): string | undefined {
+  const row = db.prepare("SELECT base_sha FROM case_commits WHERE case_id = ? AND head_sha = ?").get(caseId, headSha) as { base_sha: string } | undefined;
+  return row?.base_sha;
+}
+
 export interface CiEvidenceInput {
   readonly caseId: string;
   readonly headSha: string;

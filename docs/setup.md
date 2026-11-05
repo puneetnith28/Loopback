@@ -84,8 +84,8 @@ credential helper and no write token.
 
 - **Advisory** (`VERIFIER_ISOLATION_PROVEN=false`, the default): reports are accepted from the
   exact verifier id, bound to the run, repository, PR and full SHA, and re-checked against the
-  live head, but labelled *advisory* in chat and audit. An unsigned report is accepted; a
-  signature that is present but invalid is rejected.
+  live head, but labelled *advisory* in chat and audit. With `VERIFIER_PUBLIC_KEY` set, a report must
+  carry a valid signature (D32). With no key, reports are accepted and recorded as unverified.
 - **Isolated** (`VERIFIER_ISOLATION_PROVEN=true`): additionally every report must carry a valid
   Ed25519 signature from the verifier's key, checked before anything is recorded. The gate refuses
   to start unless `VERIFIER_PUBLIC_KEY`, `LOOPBACK_FIXER_AGENT_ID` and `LOOPBACK_VERIFIER_AGENT_ID`

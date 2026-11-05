@@ -3,14 +3,14 @@ import { isTransient, type CaseState, type ReasonCode } from "@loopback/contract
 /** What caused a transition. Guards depend on it (D15, D18). */
 export type TransitionTrigger = "command" | "maintainer_merge" | "poller" | "reconcile" | "sweep" | "agent_report" | "system";
 
-/** Transition table from implementation §8.2, unchanged. */
+/** Transition table from implementation §8.2, plus D33's retry of a timed-out verification. */
 const T: Readonly<Record<CaseState, readonly CaseState[]>> = {
   Reported: ["Triaged", "Blocked"],
   Triaged: ["FixInProgress"],
   FixInProgress: ["PRCreated", "Blocked"],
   PRCreated: ["Verifying", "Stale"],
   Verifying: ["AwaitingApproval", "VerificationFailed", "Stale"],
-  VerificationFailed: ["FixInProgress"],
+  VerificationFailed: ["FixInProgress", "Verifying"],
   AwaitingApproval: ["ReadyToMerge", "Stale"],
   ReadyToMerge: ["Revalidating", "Stale"],
   Revalidating: ["Merging", "Stale", "Blocked"],
@@ -54,6 +54,8 @@ export function isAllowedTransition(
     if (to === "Merged") return trigger === "maintainer_merge" || trigger === "reconcile" || trigger === "poller";
     // D10: re-tasking the fixer is an explicit maintainer command.
     if ((from === "Blocked" || from === "VerificationFailed") && to === "FixInProgress") return trigger === "command";
+    // D33: retrying a timed-out verification is an explicit maintainer command too.
+    if (from === "VerificationFailed" && to === "Verifying") return trigger === "command";
     return true;
   }
   // D18 exception (1): transient Blocked cases re-enter Revalidating only on a maintainer
