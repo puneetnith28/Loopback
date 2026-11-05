@@ -1,0 +1,10 @@
+.sha { display: inline-flex; align-items: center; gap: var(--space-1); max-width: 100%; font-family: var(--font-mono); font-size: var(--text-sm); color: var(--color-text); }
+.value { padding: 1px var(--space-1-5); border-radius: var(--radius-xs); background: var(--color-inset); border: var(--border-width) solid var(--color-border-subtle); overflow-wrap: anywhere; letter-spacing: 0.01em; }
+.full .value { word-break: break-all; }
+.muted { color: var(--color-text-tertiary); }
+.copied { font-family: var(--font-sans); font-size: var(--text-xs); color: var(--color-success-text); }
+.command { display: grid; gap: var(--space-2); }
+.commandRow { display: flex; align-items: flex-start; gap: var(--space-2); padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3); background: var(--color-inset); border: var(--border-width) solid var(--color-human-border); border-radius: var(--radius-md); }
+.commandText { flex: 1; min-width: 0; font-family: var(--font-mono); font-size: var(--text-sm); line-height: var(--leading-sm); padding-top: 6px; overflow-wrap: anywhere; color: var(--color-text); }
+.commandText .prompt { color: var(--color-human-text); user-select: none; margin-right: var(--space-1-5); }
+.commandNote { font-size: var(--text-xs); line-height: var(--leading-xs); color: var(--color-text-tertiary); }

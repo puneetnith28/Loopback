@@ -1,0 +1,18 @@
+.timeline { display: grid; }
+.event { position: relative; display: grid; grid-template-columns: 28px minmax(0, 1fr); column-gap: var(--space-3); padding-bottom: var(--space-4); }
+.event::before { content: ""; position: absolute; left: 13px; top: 30px; bottom: 2px; width: 2px; background: var(--color-border-subtle); }
+.event:last-child { padding-bottom: 0; }
+.event:last-child::before { display: none; }
+.marker { display: grid; place-items: center; width: 28px; height: 28px; border-radius: var(--radius-md); border: var(--border-width) solid var(--tone-border); background: var(--tone-surface); color: var(--tone-text); }
+.content { display: grid; gap: var(--space-1); min-width: 0; padding-top: 3px; }
+.head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); }
+.title { font-weight: var(--weight-medium); color: var(--color-text); }
+.meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); font-size: var(--text-xs); line-height: var(--leading-xs); color: var(--color-text-tertiary); }
+.actor { font-family: var(--font-mono); color: var(--color-text-secondary); overflow-wrap: anywhere; }
+.detail { margin-top: var(--space-1); padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm); background: var(--color-inset); border: var(--border-width) solid var(--color-border-subtle); color: var(--color-text-secondary); overflow-wrap: anywhere; }
+.human { --tone-surface: var(--color-human-surface); --tone-border: var(--color-human-border); --tone-text: var(--color-human-text); }
+.machine { --tone-surface: var(--color-machine-surface); --tone-border: var(--color-machine-border); --tone-text: var(--color-machine-text); }
+.gate { --tone-surface: var(--color-neutral-surface); --tone-border: var(--color-border-strong); --tone-text: var(--color-text); }
+.github { --tone-surface: var(--color-neutral-surface); --tone-border: var(--color-neutral-border); --tone-text: var(--color-text-secondary); }
+.verification { --tone-surface: var(--color-success-surface); --tone-border: var(--color-success-border); --tone-text: var(--color-success-text); }
+.failure, .rejection { --tone-surface: var(--color-danger-surface); --tone-border: var(--color-danger-border); --tone-text: var(--color-danger-text); }

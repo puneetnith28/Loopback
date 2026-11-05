@@ -1,0 +1,17 @@
+.stamp {
+  display: inline-flex; align-items: stretch;
+  border: var(--border-width) solid var(--tone-border); border-radius: var(--radius-sm);
+  font-size: var(--text-2xs); line-height: var(--leading-2xs); letter-spacing: var(--tracking-wide);
+  text-transform: uppercase; white-space: nowrap; overflow: hidden; vertical-align: middle;
+}
+.source { display: inline-flex; align-items: center; gap: 5px; padding: 2px var(--space-1-5); background: var(--tone-surface); color: var(--tone-text); font-weight: var(--weight-semibold); }
+.trust { display: inline-flex; align-items: center; padding: 2px var(--space-1-5); color: var(--color-text-tertiary); font-family: var(--font-mono); letter-spacing: 0; text-transform: none; border-left: var(--border-width) solid var(--tone-border); }
+
+.github { --tone-surface: var(--color-neutral-surface); --tone-border: var(--color-neutral-border); --tone-text: var(--color-text); }
+.gate { --tone-surface: var(--color-machine-surface); --tone-border: var(--color-machine-border); --tone-text: var(--color-machine-text); }
+.signed-verifier { --tone-surface: var(--color-success-surface); --tone-border: var(--color-success-border); --tone-text: var(--color-success-text); }
+/* Unverified: a dashed edge — the shape itself says "not established". */
+.agent-claim { --tone-surface: transparent; --tone-border: var(--color-border-strong); --tone-text: var(--color-text-secondary); border-style: dashed; }
+.demo { --tone-surface: var(--color-demo-surface); --tone-border: var(--color-demo-border); --tone-text: var(--color-demo-text); }
+.demo .source { background-image: var(--hatch); }
+.compact .trust { display: none; }
