@@ -75,6 +75,8 @@ function parseAcl(text: string): WindowsAcl {
 /** Read a path's ACL. The absolute PowerShell path avoids running whatever PATH finds first. */
 export function readWindowsAcl(path: string): WindowsAcl {
   const systemRoot = process.env.SystemRoot ?? process.env.SYSTEMROOT ?? "C:\\Windows";
+  const systemDrive = process.env.SystemDrive ?? process.env.SYSTEMDRIVE ?? systemRoot.slice(0, 2);
+  const windir = process.env.windir ?? process.env.WINDIR ?? systemRoot;
   const powershell = join(systemRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
   const winModules = join(systemRoot, "System32", "WindowsPowerShell", "v1.0", "Modules");
   const psModulePath = process.env.PSModulePath ? `${winModules};${process.env.PSModulePath}` : winModules;
@@ -88,6 +90,8 @@ export function readWindowsAcl(path: string): WindowsAcl {
       stdio: ["ignore", "pipe", "pipe"],
       windowsHide: true,
       env: {
+        SystemDrive: systemDrive,
+        windir: windir,
         ...process.env,
         SystemRoot: systemRoot,
         PSModulePath: psModulePath,
