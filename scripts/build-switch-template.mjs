@@ -32,11 +32,14 @@ params:
   bridge:
     type: bridge
     label: Messaging app
-    default: [Mattermost, $first]
+    default: [Slack, Mattermost, $first]
   provider:
     type: provider
     label: Coding agent for the fixer and the verifier
     default: [opencode, claude, codex]
+    # A list of defaults makes a param required. Not required here, so the template can run with
+    # existing agents standing in for both (allow_existing), where no provider is needed.
+    required: false
   location:
     type: location
     default: local
