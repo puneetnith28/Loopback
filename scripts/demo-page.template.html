@@ -527,10 +527,9 @@ body.off .says p { color: var(--bad); }
     <a href="#run">Run the demo</a>
     <a href="#without">Without Switch</a>
     <a href="#built">How it's built</a>
-    <a href="#proof">What's proven</a>
   </nav>
   <div class="top-right">
-    <a class="chip" href="#proof" title="What is real and what is simulated">SIMULATED</a>
+    <a class="chip" href="#built" title="What is real and what is simulated">SIMULATED</a>
     <button class="mini" id="toggle" type="button" role="switch" aria-checked="true" aria-label="Switch"><span class="k"></span><span id="toggle-label">SWITCH ON</span></button>
     <a class="btn primary small run-top" href="#run">Run the demo</a>
   </div>
@@ -659,6 +658,20 @@ body.off .says p { color: var(--bad); }
     </div>
   </section>
 
+  <section class="sect rv">
+    <div class="sect-head">
+      <div class="eyebrow">Live example</div>
+      <h2>A real bug, fixed and merged through Switch</h2>
+      <p>On live Switch, Mattermost and GitHub, a bug reported in a Switch room went to a merge by the gate, after a maintainer approved the exact commit in the room.</p>
+    </div>
+    <div class="rows3">
+      <div><b>Merged by the gate</b><p>Case LB-001: the fixer opened a pull request, the gate checked it against GitHub, and merged it once it was approved. <a href="https://github.com/puneetnith28/loopback-demo-target/pull/3">The merged pull request</a> · <a href="https://github.com/puneetnith28/loopback-demo-target/issues/1">The bug it fixed</a></p></div>
+      <div><b>Refused live, in the room</b><p>An approval naming the wrong commit, and a merge while merging was switched off, were both refused. <a href="https://github.com/puneetnith28/Loopback/blob/main/docs/evidence/phase-08-day2.md">The live run, step by step</a></p></div>
+      <div><b>Enforced by GitHub</b><p>GitHub refuses a merge without the gate's own approval, even from the maintainer's account with green CI. <a href="https://github.com/puneetnith28/Loopback/blob/main/docs/evidence/phase-06-ruleset-proof.md">The ruleset check</a></p></div>
+    </div>
+    <a id="video" class="btn primary" href="#" hidden style="justify-self:start">Watch the demo video</a>
+  </section>
+
   <section class="finale rv">
     <div class="eyebrow">Your turn</div>
     <h2>Take one bug from report to merge</h2>
@@ -668,7 +681,6 @@ body.off .says p { color: var(--bad); }
       <a class="btn small" href="#setup">See the setup</a>
       <a class="btn small" href="#without">See it without Switch</a>
       <a class="btn small" href="#built">How it's built</a>
-      <a class="btn small" href="#proof">What's proven</a>
     </div>
   </section>
 </main>
@@ -811,37 +823,6 @@ body.off .says p { color: var(--bad); }
       <tr><td>The build</td><td><code>npm run demo:page</code> (<code>scripts/build-demo-page.mjs</code>). It writes nothing if the rehearsal fails.</td></tr>
     </tbody></table></div>
   </section>
-</div>
-
-<div class="read" data-chapter="proof" hidden>
-  <section>
-    <div class="eyebrow">Evidence</div>
-    <h1>What's proven, and what isn't</h1>
-    <p class="prose" style="font-size:16px" id="outcomes"></p>
-  </section>
-  <section>
-    <h2>On this page</h2>
-    <div class="scroll"><table class="wide"><thead><tr><th scope="col">Real</th><th scope="col">Simulated</th></tr></thead><tbody><tr><td>The gate's commands, permissions, state machine, merge policy, audit log and signatures. The evidence console and its API.</td><td>Switch's delivery, GitHub, the two agents' work, the people, and the moving clock.</td></tr></tbody></table></div>
-  </section>
-  <section>
-    <h2>Proven live, on Switch, Mattermost and GitHub</h2>
-    <div class="scroll"><table class="wide"><thead><tr><th scope="col">Claim</th><th scope="col">Evidence</th></tr></thead><tbody>
-      <tr><td>A real bug went from a chat report to a merge by the gate</td><td><a href="https://github.com/puneetnith28/loopback-demo-target/pull/3">Merged pull request</a> and <a href="https://github.com/puneetnith28/loopback-demo-target/issues/1">the bug it fixed</a></td></tr>
-      <tr><td>GitHub refuses a merge without the gate's own status, even from the maintainer's account with green CI</td><td><a href="https://github.com/puneetnith28/Loopback/blob/main/docs/evidence/phase-06-ruleset-proof.md">Ruleset proof</a></td></tr>
-      <tr><td>A wrong-commit approval, and a merge while merging was disabled, were refused live</td><td><a href="https://github.com/puneetnith28/Loopback/blob/main/docs/evidence/phase-08-day2.md">Live run evidence</a></td></tr>
-      <tr><td>The Switch template is valid</td><td>The live Switch 0.31 server accepted it with no warnings</td></tr>
-    </tbody></table></div>
-    <a id="video" class="btn primary" href="#" hidden style="justify-self:start">Watch the demo video</a>
-  </section>
-  <section>
-    <h2>Not proven yet</h2>
-    <ul class="prose" style="margin:0;padding-left:20px;display:grid;gap:6px">
-      <li>On the live run a person guided the verifier step by step. It hasn't yet completed its brief alone.</li>
-      <li>The agents ran on the host, not in their isolated containers, so verification is labelled advisory in chat. A signature proves a report wasn't altered, not that its tests ran. A person should review the diff before approving.</li>
-      <li>A commit landing after approval hasn't been seen live, nor have <code>why</code>, <code>board</code>, <code>team</code> and the room documents. The rehearsal and tests cover them, against stand-ins for Switch.</li>
-      <li>Nobody else has done the live setup from a clean clone, and the template hasn't been run end to end.</li>
-    </ul>
-  </section>
   <section>
     <h2>Run it yourself</h2>
     <p class="prose">This same rehearsal runs on your machine in about two minutes. You need Node 22 and no accounts.</p>
@@ -868,7 +849,7 @@ npm run demo</pre>
   var svgEl = function (tag, cls) { var n = document.createElementNS(SVG, tag); if (cls) n.setAttribute("class", cls); return n; };
   var calm = !!(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches);
   var REFUSAL = "Refusing to start: the gate's Switch addressing policy is not the expected one (could not read the policy (TypeError)).";
-  var CHAPTERS = ["what", "setup", "run", "without", "built", "proof"];
+  var CHAPTERS = ["what", "setup", "run", "without", "built"];
   var ROOMS = ["loopback-intake", "loopback-maintainers"];
   var PEOPLE = { "Prashant (contributor)": "#2f8f83", "Puneet (maintainer)": "#a2438f", "Mallory (not a maintainer)": "#b4632a", "loopback-fixer (agent)": "#6b3fa0", "loopback-verifier (agent)": "#3b6fb5", "loopback-gate": "#0b6f76" };
   var JOBS = [
@@ -1344,7 +1325,7 @@ npm run demo</pre>
       next.addEventListener("click", function () { stopPlay(); advance(); });
       row.append(next);
     } else {
-      var a = el("a", "btn primary", "See what's proven →"); a.href = "#proof"; row.append(a);
+      var a = el("a", "btn primary", "See how it's built →"); a.href = "#built"; row.append(a);
     }
     if (isLastOfScene(S.i) && g.console) {
       var c = el("button", "btn", g.console[0]);
@@ -1358,13 +1339,13 @@ npm run demo</pre>
     var s = steps[S.i], go = $("mbar-go");
     go.disabled = !S.on;
     $("mbar-text").textContent = !S.on ? "Switch is off" : "Step " + (S.i + 1) + " of " + steps.length;
-    go.textContent = !S.on ? "Nothing can run" : S.done ? (S.i < steps.length - 1 ? "Continue" : "See what's proven") : s.kind === "person" ? "Send it for me" : s.kind === "documents" ? "Open the documents" : "Let it happen";
+    go.textContent = !S.on ? "Nothing can run" : S.done ? (S.i < steps.length - 1 ? "Continue" : "See how it's built") : s.kind === "person" ? "Send it for me" : s.kind === "documents" ? "Open the documents" : "Let it happen";
   }
   $("mbar-go").addEventListener("click", function () {
     stopPlay();
     if (!S.done) { complete(); return; }
     if (S.i < steps.length - 1) { advance(); return; }
-    location.hash = "#proof"; route();
+    location.hash = "#built"; route();
   });
 
   var MARK = { pass: "✓", wait: "…", none: "–", void: "✕" };
@@ -1785,7 +1766,6 @@ npm run demo</pre>
     box.append(el("h3", null, c.title), el("p", "prose", c.note), link, el("pre", "code", c.code));
     $("excerpts").append(box);
   });
-  $("outcomes").textContent = data.held + " of " + data.total + " expected outcomes held in the run recorded for this page. A step that doesn't happen fails the build, so the page can't quietly stop showing what it claims.";
   if (data.videoUrl) { $("video").href = data.videoUrl; $("video").hidden = false; }
 
   // ---- Chapters ----

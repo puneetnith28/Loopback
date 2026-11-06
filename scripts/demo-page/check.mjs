@@ -21,7 +21,7 @@ writeFileSync(file, `<!doctype html><html><head><meta charset="utf-8"><meta name
 const url = pathToFileURL(file).href;
 const problems = [];
 const problem = (where, what) => problems.push(`${where}: ${what}`);
-const CHAPTERS = ["what", "setup", "run", "without", "built", "proof"];
+const CHAPTERS = ["what", "setup", "run", "without", "built"];
 
 const browser = await chromium.launch();
 const open = async (w, h, at = "") => {
