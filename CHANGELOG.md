@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`team` and absence warnings**: shows each agent's status as Switch reports it, and warns when a task goes to an agent that isn't connected.
 - **`npm run demo`**: a self-checking rehearsal of the whole flow with no accounts.
 - **The gate's settings in the console**: the gate records its non-secret settings when it starts, and the console API serves them at `/api/v1/config/summary`. The console no longer fills in defaults, which had shown "Verification is isolated" and "Merging: Off" whatever the gate's real settings. If the gate hasn't recorded them, the console says the configuration is unavailable.
+- **Slack, prepared**: the gate decodes the `&lt;`, `&gt;` and `&amp;` that Slack leaves in people's commands (never in agents' reports, whose signatures must match), and runs a command pasted as a whole-message code span. `docs/setup.md` covers setting it up with Slack. Not yet run in a live Slack workspace.
 - **Documentation**: the README is rewritten around Switch, with what is verified and what is not; `TESTING.md` takes a reviewer from a web page with no install to a local run; `docs/README.md` indexes every page.
 - **Node range**: `package.json` now requires Node `>=22.13.0 <23`, which the installed dependencies need, instead of 22.12.
 - **Dependency audit**: an override moves the lint tools to `minimatch` 11.0.5, which clears the one advisory `npm audit` reported.

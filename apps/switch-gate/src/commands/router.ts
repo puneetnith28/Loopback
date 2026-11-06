@@ -21,7 +21,7 @@ import {
 import { admit, assertAdmissionPolicy, type AdmissionPolicy } from "../policy/admission.js";
 import { authorize, availableCommands, roleOf, type IdentityPolicy, type Role, type RoomKind } from "../policy/authorize.js";
 import { renderCaseTable } from "../switch/board.js";
-import { parseCommand, usageFor } from "./parse.js";
+import { decodeChatEscapes, parseCommand, usageFor } from "./parse.js";
 
 /**
  * Audit-spam bound for refusals from ordinary senders: audited at most once per
@@ -192,7 +192,8 @@ export class Router {
     const role = roleOf(msg.sender, this.d.identity);
     const trusted = room === "maintainers" && role === "maintainer";
 
-    const parsed = parseCommand(msg.body, this.d.admission.gateMention);
+    // A person's command, never an agent's report (those left above), so decoding chat escapes is safe here.
+    const parsed = parseCommand(decodeChatEscapes(msg.body), this.d.admission.gateMention);
     if (!parsed.ok) {
       const usage = usageFor(availableCommands(room, role, this.d.identity));
       const detail = trusted ? `${parsed.error}. Usage:\n${usage}` : null;

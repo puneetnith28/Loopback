@@ -42,13 +42,39 @@ function fail(error: string): ParseResult {
   return { ok: false, error };
 }
 
+const ESCAPES: Readonly<Record<string, string>> = { lt: "<", gt: ">", amp: "&" };
+
+/**
+ * Slack delivers a person's `<`, `>` and `&` as `&lt;`, `&gt;` and `&amp;`, and Switch's Slack bridge passes
+ * them on unchanged (switch-core 0.31.0, `SlackAdapter.translate_inbound`). Decode exactly those three, in one
+ * pass, so `&amp;lt;` becomes `&lt;` and not `<`. Mattermost, Teams and Telegram already deliver plain text.
+ *
+ * Only for people's commands. An agent's report must reach the signature check exactly as the agent sent it.
+ */
+export function decodeChatEscapes(text: string): string {
+  return text.replace(/&(lt|gt|amp);/g, (_, name: string) => ESCAPES[name] ?? "");
+}
+
+/**
+ * A message that is entirely one code span: `` `…` `` or ```` ```…``` ````. People paste the gate's own commands,
+ * which it prints as code, and Slack keeps the backticks in what it delivers. Only a whole-message span is
+ * unwrapped; a span inside prose is left alone, so the message still does not start with the mention.
+ */
+function unwrapCodeSpan(text: string): string {
+  for (const fence of ["```", "`"]) {
+    const inner = text.slice(fence.length, -fence.length);
+    if (text.length > 2 * fence.length && text.startsWith(fence) && text.endsWith(fence) && !inner.includes(fence)) return inner.trim();
+  }
+  return text;
+}
+
 /**
  * Parse an addressed message into a command. The grammar is closed: anything
  * outside it is rejected with usage. Nothing here executes anything; the body
  * is untrusted data and is only matched against fixed patterns.
  */
 export function parseCommand(body: string, gateMention: string): ParseResult {
-  const trimmed = body.trim();
+  const trimmed = unwrapCodeSpan(body.trim());
   const mention = new RegExp(`^${escapeRegex(gateMention)}(?![A-Za-z0-9._-])[:,]?\\s*`, "i");
   const m = mention.exec(trimmed);
   if (!m) return fail("message does not start with the gate mention");

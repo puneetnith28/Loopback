@@ -273,3 +273,54 @@ Verified against Switch Console 0.40.1 / switch-core 0.31.0 (agent bridge on
 - An account outside the policy mentioning the gate arrives with `addressed: false` and is
   refused (audited, not answered).
 - Ids are stable across a Switch restart and reconnect; a threaded reply lands in its thread.
+
+## 3. Using Slack instead of Mattermost (prepared, not yet run live)
+
+The gate speaks only to Switch, so the chat app is Switch's choice. Everything above holds for Slack,
+with these differences. They come from reading switch-core 0.31.0's Slack bridge
+(`bridges/collaboration/slack/adapter.py`) and from `tests/integration/slack-delivery.test.ts`, which
+feeds the gate messages as that bridge delivers them. Nobody has run the gate in a Slack workspace yet.
+
+### What the Slack bridge does for you
+- **Mentions arrive as names.** Picking `@loopback-gate` from Slack's `@` menu sends a user-group
+  code, `<!subteam^S…>`; the bridge turns it back into `@loopback-gate` before Switch addresses the
+  message (`_translate_usergroup_mentions`). A person's `<@U…>` becomes `@username` the same way.
+  So commands parse exactly as they do from Mattermost.
+- **People get Switch ids in the same shape:** `@switch-slack-<bridge id>-<username>:<server>`, made
+  once per bridge and Slack user (`collaboration_core._create_human_actor_locked`). Read them from
+  `whoami` or the bridge's users, as for Mattermost.
+
+### What the gate does for Slack
+- **Slack's escapes are decoded in people's commands.** Slack sends `<`, `>` and `&` as `&lt;`, `&gt;`
+  and `&amp;`, and the bridge passes them on. The gate decodes exactly those three, once, before
+  parsing (`decodeChatEscapes` in `apps/switch-gate/src/commands/parse.ts`). Agents' reports are never
+  decoded: they come through Switch's agent API, and their signatures must match what was sent.
+- **A command pasted as code still runs.** Slack keeps the backticks when someone pastes the gate's
+  own command from a code span. A message that is entirely one code span is unwrapped first; a code
+  span inside prose is not.
+- **A mention the bridge could not resolve does nothing.** If the agent's user group has not been
+  adopted yet, the raw `<!subteam^…>` reaches the gate, the message does not start with the gate's
+  mention, and it is refused as an unknown command.
+
+### Setting it up
+1. In Switch Console, **Home**, **Messaging apps**, **Connect**, and choose Slack. Install Switch's
+   Slack app in the workspace.
+2. Use the template with **Slack** as the messaging app. It creates `loopback-intake` (public) and
+   `loopback-maintainers` (private) as Slack channels.
+3. Invite Switch's Slack app to the private `loopback-maintainers` channel, and check that someone
+   outside it cannot read it.
+4. Put the Slack people's Switch ids in `LOOPBACK_MAINTAINERS` and in the addressing policy's `users`,
+   and the two new room ids in `SWITCH_ROOM_ID` and `SWITCH_INTAKE_ROOM_ID` (section 2, step 4).
+5. `npm run readiness`, then `npm run gate`.
+
+### Check on the first live run
+- `@loopback-gate` picked from the menu and typed by hand both work.
+- `@loopback-gate decline LB-001 a < b & c` records the reason as typed.
+- A case raised in a Slack thread keeps its replies in that thread.
+- Two or three quick replies from the gate all arrive (Slack limits how fast a bot posts).
+- The gate fences untrusted report text with `~~~untrusted-report`. Slack does not render `~~~`
+  fences, so people see the tildes; the fixer reads the text through Switch, so the fence still
+  works for it. Decide whether that is acceptable to read.
+
+Discord works the same way in switch-core 0.31.0: its bridge turns role and user mentions back into
+`@name` (`bridges/collaboration/discord/adapter.py`, `translate_inbound`). It has not been tried either.

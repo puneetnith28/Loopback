@@ -152,7 +152,7 @@ export interface Harness {
   state(id?: string): string | undefined;
 }
 
-export function createHarness(opts: { db?: Db; gh?: FakeGitHub; runIssuerKey?: KeyObject | null; verifierPublicKey?: KeyObject | null; verificationAdvisory?: boolean; intakeMaxReportsPerHour?: number; mergeEnabled?: boolean; expectedBase?: string | null; quorum?: number; retryLimit?: number; maxAttempts?: number; privilegedEnabled?: boolean; roomStatuses?: RoomStatuses } = {}): Harness {
+export function createHarness(opts: { maintainers?: readonly string[]; reporters?: readonly string[]; db?: Db; gh?: FakeGitHub; runIssuerKey?: KeyObject | null; verifierPublicKey?: KeyObject | null; verificationAdvisory?: boolean; intakeMaxReportsPerHour?: number; mergeEnabled?: boolean; expectedBase?: string | null; quorum?: number; retryLimit?: number; maxAttempts?: number; privilegedEnabled?: boolean; roomStatuses?: RoomStatuses } = {}): Harness {
   const db = opts.db ?? openDatabase(":memory:");
   migrate(db);
   const gh = opts.gh ?? new FakeGitHub();
@@ -170,7 +170,7 @@ export function createHarness(opts: { db?: Db; gh?: FakeGitHub; runIssuerKey?: K
   };
   const locks = new CaseLocks();
   const halt = new HaltSwitch();
-  const maintainers = new Set([MAINT, MAINT2]);
+  const maintainers = new Set(opts.maintainers ?? [MAINT, MAINT2]);
   const wfDeps: WorkflowDeps = {
     db, chat, github: gh, locks, now, repo: REPO, baseBranch: "main", requiredChecks: ["test"],
     checkSources: new Map([["test", "github-actions"]]), gateMention: G, fixerAlias: "@loopback-fixer",
@@ -208,7 +208,7 @@ export function createHarness(opts: { db?: Db; gh?: FakeGitHub; runIssuerKey?: K
     db, chat, repo: REPO, quorum: opts.quorum ?? 1, requiredChecks: ["test"],
     admission: { selfId: SELF, fixerId: FIXER, verifierId: VERIFIER, gateMention: G, maintainerRoomId: MROOM, intakeRoomId: IROOM },
     intakeMaxReportsPerHour: opts.intakeMaxReportsPerHour ?? 3,
-    identity: { maintainers, reporters: new Set([REP]), privilegedEnabled: opts.privilegedEnabled ?? true },
+    identity: { maintainers, reporters: new Set(opts.reporters ?? [REP]), privilegedEnabled: opts.privilegedEnabled ?? true },
     privileged: {
       verify: (ctx, id) => wf.verifyCommand(ctx, id),
       approve: (ctx, id, sha) => wf.approve(ctx, id, sha),

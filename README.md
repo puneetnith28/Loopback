@@ -59,7 +59,7 @@ Refusing to start: the gate's Switch addressing policy is not the expected one (
 
 While it runs, it reads the policy again every 60 seconds (`POLICY_RECHECK_MS` in `apps/switch-gate/src/run.ts`) and stops if it has changed. GitHub is the source of truth for code; Switch is the source of truth for who said what, and where. Loopback has no way to replace either.
 
-Tested on Mattermost, which comes with Switch. The gate speaks only to Switch, so the other chat apps Switch connects should behave the same, but nobody has tried them.
+Tested on Mattermost, which comes with Switch. The gate speaks only to Switch, so the chat app is Switch's choice. For Slack, Switch's bridge turns Slack's mention codes back into `@loopback-gate`, and the gate decodes the `&lt;`, `&gt;` and `&amp;` that Slack leaves in people's text; [`docs/setup.md`](docs/setup.md#3-using-slack-instead-of-mattermost-prepared-not-yet-run-live) covers what differs. Neither Slack nor the other chat apps have been tried live.
 
 ---
 
@@ -244,7 +244,7 @@ A read-only React app (`apps/console`) and API (`apps/console-api`) over the gat
 2. **Verification has not run isolated.** The agents ran on the host, not in their containers, so verification is labelled advisory in chat and in the console (`VERIFIER_ISOLATION_PROVEN=false`). A signature proves a report was not altered, not that its tests ran. **A person should read the diff before approving.** The container isolation is tested on its own ([evidence](docs/evidence/phase-06-isolation.md)), and not yet with the live agents.
 3. **The late commit has not been seen live in a Switch room.** Nor have `why`, `board`, `team`, the room documents, or the gate recording its settings for the console. The rehearsal and the tests cover them against stand-ins for Switch.
 4. **The Switch template has not been run end to end.** The live server accepted it, but the live rooms were made by hand. Nobody else has done the live setup from a clean clone.
-5. **Only Mattermost.** Slack, Teams, Discord and Telegram, which Switch also connects, have not been tried.
+5. **Only Mattermost has been run live.** Slack is prepared: `tests/integration/slack-delivery.test.ts` runs the whole flow on messages shaped as switch-core 0.31.0's Slack bridge delivers them, read from its source. A live Slack run, with the checks in [`docs/setup.md`](docs/setup.md#check-on-the-first-live-run), would settle it. Teams, Discord and Telegram have not been tried.
 6. **The live end-to-end tests have not run in CI.** `tests/e2e/` reads real GitHub and Switch, so it skips without credentials, as it did in both runs above. CI runs the other suites on Linux and Windows (`.github/workflows/ci.yml`); its results on the latest commits are not checked on this page.
 
 ---
