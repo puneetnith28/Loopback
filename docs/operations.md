@@ -189,6 +189,20 @@ mounted read-only and remain mode 600 on the host. (Docker creates the container
 directory as 755; the gate accepts that because it only refuses key directories others can
 *write* to.)
 
+## The verifier signer
+
+The signer runs only in its own container (`deploy/isolation/agents.sh` starts it), and reads these
+from its environment. The defaults suit that container, so normally none of them is set by hand.
+
+| Variable | Default | What |
+|---|---|---|
+| `SIGNER_HOME` | `/home/signer` | Where the signing key and the client token live, in `keys/` |
+| `SIGNER_PORT` | `8080` | Port for `POST /v1/sign` |
+| `SIGNER_BIND_HOST` | `signer` | The network name it binds to, resolved at start |
+| `SIGNER_REPOSITORY` | none | The `owner/name` it signs for |
+| `SIGNER_ISSUER_PUBLIC_KEY` | none | The gate's run-issuer public key, PEM or raw base64 |
+| `SIGNER_GH_TOKEN` | none | Optional read-only token. Public repositories need none |
+
 ## Demo reset
 
 `GH_REPO=owner/fork DEMO_RESET_SHA=<sha> RULESET_ID=<id> scripts/reset-demo.sh` — re-checks the

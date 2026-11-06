@@ -2,7 +2,7 @@
 
 Read-only evidence UI for Loopback. It shows what the gate recorded and never approves, rejects or merges:
 approval stays a human action in Switch. Design contract: `DESIGN.md`. API contract proposal:
-`docs/api-contract-v1.md`; backend requirements: `docs/backend-api-requirements.md`.
+`apps/console/docs/api-contract-v1.md`; backend requirements: `apps/console/docs/backend-api-requirements.md`.
 
 ```bash
 npm run dev -w @loopback/console            # dev server (includes /design)
@@ -32,12 +32,12 @@ npm run test:e2e -w @loopback/console       # Playwright against the production 
 - `src/app/` — shell, theme, typed router, error boundary. `src/features/<screen>/` — screens.
 - `src/design-system/` — tokens and primitives (Phase 1). `src/lib/` — provenance, lifecycle, labels, untrusted text.
 - `src/demo/` — DEMO fixtures for `/design` only. `test-fixtures/` — API response builders for tests only.
-  Neither can reach a production build (ESLint boundaries + `tests/demo-isolation.test.ts`).
+  Neither can reach a production build (ESLint boundaries + `apps/console/tests/demo-isolation.test.ts`).
 - The console reads `apps/console-api` through the Vite proxy (`docs/console-api.md`). If that API isn't running, every screen shows “Cannot reach the read API”. Nothing is simulated.
 - Rendered evidence (screenshots + checked record): `evidence/`.
 
 ## Deployment notes
 - Serve only `dist/`, same-origin with the read API under `/api/v1`. `dist-design/` contains the DEMO design
   reference and must never be deployed.
-- CSP is set by whatever serves the console (see `docs/backend-api-requirements.md` R1); it is not delivered here.
+- CSP is set by whatever serves the console (see `apps/console/docs/backend-api-requirements.md` R1); it is not delivered here.
 - Clipboard copy needs a secure context (HTTPS or localhost); without it the copy buttons report “Copy failed”.

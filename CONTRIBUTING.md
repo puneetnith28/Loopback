@@ -46,7 +46,7 @@ All contributors and maintainers are expected to adhere to our [Code of Conduct]
 ## Branches, pull requests and commits
 
 - Nobody pushes directly to `main`. Everyone works on a branch named `<type>/<short-topic>` (e.g.
-  `fix/poller-backoff`, `docs/setup-windows`) and opens a pull request into `main`; merge only with
+  `fix/poller-backoff`, `docs/setup-windows`) and opens a pull request into `main`; merge only with <!-- branch names, not paths --> <!-- check-docs: ignore -->
   CI green and the maintainer's review.
 - Fill out the pull request checklist in `.github/pull_request_template.md`.
 - Never force-push to `main`, rewrite published history, or amend published commits.

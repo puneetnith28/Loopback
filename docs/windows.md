@@ -8,13 +8,16 @@ stays the deployment target of the release documents; this page covers what chan
 
 | Tool | Needed for | Install |
 |---|---|---|
-| Node 22.13+ (22.x) | The gate, tests, tooling | `winget install OpenJS.NodeJS.LTS` |
+| Node `>=22.13.0 <23` | The gate, tests, tooling | `winget install OpenJS.NodeJS.22` (the `LTS` package is a newer major, outside the range) |
 | Git for Windows | Git Bash, which runs the repository's scripts | `winget install Git.Git` |
 | Docker Desktop (Linux containers) | Agent isolation; `npm run test:linux` | `winget install Docker.DockerDesktop` |
 | GitHub CLI and jq | `reset-demo.sh`, `verify-github-setup.sh` and other maintainer scripts | `winget install GitHub.cli jqlang.jq` |
 
 No C++ toolchain is needed: `.npmrc` turns off install scripts and `better-sqlite3` ships a Windows
 prebuilt binary. Check everything at once with `npm run readiness`.
+
+The ACL checks find PowerShell and the system folders from variables Windows sets itself:
+`SystemDrive` (or `SYSTEMDRIVE`), `windir` (or `WINDIR`) and `PSModulePath`. Nothing needs setting.
 
 ## Keep secrets and the database out of OneDrive
 

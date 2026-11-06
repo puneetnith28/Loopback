@@ -19,8 +19,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`team` and absence warnings**: shows each agent's status as Switch reports it, and warns when a task goes to an agent that isn't connected.
 - **`npm run demo`**: a self-checking rehearsal of the whole flow with no accounts.
 - **The gate's settings in the console**: the gate records its non-secret settings when it starts, and the console API serves them at `/api/v1/config/summary`. The console no longer fills in defaults, which had shown "Verification is isolated" and "Merging: Off" whatever the gate's real settings. If the gate hasn't recorded them, the console says the configuration is unavailable.
+- **Documentation**: the README is rewritten around Switch, with what is verified and what is not; `TESTING.md` takes a reviewer from a web page with no install to a local run; `docs/README.md` indexes every page.
+- **Node range**: `package.json` now requires Node `>=22.13.0 <23`, which the installed dependencies need, instead of 22.12.
+- **Dependency audit**: an override moves the lint tools to `minimatch` 11.0.5, which clears the one advisory `npm audit` reported.
+- **`npm run test:linux` without Docker**: says that Docker is not running, instead of crashing on a closed pipe.
 - **`npm run demo:page`**: builds a single web page where someone can do the same run with no install. It uses the rehearsal's recorded messages, the real evidence console reading responses recorded from its real API, and a button that shows what happens with Switch off. The page puts Switch at the centre of an animated circuit, with a title page, a floating chapter bar and a guided 21-step run.
-- **`templates/loopback.template.yaml`**: a Switch template, generated from `prompts/`, that creates both agents and both rooms. It replaces `templates/loopback-room.yaml`.
+- **`templates/loopback.template.yaml`**: a Switch template, generated from `prompts/`, that creates both agents and both rooms. It replaces the earlier hand-written room file.
 
 ### Changed
 
@@ -38,7 +42,7 @@ Initial pre-release of Loopback: commit-bound, auditable verification gate and h
 - **Cryptographic verification evidence**: Ed25519-signed verification reports proving report integrity and run identity.
 - **Append-only SQLite audit log**: Tamper-evident, SQLite trigger-enforced audit event log recording every state transition, triage decision, check run, and merge attempt.
 - **Switch room integration**: Two-room transport design separating public intake (`@loopback-gate report`) from maintainer commands (`accept`, `approve`, `merge`, `retask`).
-- **Isolation test harnesses & Windows portable runtime**: Reference Linux container isolation harness with Docker alongside native Windows NTFS ACL and console control signal handling.
+- **Isolation tests and the Windows runtime**: a Linux container isolation test run under Docker, alongside native Windows NTFS ACL checks and console control signal handling.
 
 #### Console & Operational Intelligence
 - **Read-only evidence console**: React 19 + TypeScript + Vite frontend with IBM Plex typography, WCAG AAA contrast, and strict provenance badging.

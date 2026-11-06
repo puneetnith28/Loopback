@@ -34,7 +34,7 @@ The checkable contract every screen and component is built against (ECC `fronten
 - **Type:** IBM Plex Sans (interface) and IBM Plex Mono (SHAs, case ids, identifiers, numbers), self-hosted from
   local assets. 14px base for a dense tool; tabular numerals for anything that counts or updates.
 - **Space:** 4px base scale. **Radius:** small (4–10px), concentric (outer = inner + padding). Borders separate,
-  shadows only for elevated layers (popovers, dialogs).
+  shadows only for layers that sit above the page (popovers, dialogs).
 - **Motion:** CSS transitions from motion tokens, `transform`/`opacity` only, never `transition: all`; exits shorter
   than enters; `prefers-reduced-motion` removes movement entirely. Motion only to communicate state or preserve
   continuity (ECC `motion-foundations`).

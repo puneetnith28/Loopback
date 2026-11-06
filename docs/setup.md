@@ -1,6 +1,6 @@
 # Live environment setup
 
-**Runtime platforms: Linux and Windows.** The gate needs Node 22.13+, and refuses a GitHub App key
+**Runtime platforms: Linux and Windows.** The gate needs Node `>=22.13.0 <23`, and refuses a GitHub App key
 or key directory others can read or write. On Linux it uses rootless Docker for the agent containers
 (`deploy/isolation/README.md`) and POSIX file permissions. On Windows it uses Docker Desktop and NTFS
 ACLs; **read [windows.md](windows.md) first**, including what is weaker there. The commands below are

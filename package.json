@@ -13,7 +13,7 @@
     "apps/console-api"
   ],
   "engines": {
-    "node": ">=22.12.0 <23"
+    "node": ">=22.13.0 <23"
   },
   "scripts": {
     "build": "tsc -b",
@@ -31,6 +31,7 @@
     "demo:fast": "node scripts/demo.mjs --fast",
     "demo:console": "node scripts/demo.mjs --fast --console",
     "demo:page": "node scripts/build-demo-page.mjs",
+    "demo:check": "node scripts/demo-page/check.mjs",
     "switch-template": "node scripts/build-switch-template.mjs",
     "backup": "node --env-file=.env scripts/backup-db.mjs",
     "agents": "node scripts/sh.mjs deploy/isolation/agents.sh",
@@ -47,5 +48,8 @@
     "typescript": "6.0.3",
     "typescript-eslint": "8.72.1",
     "vitest": "5.1.0"
+  },
+  "overrides": {
+    "minimatch": "^11.0.5"
   }
 }

@@ -79,7 +79,8 @@ export function readWindowsAcl(path: string): WindowsAcl {
   const windir = process.env.windir ?? process.env.WINDIR ?? systemRoot;
   const powershell = join(systemRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
   const winModules = join(systemRoot, "System32", "WindowsPowerShell", "v1.0", "Modules");
-  const psModulePath = process.env.PSModulePath ? `${winModules};${process.env.PSModulePath}` : winModules;
+  const inherited = process.env["PSModulePath"];
+  const psModulePath = inherited ? `${winModules};${inherited}` : winModules;
   const fullPath = resolve(path).replace(/\//g, "\\");
   const out = execFileSync(
     powershell,

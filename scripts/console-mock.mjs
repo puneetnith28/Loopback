@@ -12,6 +12,7 @@ import Database from "better-sqlite3";
 import { migrate, openDatabase } from "../apps/switch-gate/dist/persistence/db.js";
 import { startConsoleServer } from "../apps/console-api/dist/server.js";
 import { loadConsoleConfig } from "../apps/console-api/dist/config.js";
+import { recordGateSettings } from "../apps/switch-gate/dist/persistence/settings.js";
 import { appendMockEvent, seedConsoleData } from "./console-seed.mjs";
 
 // A fixed value, so the frontend's dev settings stay simple. It guards only this mock's fake data.
@@ -21,6 +22,12 @@ const dbPath = join(dir, "mock.db");
 const db = openDatabase(dbPath);
 migrate(db);
 seedConsoleData(db);
+// What a gate started from .env.example records: merging and privileged commands off, isolation not proven.
+recordGateSettings(db, {
+  repo: "puneetnith28/loopback-demo-target", baseBranch: "main", requiredChecks: ["test"], verificationMode: "advisory",
+  safety: { mergeEnabled: false, privilegedEnabled: false, verifierIsolationProven: false },
+  quorum: 1, gateMention: "@loopback-gate", pollIntervalMs: 30_000, verifyTimeoutMs: 1_800_000, fixTimeoutMs: 2_700_000,
+});
 
 const examplesAt = process.argv.indexOf("--examples");
 const port = Number(process.env.CONSOLE_API_PORT ?? (examplesAt >= 0 ? 8799 : 8788));
@@ -38,7 +45,7 @@ if (examplesAt >= 0) {
   mkdirSync(out, { recursive: true });
   const fixedTimes = (body) => (body.checkedAt ? { ...body, checkedAt: "2026-11-04T12:30:00.000Z" } : body);
   const paths = {
-    meta: "meta", summary: "summary", gate: "gate", cases: "cases?limit=3", "cases-page-2": "cases?limit=3&cursor=5", "cases-blocked": "cases?state=Blocked",
+    meta: "meta", summary: "summary", gate: "gate", "config-summary": "config/summary", cases: "cases?limit=3", "cases-page-2": "cases?limit=3&cursor=5", "cases-blocked": "cases?state=Blocked",
     case: "cases/LB-001", "case-stale": "cases/LB-003", "case-hostile-report": "cases/LB-005",
     commits: "cases/LB-003/commits", "verification-runs": "cases/LB-001/verification-runs", checks: "cases/LB-001/checks",
     approvals: "cases/LB-003/approvals", "merge-operations": "cases/LB-007/merge-operations", "case-audit": "cases/LB-001/audit", audit: "audit?limit=5", "audit-poll": "audit?after=20&limit=5", activity: "activity?limit=5",

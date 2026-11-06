@@ -183,6 +183,13 @@ body.off .track-svg .w-base { animation: none; stroke-dasharray: .4 1.1; }
 .cue:hover { color: var(--fg); }
 .cue i { width: 11px; height: 11px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg); animation: bob 1.6s ease-in-out infinite; }
 @keyframes bob { 50% { transform: translateY(5px) rotate(45deg); } }
+/* Short screens (small phones, landscape): keep the name, the pitch and the Run button in the first screen. */
+@media (max-height: 700px) {
+  .intro { gap: 12px; padding-block: 4px 0; }
+  .tagline { margin-top: 28px; font-size: clamp(16px, 2.1vw, 22px); }
+  .meta { font-size: 10.5px; }
+  .cue { margin-top: 0; }
+}
 .hero { display: grid; gap: 16px; scroll-margin-top: calc(var(--top-h) + 12px); }
 .hero-h { font-size: clamp(26px, 2.9vw, 38px); font-weight: 700; letter-spacing: -.012em; }
 .hero-h em { font-style: normal; color: var(--seal); transition: color .3s; }
