@@ -21,3 +21,6 @@ secrets/
 *.db
 *.db-wal
 *.db-shm
+
+# The film spec, its recordings and local diagnostics. Never committed.
+video/

@@ -1,8 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Loopback Rehearsal</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <meta name="description" content="Switch puts AI agents in your team chat. Loopback makes sure nothing merges without a person. Run the whole flow with no install, then turn Switch off and watch it stop.">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=Lato:wght@400;700;900&display=swap">
 <style>
+/* A standalone page: the skeleton above and these three rules used to be added by whatever embedded
+   it, which left the file unopenable on its own — chapters all visible at once and no responsive
+   layout. They live here now, so the file in docs/demo/ is a page you can double-click. */
+body { margin: 0 }
+img { max-width: 100% }
+[hidden] { display: none !important }
+
 /* Concept: Switch is the main character. One button sits at the centre of a wired circuit, and everything on the page
    runs through it: agents, rooms, pulses, even the signals on the background grid. Turn it off and the page goes dark.
    One dark look on purpose. The chat pane and terminal keep their own look, because they stand for other applications. */
@@ -515,6 +527,8 @@ body.off .says p { color: var(--bad); }
   .w-flow { display: none; }
 }
 </style>
+</head>
+<body>
 
 <canvas id="signals" aria-hidden="true"></canvas>
 <div id="sweep" aria-hidden="true"></div>
@@ -606,7 +620,7 @@ body.off .says p { color: var(--bad); }
     <div id="dgm-hero"></div>
     <div class="under">
       <span id="hero-hint">TURN THE SWITCH OFF AND WATCH WHAT'S LEFT</span>
-      <span>LIVE-TESTED ON MATTERMOST · SLACK PREPARED · SWITCH 0.31</span>
+      <span>LIVE-TESTED ON MATTERMOST · RUNNING ON SLACK · SWITCH 0.31</span>
       <div class="refusal" data-refusal hidden></div>
     </div>
   </section>
@@ -747,10 +761,10 @@ body.off .says p { color: var(--bad); }
       <div class="tag" id="tag"></div>
       <div class="pane" id="pane-chat">
         <div class="mm">
-          <div class="mm-top"><div class="mm-search">Search Acme</div><div class="mm-me" id="me"></div></div>
+          <div class="mm-top"><div class="mm-search">Search Loopback</div><div class="mm-me" id="me"></div></div>
           <div class="mm-body">
             <nav class="mm-side" aria-label="Rooms">
-              <div class="mm-team">Acme</div>
+              <div class="mm-team">Loopback</div>
               <div class="mm-group">Channels</div>
               <div id="rooms" style="display:contents"></div>
             </nav>
@@ -1882,3 +1896,5 @@ npm run demo</pre>
   showLate(0);
 })();
 </script>
+</body>
+</html>

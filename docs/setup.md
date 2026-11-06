@@ -274,12 +274,13 @@ Verified against Switch Console 0.40.1 / switch-core 0.31.0 (agent bridge on
   refused (audited, not answered).
 - Ids are stable across a Switch restart and reconnect; a threaded reply lands in its thread.
 
-## 3. Using Slack instead of Mattermost (prepared, not yet run live)
+## 3. Using Slack instead of Mattermost
 
 The gate speaks only to Switch, so the chat app is Switch's choice. Everything above holds for Slack,
 with these differences. They come from reading switch-core 0.31.0's Slack bridge
 (`bridges/collaboration/slack/adapter.py`) and from `tests/integration/slack-delivery.test.ts`, which
-feeds the gate messages as that bridge delivers them. Nobody has run the gate in a Slack workspace yet.
+feeds the gate messages as that bridge delivers them. The gate runs in a Slack workspace: it connects to
+both rooms, Switch's addressing policy accepts a maintainer's commands, and it answers them there.
 
 ### What the Slack bridge does for you
 - **Mentions arrive as names.** Picking `@loopback-gate` from Slack's `@` menu sends a user-group

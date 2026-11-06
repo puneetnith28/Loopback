@@ -4,7 +4,8 @@ import reactHooks from "eslint-plugin-react-hooks";
 import { boundaryConfigs } from "./eslint.config.boundaries.js";
 
 export default tseslint.config(
-  { ignores: ["**/dist/**", "**/dist-design/**", "**/node_modules/**", "coverage/**"] },
+  // `video/` is git-ignored working material for the demo film, not part of the project.
+  { ignores: ["**/dist/**", "**/dist-design/**", "**/node_modules/**", "coverage/**", "video/**"] },
   js.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
   {

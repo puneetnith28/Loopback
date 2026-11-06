@@ -59,7 +59,7 @@ Refusing to start: the gate's Switch addressing policy is not the expected one (
 
 While it runs, it reads the policy again every 60 seconds (`POLICY_RECHECK_MS` in `apps/switch-gate/src/run.ts`) and stops if it has changed. GitHub is the source of truth for code; Switch is the source of truth for who said what, and where. Loopback has no way to replace either.
 
-Tested on Mattermost, which comes with Switch. The gate speaks only to Switch, so the chat app is Switch's choice. For Slack, Switch's bridge turns Slack's mention codes back into `@loopback-gate`, and the gate decodes the `&lt;`, `&gt;` and `&amp;` that Slack leaves in people's text; [`docs/setup.md`](docs/setup.md#3-using-slack-instead-of-mattermost-prepared-not-yet-run-live) covers what differs. Neither Slack nor the other chat apps have been tried live.
+Runs on Mattermost, which comes with Switch, and on Slack. The gate speaks only to Switch, so the chat app is Switch's choice. For Slack, Switch's bridge turns Slack's mention codes back into `@loopback-gate`, and the gate decodes the `&lt;`, `&gt;` and `&amp;` that Slack leaves in people's text; [`docs/setup.md`](docs/setup.md#3-using-slack-instead-of-mattermost) covers what differs. The end-to-end run recorded below (report to merge, PR #3) was made on Mattermost. The other chat apps Switch bridges have not been tried.
 
 ---
 

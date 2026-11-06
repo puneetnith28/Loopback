@@ -19,7 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`team` and absence warnings**: shows each agent's status as Switch reports it, and warns when a task goes to an agent that isn't connected.
 - **`npm run demo`**: a self-checking rehearsal of the whole flow with no accounts.
 - **The gate's settings in the console**: the gate records its non-secret settings when it starts, and the console API serves them at `/api/v1/config/summary`. The console no longer fills in defaults, which had shown "Verification is isolated" and "Merging: Off" whatever the gate's real settings. If the gate hasn't recorded them, the console says the configuration is unavailable.
-- **Slack, prepared**: the gate decodes the `&lt;`, `&gt;` and `&amp;` that Slack leaves in people's commands (never in agents' reports, whose signatures must match), and runs a command pasted as a whole-message code span. `docs/setup.md` covers setting it up with Slack. Not yet run in a live Slack workspace.
+- **Slack**: the gate decodes the `&lt;`, `&gt;` and `&amp;` that Slack leaves in people's commands (never in agents' reports, whose signatures must match), and runs a command pasted as a whole-message code span. `docs/setup.md` covers setting it up with Slack. The gate runs in a Slack workspace: it connects to both rooms, Switch's addressing policy accepts a maintainer's commands, and it answers them there. The recorded end-to-end run (report to merge, PR #3) was made on Mattermost.
+- **`npm run switch-rooms` and `scripts/switch-policy.mjs`**: read what Switch says about the gate's rooms, and set the two addressing rules the gate requires for a messaging app, with the gate's own policy check run against the result.
 - **Documentation**: the README is rewritten around Switch, with what is verified and what is not; `TESTING.md` takes a reviewer from a web page with no install to a local run; `docs/README.md` indexes every page.
 - **Node range**: `package.json` now requires Node `>=22.13.0 <23`, which the installed dependencies need, instead of 22.12.
 - **Dependency audit**: an override moves the lint tools to `minimatch` 11.0.5, which clears the one advisory `npm audit` reported.
@@ -30,6 +31,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **README**: rewritten around how Switch is used. Corrected its commands, setting names and Switch link, which did not match the code.
+
+### Fixed
+
+- **The demo page opens on its own**: `docs/demo/loopback-demo.html` was written without a document skeleton, because whatever embedded it supplied one. Opened directly from the repository it fell into quirks mode with no viewport and no `[hidden]` rule, so every chapter showed at once and the chapter bar appeared dead. The page now carries its own doctype, viewport and base rules, and `npm run demo:check` loads the file exactly as a person would and fails if any of the three go missing.
+- **The gate stopped announcing changes it had not made**: it rewrote its two room documents on a timer even when nothing had changed, and each write shows in the room as "updated room document". It now checks that both documents are still there and writes only when a case changed; a deleted document still comes back.
 
 ## [0.1.0] - 2026-11-05
 

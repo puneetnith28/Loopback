@@ -7,17 +7,27 @@
 // Needs Playwright's Chromium (npx playwright install chromium). Exit code 1 lists every problem found.
 
 /* global document, window, location, getComputedStyle */
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const { chromium } = await import("playwright");
-const dir = mkdtempSync(join(tmpdir(), "loopback-check-"));
-const file = join(dir, "page.html");
-// The page is written without a document skeleton, because its host adds one. Add the same one here.
-writeFileSync(file, `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><style>body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style></head><body>${readFileSync(join(root, "docs", "demo", "loopback-demo.html"), "utf8")}</body></html>`);
+// The page is checked exactly as someone opening the file sees it: its own doctype, viewport and
+// base rules. It used to be a fragment that whatever embedded it had to complete, which meant the
+// file in docs/demo/ opened in quirks mode with every chapter visible at once.
+const file = join(root, "docs", "demo", "loopback-demo.html");
+const built = readFileSync(file, "utf8");
+for (const [needed, why] of [
+  ["<!doctype html>", "a browser would open it in quirks mode"],
+  ['name="viewport"', "it would not lay out on a phone"],
+  ["[hidden]", "every chapter would show at once"],
+]) {
+  if (!built.toLowerCase().includes(needed.toLowerCase())) {
+    process.stderr.write(`demo page: ${needed} missing - ${why}. Rebuild with npm run demo:page\n`);
+    process.exit(1);
+  }
+}
 const url = pathToFileURL(file).href;
 const problems = [];
 const problem = (where, what) => problems.push(`${where}: ${what}`);
@@ -117,7 +127,6 @@ try {
   }
 } finally {
   await browser.close();
-  rmSync(dir, { recursive: true, force: true });
 }
 
 if (problems.length > 0) {
