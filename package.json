@@ -33,6 +33,7 @@
     "demo:page": "node scripts/build-demo-page.mjs",
     "demo:check": "node scripts/demo-page/check.mjs",
     "switch-template": "node scripts/build-switch-template.mjs",
+    "switch-rooms": "node --env-file=.env scripts/switch-rooms.mjs",
     "backup": "node --env-file=.env scripts/backup-db.mjs",
     "agents": "node scripts/sh.mjs deploy/isolation/agents.sh",
     "console-api": "node --env-file=.env.console apps/console-api/dist/main.js",
