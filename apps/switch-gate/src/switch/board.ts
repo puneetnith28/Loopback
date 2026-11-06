@@ -19,7 +19,11 @@ const MAX_DECISIONS = 40;
 const MAX_REFUSALS = 15;
 /** Event types that an agent or a stranger can produce at will. */
 const NOISY: ReadonlySet<string> = new Set(["command.refused", "agent_output.invalid"]);
-/** Rewritten this often even if nothing changed, so a deleted document comes back. */
+/**
+ * Checked this often even if nothing changed, so a deleted document comes back. Checked, not
+ * rewritten: every write shows up in the room's chat as "updated room document", and an unchanged
+ * document is no news.
+ */
 const REFRESH_MS = 10 * 60_000;
 /** How Switch may answer when a room document's name is already used. */
 const NAME_TAKEN: ReadonlySet<number> = new Set([400, 409, 422]);
@@ -191,7 +195,18 @@ export class RoomBoard {
     const hashKey = `room_doc:${doc.slug}:hash`;
     const nowMs = this.d.now().getTime();
     const written = this.lastWrite.get(doc.slug);
-    if (kvGet(db, hashKey) === hash && kvGet(db, idKey) && written !== undefined && nowMs - written < REFRESH_MS) return;
+    const unchangedId = kvGet(db, hashKey) === hash && written !== undefined ? kvGet(db, idKey) : undefined;
+    if (unchangedId) {
+      if (nowMs - written! < REFRESH_MS) return;
+      // Nothing changed since the last write: only make sure the document is still in the room.
+      const listed = await this.d.call("list_references", {}, connectionId);
+      if (!listed.ok) throw new Error(`list_references: ${listed.reason}`);
+      if (findDocumentId(listed.result, doc.name) === unchangedId) {
+        this.lastWrite.set(doc.slug, nowMs);
+        return;
+      }
+      // Gone, or replaced: the update below fails on a deleted document and makes a new one.
+    }
     const content = `# ${doc.name}\n\nUpdated ${this.d.now().toISOString()}. ${STATUS_ONLY}\n\n${body}\n`;
     const done = (id: string) => {
       kvSet(db, idKey, id);

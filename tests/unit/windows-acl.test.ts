@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { assertPrivateKeyFile, ConfigError, loadRuntimeConfig } from "../../apps/switch-gate/src/config.js";
 import { assessWindowsAcl, cloudSyncRoot, readWindowsAcl, windowsPermissions, type WindowsAcl } from "../../apps/switch-gate/src/platform/windows-acl.js";
-import { writePrivateKey } from "../helpers/private-key.js";
+import { system32, writePrivateKey } from "../helpers/private-key.js";
 
 // The Windows form of "only the owner can reach the key". The rules are pure and tested on every
 // platform; the last block runs against real NTFS ACLs on Windows.
@@ -130,13 +130,13 @@ describe.runIf(process.platform === "win32")("real NTFS ACLs", () => {
 
   it("granting Everyone read access makes the real check refuse the key", () => {
     const key = fresh();
-    execFileSync("icacls", [key, "/grant", "*S-1-1-0:R"], { stdio: "ignore" });
+    execFileSync(system32("icacls.exe"), [key, "/grant", "*S-1-1-0:R"], { stdio: "ignore" });
     expect(() => assertPrivateKeyFile(key)).toThrow(/S-1-1-0 has access/);
   });
 
   it("a file still inheriting from a folder another account can read is refused", () => {
     dir = mkdtempSync(join(tmpdir(), "loopback-acl-"));
-    execFileSync("icacls", [dir, "/grant", "*S-1-1-0:(OI)(CI)(R)"], { stdio: "ignore" });
+    execFileSync(system32("icacls.exe"), [dir, "/grant", "*S-1-1-0:(OI)(CI)(R)"], { stdio: "ignore" });
     const key = join(dir, "gate.pem");
     writeFileSync(key, "not a real key");
     expect(() => assertPrivateKeyFile(key)).toThrow(/S-1-1-0 has access/);
@@ -144,7 +144,7 @@ describe.runIf(process.platform === "win32")("real NTFS ACLs", () => {
 
   it("granting Everyone write access to the directory makes the real check refuse the key", () => {
     const key = fresh();
-    execFileSync("icacls", [dir, "/grant", "*S-1-1-0:(M)"], { stdio: "ignore" });
+    execFileSync(system32("icacls.exe"), [dir, "/grant", "*S-1-1-0:(M)"], { stdio: "ignore" });
     expect(() => assertPrivateKeyFile(key)).toThrow(/S-1-1-0 can write/);
   });
 

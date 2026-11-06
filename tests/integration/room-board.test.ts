@@ -184,15 +184,49 @@ describe("RoomBoard", () => {
     expect(calls.some((c) => c.op === "list_references")).toBe(false);
   });
 
-  it("rewrites its documents now and then, so a deleted one comes back even when nothing changed", async () => {
+  // Every write appears in the room's chat as "updated room document", so an unchanged document is
+  // checked, not rewritten.
+  const listing = (docs: { id: string; name: string }[]): OpResult => ({ ok: true, result: { reference_types: {}, references: [], documents: docs, packages: [] } });
+
+  it("now and then checks an unchanged document is still there, without rewriting it", async () => {
     const h = createHarness();
-    const { board, calls, clock } = setup(h);
+    const { board, calls, clock } = setup(h, (c) => (c.op === "list_references" ? listing([{ id: "doc-1", name: "Loopback case board" }, { id: "doc-2", name: "Loopback decision log" }]) : undefined));
     await board.sync();
     await board.sync();
     expect(calls).toHaveLength(2);
     clock.now = new Date(clock.now.getTime() + 11 * 60_000);
     await board.sync();
-    expect(calls.slice(2).map((c) => c.op)).toEqual(["update_room_document", "update_room_document"]);
+    expect(calls.slice(2).map((c) => c.op)).toEqual(["list_references", "list_references"]);
+    await board.sync();
+    expect(calls).toHaveLength(4); // checked just now: nothing more until the next interval
+  });
+
+  it("brings back a document deleted while nothing changed", async () => {
+    const h = createHarness();
+    let deleted = false;
+    const { board, calls, clock } = setup(h, (c) => {
+      if (c.op === "list_references") return listing(deleted ? [{ id: "doc-2", name: "Loopback decision log" }] : []);
+      if (c.op === "update_room_document" && deleted && c.body.document_id === "doc-1") return failed(404);
+      return undefined;
+    });
+    await board.sync();
+    deleted = true;
+    clock.now = new Date(clock.now.getTime() + 11 * 60_000);
+    await board.sync();
+    expect(calls.slice(2).map((c) => c.op)).toEqual(["list_references", "update_room_document", "create_room_document", "list_references"]);
+    expect(calls.at(-2)?.body.name).toBe("Loopback case board");
+  });
+
+  it("a failed check writes nothing and is tried again next time", async () => {
+    const h = createHarness();
+    const { board, calls, clock, warnings } = setup(h, (c) => (c.op === "list_references" ? failed(500) : undefined));
+    await board.sync();
+    clock.now = new Date(clock.now.getTime() + 11 * 60_000);
+    await board.sync();
+    expect(calls.slice(2).map((c) => c.op)).toEqual(["list_references", "list_references"]);
+    expect(warnings).toHaveLength(2);
+    await board.sync();
+    expect(calls.slice(4).map((c) => c.op)).toEqual(["list_references", "list_references"]);
   });
 
   it("a flood of rejected reports can't push approvals and merges out of the decision log", async () => {

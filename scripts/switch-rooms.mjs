@@ -1,7 +1,10 @@
 #!/usr/bin/env node
 // Read-only: what Switch says about the gate's rooms, so .env can be filled in from evidence, not guesses.
 //   npm run switch-rooms                 every room the gate is in
-//   npm run switch-rooms -- --app Slack  only rooms on that messaging app, with suggested .env lines
+//   node --env-file=.env scripts/switch-rooms.mjs --app Slack
+//                                        only rooms on that messaging app, with suggested .env lines
+//                                        (run it this way: Windows PowerShell drops the `--` that
+//                                        `npm run switch-rooms -- --app Slack` needs)
 //
 // Uses the gate's own key from .env, the same calls the gate makes at startup (list_rooms, get_room_detail,
 // get_agent_detail) plus each room's recent history to show who has posted. It changes nothing and never
