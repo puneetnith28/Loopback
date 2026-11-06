@@ -91,7 +91,7 @@ export const SETUP_STEPS = [
     title: "Install Switch Console",
     where: "switch",
     screen: "home",
-    body: "From here on is the real setup, which takes a few hours the first time. Install Switch Console and complete its logins. It runs a local Switch server, with Mattermost as the chat app.",
+    body: "From here on is the real setup, which takes a few hours the first time. Install Switch Console and complete its logins. It runs a local Switch server. Under Messaging apps, connect Slack.",
   },
   {
     title: "Register the gate as an agent",

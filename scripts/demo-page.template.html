@@ -1,7 +1,7 @@
 <title>Loopback Rehearsal</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <meta name="description" content="Switch puts AI agents in your team chat. Loopback makes sure nothing merges without a person. Run the whole flow with no install, then turn Switch off and watch it stop.">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=Open+Sans:wght@400;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=Lato:wght@400;700;900&display=swap">
 <style>
 /* Concept: Switch is the main character. One button sits at the centre of a wired circuit, and everything on the page
    runs through it: agents, rooms, pulses, even the signals on the background grid. Turn it off and the page goes dark.
@@ -11,10 +11,10 @@
   --fg: #e7eef1; --muted: #93a3ab; --faint: #55636b; --wire: #8fd0d0; --seal: #a9dfdc; --seal-ink: #06181a; --glow: rgba(143, 208, 208, .35);
   --ok: #7fdca0; --ok-soft: #10291b; --wait: #e9c063; --wait-soft: #2a2310; --bad: #ff9a9a; --bad-soft: #2a1417;
   --sans: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif; --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
-  /* Chat pane: measured from a running Mattermost 11.9 in its default theme. */
-  --mm-top: #14213e; --mm-side: #1e325c; --mm-side-text: rgba(255,255,255,.72); --mm-side-hover: rgba(255,255,255,.08); --mm-active: rgba(255,255,255,.16);
-  --mm-center: #ffffff; --mm-text: #3f4350; --mm-soft: rgba(63,67,80,.72); --mm-line: rgba(63,67,80,.16); --mm-button: #1c58d9; --mm-hover: rgba(63,67,80,.05);
-  --mm-bad: #fbeaea; --mm-bad-text: #a4262c; --mm-via: #0b6f76; --mm-code: rgba(63,67,80,.07); --mm-font: "Open Sans", "Segoe UI", system-ui, sans-serif;
+  /* Chat pane: drawn after Slack's default Aubergine theme. It is a drawing, not measured from Slack. */
+  --mm-top: #350d36; --mm-side: #3f0e40; --mm-side-text: rgba(255,255,255,.72); --mm-side-hover: rgba(255,255,255,.1); --mm-active: #1164a3;
+  --mm-center: #ffffff; --mm-text: #1d1c1d; --mm-soft: #616061; --mm-line: #dddddd; --mm-button: #007a5a; --mm-hover: #f8f8f8;
+  --mm-bad: #fbeaea; --mm-bad-text: #a4262c; --mm-via: #0b6f76; --mm-code: rgba(29,28,29,.06); --mm-font: "Lato", "Segoe UI", system-ui, sans-serif;
   /* Terminal */
   --term-bg: #05080b; --term-fg: #d6dde4; --term-dim: #8592a0; --term-ok: #7fdca0; --term-bad: #ff9a9a; --term-prompt: #8fd0d0;
   --top-h: 104px;
@@ -378,7 +378,7 @@ body.off .says p { color: var(--bad); }
 .mm-group { padding: 10px 18px 4px; font: 600 12px var(--mm-font); letter-spacing: .02em; color: rgba(255,255,255,.55); }
 .mm-chan { display: flex; align-items: center; gap: 9px; width: 100%; height: 32px; padding: 0 16px 0 19px; border: 0; background: none; color: inherit; font: 400 14px var(--mm-font); text-align: left; cursor: pointer; transition: background .15s; }
 .mm-chan:hover { background: var(--mm-side-hover); }
-.mm-chan[aria-current="true"] { background: var(--mm-active); color: #fff; box-shadow: inset 3px 0 0 #5d89ea; }
+.mm-chan[aria-current="true"] { background: var(--mm-active); color: #fff; border-radius: 6px; }
 .mm-chan.unread { color: #fff; font-weight: 700; }
 .mm-chan .count { margin-left: auto; padding: 0 6px; border-radius: 9px; background: #fff; color: var(--mm-side); font: 700 11px/16px var(--mm-font); }
 .mm-chan svg { flex: none; }
@@ -389,12 +389,12 @@ body.off .says p { color: var(--bad); }
 .mm-posts { overflow-y: auto; padding-bottom: 8px; min-height: 0; scroll-behavior: smooth; }
 .mm-empty { padding: 28px 24px; display: grid; gap: 6px; color: var(--mm-soft); }
 .mm-empty b { font: 600 20px var(--mm-font); color: var(--mm-text); }
-.post { display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: 0 11px; padding: 10px 16px 6px 21px; }
+.post { display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 0 11px; padding: 10px 16px 6px 21px; }
 .post:hover { background: var(--mm-hover); }
-.post .av { width: 32px; height: 32px; border: 0; color: #fff; font: 600 13px var(--mm-font); }
+.post .av { width: 36px; height: 36px; border: 0; border-radius: 6px; color: #fff; font: 700 14px var(--mm-font); }
 .post .h { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 7px; }
-.post .n { font-weight: 600; }
-.post .bot { font: 600 10px/14px var(--mm-font); padding: 0 4px; border-radius: 2px; background: var(--mm-code); color: var(--mm-soft); }
+.post .n { font-weight: 900; }
+.post .bot { font: 700 10px/14px var(--mm-font); padding: 0 4px; border-radius: 3px; background: rgba(29,28,29,.13); color: rgba(29,28,29,.7); }
 .post .t { font-size: 12.6px; line-height: 18px; color: var(--mm-soft); }
 .post .m { color: var(--mm-text); overflow-wrap: anywhere; white-space: pre-wrap; }
 .post .m code { font: 12.5px var(--mono); padding: 1px 4px; border-radius: 3px; background: var(--mm-code); }
@@ -607,7 +607,7 @@ body.off .says p { color: var(--bad); }
     <div id="dgm-hero"></div>
     <div class="under">
       <span id="hero-hint">TURN THE SWITCH OFF AND WATCH WHAT'S LEFT</span>
-      <span>TESTED ON MATTERMOST 11.9 · SWITCH 0.31</span>
+      <span>LIVE-TESTED ON MATTERMOST · SLACK PREPARED · SWITCH 0.31</span>
       <div class="refusal" data-refusal hidden></div>
     </div>
   </section>
@@ -735,11 +735,11 @@ body.off .says p { color: var(--bad); }
       <div class="tag" id="tag"></div>
       <div class="pane" id="pane-chat">
         <div class="mm">
-          <div class="mm-top"><div class="mm-search">Search</div><div class="mm-me" id="me"></div></div>
+          <div class="mm-top"><div class="mm-search">Search Acme</div><div class="mm-me" id="me"></div></div>
           <div class="mm-body">
             <nav class="mm-side" aria-label="Rooms">
               <div class="mm-team">Acme</div>
-              <div class="mm-group">CHANNELS</div>
+              <div class="mm-group">Channels</div>
               <div id="rooms" style="display:contents"></div>
             </nav>
             <div class="mm-main">
@@ -805,7 +805,7 @@ body.off .says p { color: var(--bad); }
       <tr><td>Chat replies from the gate</td><td>Recorded from the gate's real router, permissions, state machine and merge policy (<code>apps/switch-gate/src/demo/rehearsal.ts</code>), which check 16 outcomes as they run.</td></tr>
       <tr><td>Evidence console</td><td>The real React app from <code>apps/console</code>. It reads responses recorded from the real API in <code>apps/console-api</code>, taken at each step of that run, including the settings the rehearsal recorded as the gate does.</td></tr>
       <tr><td>Terminal</td><td>What <code>npm run demo</code> printed during that run. Setup commands come from <code>docs/setup.md</code>.</td></tr>
-      <tr><td>Team chat layout</td><td>Rebuilt from a running Mattermost 11.9. It's a copy of the layout, and only the recorded messages get answers.</td></tr>
+      <tr><td>Team chat layout</td><td>Drawn after Slack's layout; it is not a capture of Slack. Only the recorded messages get answers. The live runs so far used Mattermost, and Slack is prepared but not yet run live.</td></tr>
       <tr><td>Switch Console screens</td><td>Illustrations unless marked as screenshots. Field labels come from the real template file.</td></tr>
       <tr><td>The Switch button</td><td>Switches this page to what happens with no Switch: messages aren't delivered, no step can run, and the console shows no case. The refusal text is the gate's real wording, and a test fails if it changes in the code.</td></tr>
       <tr><td>The build</td><td><code>npm run demo:page</code> (<code>scripts/build-demo-page.mjs</code>). It writes nothing if the rehearsal fails.</td></tr>
@@ -1175,7 +1175,7 @@ npm run demo</pre>
     av.style.background = PEOPLE[who] || "#52626f";
     var main = el("div"), h = el("div", "h");
     h.append(el("span", "n", shortName(who)));
-    if (kind !== "person") h.append(el("span", "bot", "BOT"));
+    if (kind !== "person") h.append(el("span", "bot", "APP"));
     h.append(el("span", "t", clock(j)));
     main.append(h, richInto(el("div", "m"), text));
     var via = opts.undelivered ? "Not delivered. There is no room to type this in, and nothing to carry it to the gate." : $("showvia").checked ? viaSwitch(kind, text, room, opts.senderId) : "";
@@ -1224,13 +1224,13 @@ npm run demo</pre>
       b.setAttribute("aria-current", String(r === S.room));
       var icon = svgEl("svg");
       icon.setAttribute("width", "16"); icon.setAttribute("height", "16"); icon.setAttribute("viewBox", "0 0 24 24"); icon.setAttribute("fill", "none"); icon.setAttribute("stroke", "currentColor"); icon.setAttribute("stroke-width", "2"); icon.setAttribute("aria-hidden", "true");
-      icon.innerHTML = r === "loopback-maintainers" ? '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>' : '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>';
+      icon.innerHTML = r === "loopback-maintainers" ? '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>' : '<path d="M10 4 8 20M16 4l-2 16M5 9h15M4 15h15"/>';
       b.append(icon, el("span", null, r));
       if (n > 0) b.append(el("span", "count", String(n)));
       b.addEventListener("click", function () { S.room = r; S.fresh = false; renderChat(); });
       return b;
     }));
-    $("room-name").textContent = S.room;
+    $("room-name").textContent = (S.room === "loopback-maintainers" ? "" : "# ") + S.room;
     $("rr-room").textContent = "#" + S.room;
     var list = S.on ? postsFor(S.room) : [];
     S.undelivered.forEach(function (u) { if (u.room === S.room) list.push(post(S.i, u.who, "person", u.text, S.room, { undelivered: true, fresh: true })); });
@@ -1490,7 +1490,7 @@ npm run demo</pre>
         main.append(el("p", "prose", "Import a template to create a team of agents and rooms from one file."), imp);
       } else {
         main.append(el("div", "eyebrow", shot ? "Then Switch asks for these, from templates/loopback.template.yaml" : "templates/loopback.template.yaml"));
-        data.fields.forEach(function (f) { var d = el("div", "field"); d.append(el("span", null, f), el("i", null, f.indexOf("Messaging") === 0 ? "Mattermost" : f.indexOf("Coding") === 0 ? "opencode" : "Default folder")); main.append(d); });
+        data.fields.forEach(function (f) { var d = el("div", "field"); d.append(el("span", null, f), el("i", null, f.indexOf("Messaging") === 0 ? "Slack" : f.indexOf("Coding") === 0 ? "opencode" : "Default folder")); main.append(d); });
         if (opts.tpl === 1) { var use = el("button", "btn primary", "Use"); use.type = "button"; use.addEventListener("click", opts.nextTpl); main.append(use); }
         else main.append(el("p", null, "Created loopback-fixer, loopback-verifier, loopback-intake and loopback-maintainers."));
       }
@@ -1530,7 +1530,7 @@ npm run demo</pre>
 
   // ---- Tabs ----
   var TAGS = {
-    chat: "Team chat: Mattermost's layout with recorded messages. Type what the guide says.",
+    chat: "Team chat, drawn after Slack, with recorded messages. Type what the guide says. The live runs so far used Mattermost.",
     github: "GitHub, simulated. On a live run these are real pull requests, checks and rules.",
     console: "The real evidence console from apps/console, reading responses recorded from its real API at this step. It's read-only, here and on a local install.",
     switch: "",

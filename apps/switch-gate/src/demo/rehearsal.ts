@@ -33,9 +33,10 @@ const G = "@loopback-gate";
 const FIXER = "@switch-agent-fixer:demo";
 const VERIFIER = "@switch-agent-verifier:demo";
 const SELF = "@switch-agent-gate:demo";
-const MAINTAINER = "@switch-mattermost-puneet:demo";
-const REPORTER = "@switch-mattermost-prashant:demo";
-const STRANGER = "@switch-mattermost-mallory:demo";
+// People's ids in the shape Switch's Slack bridge gives them (`@switch-slack-<bridge>-<username>:<server>`, shortened).
+const MAINTAINER = "@switch-slack-puneet:demo";
+const REPORTER = "@switch-slack-prashant:demo";
+const STRANGER = "@switch-slack-mallory:demo";
 const MAINT_ROOM = "loopback-maintainers";
 const INTAKE_ROOM = "loopback-intake";
 const BASE_SHA = "b".repeat(40);

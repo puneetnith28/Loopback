@@ -34,7 +34,7 @@ const API_PATHS = [
 const SHOTS = ["home", "templates", "rooms"];
 
 /** Readable names for the rehearsal's participant ids in a table cell. */
-const friendly = (cell) => cell.replaceAll(String.fromCharCode(0x200b), "").replace(/^@?switch-(?:mattermost|agent)-(\w+):demo$/, (m, who) => NAMES[who] ?? m);
+const friendly = (cell) => cell.replaceAll(String.fromCharCode(0x200b), "").replace(/^@?switch-(?:slack|mattermost|agent)-(\w+):demo$/, (m, who) => NAMES[who] ?? m);
 
 /** A Markdown table's rows, leaving out the named columns. Cells may hold escaped pipes. */
 function tableRows(markdown, drop = []) {

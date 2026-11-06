@@ -25,6 +25,30 @@ describe("decoding Slack's escapes", () => {
   });
 });
 
+describe("what the real Slack bridge delivers", () => {
+  // Recorded by running switch-core 0.31.0's own `SlackAdapter.translate_inbound` on raw Slack text, with the
+  // gate's user group registered as S0GATE. Raw Slack text on the left, the bridge's output on the right.
+  const SHA = "c7d92e41b6a03f58e1c4d7a2f9b0e63c5a18d4f7";
+  const recorded: readonly (readonly [string, string, ReturnType<typeof parseCommand>["ok"]])[] = [
+    [`<!subteam^S0GATE> approve LB-001 ${SHA}`, `@loopback-gate approve LB-001 ${SHA}`, true],
+    ["<!subteam^S0GATE|@loopback-gate> merge LB-001", "@loopback-gate merge LB-001", true],
+    ["@loopback-gate status LB-001", "@loopback-gate status LB-001", true],
+    ["<!subteam^S0GATE> decline LB-001 not a bug: a &lt; b &amp;&amp; c &gt; d", "@loopback-gate decline LB-001 not a bug: a &lt; b &amp;&amp; c &gt; d", true],
+    ["<!subteam^S0GATE> report see <https://example.com/i/1|the issue>, <@U0PRASHANT> found it", "@loopback-gate report see [the issue](https://example.com/i/1), @prashant found it", true],
+    ["`<!subteam^S0GATE> status LB-001`", "`@loopback-gate status LB-001`", true],
+    ["<!subteam^S0UNKNOWN> merge LB-001", "<!subteam^S0UNKNOWN> merge LB-001", false],
+    ["<!channel> <!subteam^S0GATE> merge LB-001", "@channel @loopback-gate merge LB-001", false],
+  ];
+
+  it.each(recorded)("%s", (_raw, delivered, runs) => {
+    expect(parseCommand(decodeChatEscapes(delivered), G).ok).toBe(runs);
+  });
+
+  it("records a decline's reason as the person typed it", () => {
+    expect(parseCommand(decodeChatEscapes(recorded[3]![1]), G)).toMatchObject({ ok: true, command: { kind: "decline", reason: "not a bug: a < b && c > d" } });
+  });
+});
+
 describe("a command pasted as code", () => {
   it("runs when the whole message is one code span", () => {
     expect(parseCommand("`@loopback-gate status LB-001`", G)).toMatchObject({ ok: true, command: { kind: "status", caseId: "LB-001" } });
