@@ -154,7 +154,15 @@ describe("the public click-through page", () => {
     expect(page).toContain("Simulated rehearsal.");
     expect(page).toContain("Illustration of Switch Console");
     expect(page).toContain("How it's built");
-    expect(page).toContain("Not proven yet");
+    expect(page).toContain("How this page works");
+  });
+
+  it("shows the live example with a link to its evidence", () => {
+    const page = template();
+    expect(page).toContain("Live example");
+    expect(page).toContain("https://github.com/puneetnith28/loopback-demo-target/pull/3");
+    expect(page).toContain("docs/evidence/phase-08-day2.md");
+    expect(page).not.toContain('data-chapter="proof"');
   });
 
   it("shows only setup commands from the docs, with placeholders for every secret", () => {
