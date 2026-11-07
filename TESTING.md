@@ -19,7 +19,7 @@ The times for level 2 were measured from a clean clone on Windows 11 with Node 2
 
 ## Level 1: the web page
 
-Open [the demo page](https://claude.ai/artifact/JWwtrnBgQ6UjhvpymQp5Nf). Nothing is installed. The chat messages, refusals and console screens were recorded from a run of the gate's real code; Switch's delivery, GitHub and the agents are simulated, and a label on every screen says so.
+Open [the demo page](https://loopbackv2-demo.vercel.app/). Nothing is installed. The chat messages, refusals and console screens were recorded from a run of the gate's real code; Switch's delivery, GitHub and the agents are simulated, and a label on every screen says so.
 
 **If you only have a few minutes, this is the part to watch:**
 
