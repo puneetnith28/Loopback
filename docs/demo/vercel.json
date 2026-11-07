@@ -1,4 +1,4 @@
 {
   "cleanUrls": true,
-  "rewrites": [{ "source": "/", "destination": "/loopback-demo.html" }]
+  "rewrites": [{ "source": "/", "destination": "/loopback-demo" }]
 }
