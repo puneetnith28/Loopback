@@ -42,7 +42,7 @@ flowchart LR
 |---|---|---|
 | **Rooms** on a chat app (Mattermost here) | A public room for reports, and a private maintainers' room where people and agents work | Nobody can report, accept, approve or merge. The gate has no other way to hear a person |
 | **The agent connection** | The gate holds one WebSocket per room over [Switch's agent protocol](https://docs.switchagents.ai/switch-rooms/internals/agent-protocol.md), with reconnect and takeover fencing (`apps/switch-gate/src/switch/connection.ts`) | Nothing reaches the gate |
-| **Provider agents** run by Switch Console | The fixer and verifier are OpenCode sessions, each with its own identity. The gate tasks them only by message in the room | No fix is written or checked |
+| **Provider agents** run by Switch Console | The fixer and verifier are Claude Code sessions (the template also accepts OpenCode or Codex), each with its own identity. The gate tasks them only by message in the room | No fix is written or checked |
 | **Sender identity** | An approval counts only from an exact Switch participant id on the maintainers' list, never a display name | Anyone could type a maintainer's name |
 | **Addressing policy** | Switch decides who may address the gate. The gate refuses to start unless the policy is the expected restrictive one, and stops if it changes | The gate's permissions would have nothing to stand on |
 | **Room documents** | A live case board and decision log in the room. Only their author can change them through the agent API, so agents read them but can't rewrite them | The team needs another tool to see where work stands |
