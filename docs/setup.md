@@ -279,8 +279,10 @@ Verified against Switch Console 0.40.1 / switch-core 0.31.0 (agent bridge on
 The gate speaks only to Switch, so the chat app is Switch's choice. Everything above holds for Slack,
 with these differences. They come from reading switch-core 0.31.0's Slack bridge
 (`bridges/collaboration/slack/adapter.py`) and from `tests/integration/slack-delivery.test.ts`, which
-feeds the gate messages as that bridge delivers them. The gate runs in a Slack workspace: it connects to
-both rooms, Switch's addressing policy accepts a maintainer's commands, and it answers them there.
+feeds the gate messages as that bridge delivers them. The gate has run a complete case in a Slack
+workspace: a report in the intake channel, triage, the fixer's pull request, the verifier's signed
+report, an approval voided by a later commit, a refused merge, a fresh approval and a merge confirmed
+by GitHub (PR #8 in the demo repository, 25 audit events).
 
 ### What the Slack bridge does for you
 - **Mentions arrive as names.** Picking `@loopback-gate` from Slack's `@` menu sends a user-group

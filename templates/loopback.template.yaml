@@ -10,7 +10,7 @@ params:
   provider:
     type: provider
     label: Coding agent for the fixer and the verifier
-    default: [opencode, claude, codex]
+    default: [claude, opencode, codex]
     # A list of defaults makes a param required. Not required here, so the template can run with
     # existing agents standing in for both (allow_existing), where no provider is needed.
     required: false
